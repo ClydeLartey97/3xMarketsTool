@@ -1,0 +1,166 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+
+from app.db.session import get_db
+from app.models import Forecast
+from app.schemas.domain import (
+    AlertRead,
+    ArticleIngestRequest,
+    DashboardResponse,
+    EventRead,
+    ForecastRunResponse,
+    ForecastRead,
+    HealthResponse,
+    MarketRead,
+    PricePointRead,
+)
+from app.services.alert_service import list_alerts, refresh_alerts_for_market
+from app.services.event_service import ingest_article, list_events
+from app.services.forecast_service import list_forecasts, list_recent_prices, run_forecast_for_market
+from app.services.market_service import get_market_by_code, get_market_by_id, list_markets
+
+router = APIRouter()
+
+
+@router.get("/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    return HealthResponse(status="ok", timestamp=datetime.now(timezone.utc), database="configured")
+
+
+@router.get("/markets", response_model=list[MarketRead])
+def get_markets(db: Session = Depends(get_db)) -> list[MarketRead]:
+    markets = list_markets(db)
+    return [
+        MarketRead(
+            id=market.id,
+            name=market.name,
+            code=market.code,
+            commodity_type=market.commodity_type,
+            region=market.region,
+            timezone=market.timezone,
+            metadata=market.metadata_json,
+        )
+        for market in markets
+    ]
+
+
+@router.get("/markets/{market_id}", response_model=MarketRead)
+def get_market(market_id: int, db: Session = Depends(get_db)) -> MarketRead:
+    market = get_market_by_id(db, market_id)
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+    return MarketRead(
+        id=market.id,
+        name=market.name,
+        code=market.code,
+        commodity_type=market.commodity_type,
+        region=market.region,
+        timezone=market.timezone,
+        metadata=market.metadata_json,
+    )
+
+
+@router.get("/markets/{market_id}/prices", response_model=list[PricePointRead])
+def get_prices(market_id: int, limit: int = Query(default=168, le=720), db: Session = Depends(get_db)) -> list[PricePointRead]:
+    if not get_market_by_id(db, market_id):
+        raise HTTPException(status_code=404, detail="Market not found")
+    return [PricePointRead.model_validate(item) for item in list_recent_prices(db, market_id, limit=limit)]
+
+
+@router.get("/markets/{market_id}/forecast", response_model=list[ForecastRead])
+def get_market_forecast(market_id: int, limit: int = Query(default=24, le=168), db: Session = Depends(get_db)) -> list[ForecastRead]:
+    if not get_market_by_id(db, market_id):
+        raise HTTPException(status_code=404, detail="Market not found")
+    forecasts = list_forecasts(db, market_id, limit)
+    return [ForecastRead.model_validate(item) for item in forecasts]
+
+
+@router.post("/forecasts/run", response_model=ForecastRunResponse)
+def run_forecast(market_code: str = Query(default="ERCOT_NORTH"), db: Session = Depends(get_db)) -> ForecastRunResponse:
+    market = get_market_by_code(db, market_code)
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+    forecasts, metrics = run_forecast_for_market(db, market)
+    refresh_alerts_for_market(db, market.id)
+    return ForecastRunResponse(
+        market=MarketRead(
+            id=market.id,
+            name=market.name,
+            code=market.code,
+            commodity_type=market.commodity_type,
+            region=market.region,
+            timezone=market.timezone,
+            metadata=market.metadata_json,
+        ),
+        forecast_points=[ForecastRead.model_validate(item) for item in forecasts],
+        metrics=metrics,
+    )
+
+
+@router.get("/markets/{market_id}/events", response_model=list[EventRead])
+def get_market_events(market_id: int, db: Session = Depends(get_db)) -> list[EventRead]:
+    if not get_market_by_id(db, market_id):
+        raise HTTPException(status_code=404, detail="Market not found")
+    return [EventRead.model_validate(item) for item in list_events(db, market_id=market_id)]
+
+
+@router.get("/events", response_model=list[EventRead])
+def get_events(db: Session = Depends(get_db)) -> list[EventRead]:
+    return [EventRead.model_validate(item) for item in list_events(db)]
+
+
+@router.post("/articles/ingest", response_model=Optional[EventRead])
+def post_article(payload: ArticleIngestRequest, db: Session = Depends(get_db)) -> EventRead | None:
+    event = ingest_article(db, payload)
+    return EventRead.model_validate(event) if event else None
+
+
+@router.get("/markets/{market_id}/alerts", response_model=list[AlertRead])
+def get_market_alerts(market_id: int, db: Session = Depends(get_db)) -> list[AlertRead]:
+    if not get_market_by_id(db, market_id):
+        raise HTTPException(status_code=404, detail="Market not found")
+    return [AlertRead.model_validate(item) for item in list_alerts(db, market_id)]
+
+
+@router.get("/dashboard/{market_code}", response_model=DashboardResponse)
+def get_dashboard(market_code: str, db: Session = Depends(get_db)) -> DashboardResponse:
+    market = get_market_by_code(db, market_code)
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    forecasts = list_forecasts(db, market.id, 24)
+    latest_forecast = forecasts[0] if forecasts else None
+    prices = list_recent_prices(db, market.id, 72)
+    events = list_events(db, market.id, 72)
+    alerts = list_alerts(db, market.id, 72)
+
+    avg_price = round(sum(point.price_value for point in prices[-24:]) / max(len(prices[-24:]), 1), 2)
+    avg_spike_probability = round(sum(f.spike_probability for f in forecasts[:12]) / max(len(forecasts[:12]), 1), 3)
+    high_severity_events = float(sum(1 for event in events if event.severity == "high"))
+
+    return DashboardResponse(
+        market=MarketRead(
+            id=market.id,
+            name=market.name,
+            code=market.code,
+            commodity_type=market.commodity_type,
+            region=market.region,
+            timezone=market.timezone,
+            metadata=market.metadata_json,
+        ),
+        latest_forecast=ForecastRead.model_validate(latest_forecast) if latest_forecast else None,
+        forecasts=[ForecastRead.model_validate(item) for item in forecasts],
+        recent_prices=[PricePointRead.model_validate(item) for item in prices],
+        recent_events=[EventRead.model_validate(item) for item in events],
+        active_alerts=[AlertRead.model_validate(item) for item in alerts],
+        key_metrics={
+            "avg_price_24h": avg_price,
+            "avg_spike_probability_12h": avg_spike_probability,
+            "high_severity_events": high_severity_events,
+        },
+    )
