@@ -13,6 +13,7 @@ import {
 
 type ChartPoint = {
   timestamp: string;
+  label?: string;
   actual?: number;
   forecast?: number;
   lower?: number;
@@ -20,27 +21,15 @@ type ChartPoint = {
   confidenceRatio?: number;
 };
 
-function buildSegments(forecast: ChartPoint[]) {
+function buildSegmentKeys(forecast: ChartPoint[]) {
   const segmentCount = Math.min(6, Math.max(3, forecast.length));
   const colors = ["#14a17a", "#35a06f", "#7ea24e", "#c68c22", "#d56522", "#cf4339"];
-  return Array.from({ length: segmentCount }, (_, segmentIndex) => {
-    const start = Math.floor((segmentIndex * forecast.length) / segmentCount);
-    const end = Math.floor(((segmentIndex + 1) * forecast.length) / segmentCount);
-    const slice = forecast.slice(start, Math.max(end, start + 1));
-    if (!slice.length) {
-      return { key: `segment_${segmentIndex}`, color: colors[segmentIndex], data: [] as ChartPoint[] };
-    }
-
-    const points = segmentIndex === 0 ? slice : [forecast[start - 1], ...slice].filter(Boolean);
-    return {
-      key: `segment_${segmentIndex}`,
-      color: colors[Math.min(segmentIndex, colors.length - 1)],
-      data: points.map((point) => ({
-        timestamp: point.timestamp,
-        [`segment_${segmentIndex}`]: point.forecast,
-      })),
-    };
-  });
+  return Array.from({ length: segmentCount }, (_, segmentIndex) => ({
+    key: `segment_${segmentIndex}`,
+    color: colors[Math.min(segmentIndex, colors.length - 1)],
+    start: Math.floor((segmentIndex * forecast.length) / segmentCount),
+    end: Math.floor(((segmentIndex + 1) * forecast.length) / segmentCount),
+  }));
 }
 
 export function PriceForecastChart({
@@ -50,13 +39,31 @@ export function PriceForecastChart({
   history: ChartPoint[];
   forecast: ChartPoint[];
 }) {
+  const segments = buildSegmentKeys(forecast);
   const bandData = forecast.map((point) => ({
     timestamp: point.timestamp,
+    label: point.label,
     lower: point.lower,
     band: (point.upper ?? 0) - (point.lower ?? 0),
   }));
-  const combinedData = [...history, ...forecast];
-  const segments = buildSegments(forecast);
+  const combinedData = [
+    ...history.map((point) => ({ ...point, label: point.label ?? point.timestamp })),
+    ...forecast.map((point, forecastIndex) => {
+      const segmentValues = Object.fromEntries(
+        segments.map((segment, segmentIndex) => {
+          const inSegment = forecastIndex >= segment.start && forecastIndex < Math.max(segment.end, segment.start + 1);
+          const onBoundary = forecastIndex === segment.start && forecastIndex > 0;
+          return [segment.key, inSegment || onBoundary ? point.forecast : null];
+        }),
+      );
+
+      return {
+        ...point,
+        label: point.label ?? point.timestamp,
+        ...segmentValues,
+      };
+    }),
+  ];
   const splitTimestamp = forecast[0]?.timestamp;
 
   return (
@@ -70,7 +77,12 @@ export function PriceForecastChart({
               <stop offset="100%" stopColor="#cf4339" stopOpacity={0.12} />
             </linearGradient>
           </defs>
-          <XAxis dataKey="timestamp" minTickGap={20} tick={{ fill: "#415466", fontSize: 11 }} />
+          <XAxis
+            dataKey="timestamp"
+            minTickGap={20}
+            tick={{ fill: "#415466", fontSize: 11 }}
+            tickFormatter={(_, index) => combinedData[index]?.label ?? ""}
+          />
           <YAxis tick={{ fill: "#415466", fontSize: 11 }} width={64} />
           <Tooltip />
           {splitTimestamp ? <ReferenceLine x={splitTimestamp} stroke="#b4c0cb" strokeDasharray="5 5" /> : null}
@@ -106,7 +118,6 @@ export function PriceForecastChart({
           {segments.map((segment, index) => (
             <Line
               key={segment.key}
-              data={segment.data}
               type="monotone"
               dataKey={segment.key}
               stroke={segment.color}

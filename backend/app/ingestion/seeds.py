@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.news_sources import NEWS_SOURCE_MAP
 from app.events.extractor import extract_primary_event
 from app.events.impact import estimate_price_impact_pct
 from app.models import Alert, DemandPoint, Event, Forecast, Market, NewsArticle, PricePoint, User, UserWatchlist, WeatherPoint
@@ -160,18 +161,92 @@ MARKET_DEFINITIONS = [
             "regional_basis": 9,
         },
     },
+    {
+        "name": "EPEX Germany Day-Ahead",
+        "code": "EPEX_DE",
+        "commodity_type": "power",
+        "region": "Germany",
+        "timezone": "Europe/Berlin",
+        "metadata_json": {
+            "nodes": ["EPEX_DE_LU"],
+            "market_type": "day_ahead",
+            "launch_tier": "expansion",
+            "market_family": "EPEX",
+        },
+        "profile": {
+            "demand_base": 56500,
+            "demand_amp": 8800,
+            "weekday_bias": 2600,
+            "weekend_bias": -2100,
+            "wind_base": 11200,
+            "wind_amp": 3000,
+            "solar_base": 6800,
+            "temp_base": 13,
+            "temp_amp": 9,
+            "regional_basis": 6,
+        },
+    },
+    {
+        "name": "EPEX France Day-Ahead",
+        "code": "EPEX_FR",
+        "commodity_type": "power",
+        "region": "France",
+        "timezone": "Europe/Paris",
+        "metadata_json": {
+            "nodes": ["EPEX_FR"],
+            "market_type": "day_ahead",
+            "launch_tier": "expansion",
+            "market_family": "EPEX",
+        },
+        "profile": {
+            "demand_base": 47200,
+            "demand_amp": 7200,
+            "weekday_bias": 2200,
+            "weekend_bias": -1800,
+            "wind_base": 5600,
+            "wind_amp": 1500,
+            "solar_base": 4100,
+            "temp_base": 14,
+            "temp_amp": 8,
+            "regional_basis": 5,
+        },
+    },
+    {
+        "name": "Nord Pool SE3",
+        "code": "NORDPOOL_SE3",
+        "commodity_type": "power",
+        "region": "Nordics",
+        "timezone": "Europe/Stockholm",
+        "metadata_json": {
+            "nodes": ["SE3"],
+            "market_type": "day_ahead",
+            "launch_tier": "expansion",
+            "market_family": "Nord Pool",
+        },
+        "profile": {
+            "demand_base": 15800,
+            "demand_amp": 3600,
+            "weekday_bias": 800,
+            "weekend_bias": -700,
+            "wind_base": 7100,
+            "wind_amp": 2100,
+            "solar_base": 900,
+            "temp_base": 9,
+            "temp_amp": 9,
+            "regional_basis": 4,
+        },
+    },
 ]
 
 
 def seed_database(db: Session) -> None:
-    existing_market = db.scalar(select(Market.id).limit(1))
-    if existing_market:
-        return
-
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    market_map = {market.code: market for market in db.scalars(select(Market))}
 
-    markets = [
-        Market(
+    for definition in MARKET_DEFINITIONS:
+        if definition["code"] in market_map:
+            continue
+        market = Market(
             name=definition["name"],
             code=definition["code"],
             commodity_type=definition["commodity_type"],
@@ -179,11 +254,9 @@ def seed_database(db: Session) -> None:
             timezone=definition["timezone"],
             metadata_json=definition["metadata_json"],
         )
-        for definition in MARKET_DEFINITIONS
-    ]
-    db.add_all(markets)
-    db.flush()
-    market_map = {market.code: market for market in markets}
+        db.add(market)
+        db.flush()
+        market_map[market.code] = market
 
     rng = np.random.default_rng(7)
     timestamps = [now - timedelta(hours=hour) for hour in range(24 * 14, 0, -1)]
@@ -191,63 +264,123 @@ def seed_database(db: Session) -> None:
         {
             "title": "ERCOT reports generator outage impacting 820 MW in North Hub",
             "body": "A forced outage has taken 820 MW offline in the ERCOT North Hub during the afternoon ramp.",
-            "source_name": "Grid Monitor",
-            "source_url": "https://example.com/ercot-generator-outage",
+            "summary": "ERCOT operating conditions tightened after a generator outage removed material capacity from the North Hub.",
+            "source_key": "ercot_official",
             "market_code": "ERCOT_NORTH",
             "published_at": now - timedelta(hours=3),
         },
         {
             "title": "Heat advisory raises peak load risk across Texas",
             "body": "An extreme heat advisory is expected to lift ERCOT load into the evening peak, increasing scarcity risk.",
-            "source_name": "Weather Desk",
-            "source_url": "https://example.com/heat-advisory",
+            "summary": "Weather-driven demand stress remains a top short-term power price driver in Texas.",
+            "source_key": "reuters_energy",
             "market_code": "ERCOT_NORTH",
             "published_at": now - timedelta(hours=10),
         },
         {
             "title": "Wind forecast revised lower for West Texas overnight",
             "body": "Analysts revised wind forecast lower, tightening the expected reserve margin across ERCOT.",
-            "source_name": "Renewables Wire",
-            "source_url": "https://example.com/wind-forecast",
+            "summary": "Lower wind expectations tighten reserve margins and raise evening price risk across ERCOT.",
+            "source_key": "canary_media",
             "market_code": "ERCOT_HOUSTON",
             "published_at": now - timedelta(hours=18),
         },
         {
             "title": "PJM transmission outage tightens Mid-Atlantic imports",
             "body": "A transmission outage in the Mid-Atlantic is expected to constrain transfers and lift PJM Western Hub prices into peak.",
-            "source_name": "ISO Operations",
-            "source_url": "https://example.com/pjm-transmission",
+            "summary": "PJM hub pricing can shift quickly when transfer capability tightens around the Mid-Atlantic.",
+            "source_key": "pjm_official",
             "market_code": "PJM_WESTERN_HUB",
             "published_at": now - timedelta(hours=5),
         },
         {
             "title": "NYISO heat advisory raises New York City peak demand risk",
             "body": "An extreme heat advisory across New York City could push Zone J demand higher during the afternoon and evening ramp.",
-            "source_name": "Weather Desk",
-            "source_url": "https://example.com/nyiso-heat",
+            "summary": "NYISO Zone J remains especially sensitive when weather lifts New York City peak demand.",
+            "source_key": "nyiso_official",
             "market_code": "NYISO_ZONE_J",
             "published_at": now - timedelta(hours=7),
         },
         {
             "title": "ISO-New England generator outage removes 460 MW near Mass Hub",
             "body": "A generator outage near Mass Hub is keeping supply conditions tighter than expected ahead of the morning peak.",
-            "source_name": "Grid Monitor",
-            "source_url": "https://example.com/isone-outage",
+            "summary": "Mass Hub conditions tighten when generator outages overlap the load ramp in New England.",
+            "source_key": "isone_official",
             "market_code": "ISONE_MASS_HUB",
             "published_at": now - timedelta(hours=9),
         },
         {
             "title": "Britain wind forecast revised lower ahead of evening demand pickup",
             "body": "A renewable forecast revision points to lower wind output across Great Britain, increasing balancing tightness tonight.",
-            "source_name": "Power Europe Wire",
-            "source_url": "https://example.com/gb-wind",
+            "summary": "Lower wind output can materially change UK balancing conditions over the evening peak.",
+            "source_key": "neso_official",
             "market_code": "GB_POWER",
             "published_at": now - timedelta(hours=6),
         },
+        {
+            "title": "German day-ahead power curve firms as wind profile softens",
+            "body": "Power traders are reassessing the German day-ahead balance after a softer wind outlook reduced expected renewable output.",
+            "summary": "German day-ahead prices often respond quickly to renewable forecast revisions and cross-border constraints.",
+            "source_key": "montel",
+            "market_code": "EPEX_DE",
+            "published_at": now - timedelta(hours=4),
+        },
+        {
+            "title": "RTE signale une tension reseau plus forte sur les echanges frontaliers",
+            "body": "Le gestionnaire du reseau francais indique que certaines capacites d echange restent plus contraintes a court terme.",
+            "summary": "French cross-border conditions remain tighter than usual over the near term.",
+            "translated_title": "RTE flags tighter short-term cross-border network conditions",
+            "translated_summary": "Auto-translated summary: the French grid operator is warning that some cross-border exchange capacity remains tighter than normal in the near term.",
+            "original_language": "fr",
+            "source_key": "rte_france",
+            "market_code": "EPEX_FR",
+            "published_at": now - timedelta(hours=8),
+        },
+        {
+            "title": "Bundesnetzagentur weist auf anhaltende Netzengpasse hin",
+            "body": "Die Bundesnetzagentur betont, dass regionale Engpasse weiter beobachtet werden muessen.",
+            "summary": "German grid congestion remains a live monitoring issue for market participants.",
+            "translated_title": "Bundesnetzagentur points to ongoing grid bottlenecks",
+            "translated_summary": "Auto-translated summary: Germany's regulator says regional transmission bottlenecks still need close monitoring.",
+            "original_language": "de",
+            "source_key": "bundesnetzagentur",
+            "market_code": "EPEX_DE",
+            "published_at": now - timedelta(hours=11),
+        },
+        {
+            "title": "Nordic hydro and wind balance shifts keep SE3 traders focused on prompt risk",
+            "body": "The Nordic power balance remains sensitive to hydro and wind revisions, keeping the prompt curve reactive.",
+            "summary": "Nordic prompt pricing remains highly sensitive to hydro and wind revisions.",
+            "source_key": "nord_pool",
+            "market_code": "NORDPOOL_SE3",
+            "published_at": now - timedelta(hours=13),
+        },
+        {
+            "title": "EPEX SPOT highlights continued volatility in European day-ahead trading",
+            "body": "Exchange-level commentary points to persistent sensitivity around renewable variability and interconnection limits.",
+            "summary": "European day-ahead power remains highly reactive to renewables and interconnection flows.",
+            "source_key": "epex_spot",
+            "market_code": "EPEX_DE",
+            "published_at": now - timedelta(hours=15),
+        },
+        {
+            "title": "Red Electrica subraya cambios en el equilibrio peninsular de corto plazo",
+            "body": "El operador del sistema destaca cambios recientes en el balance peninsular y su impacto operativo.",
+            "summary": "Spanish short-term system balance remains fluid.",
+            "translated_title": "Red Electrica highlights short-term changes in the Iberian system balance",
+            "translated_summary": "Auto-translated summary: Spain's system operator points to recent shifts in the short-term peninsula balance with operational impact.",
+            "original_language": "es",
+            "source_key": "ree",
+            "market_code": "GB_POWER",
+            "published_at": now - timedelta(hours=16),
+        },
     ]
 
-    for market in markets:
+    for market in market_map.values():
         profile = next(item["profile"] for item in MARKET_DEFINITIONS if item["code"] == market.code)
+        has_prices = db.scalar(select(func.count()).select_from(PricePoint).where(PricePoint.market_id == market.id))
+        if has_prices:
+            continue
         for ts in timestamps:
             hour = ts.hour
             day = ts.weekday()
@@ -299,25 +432,48 @@ def seed_database(db: Session) -> None:
     db.flush()
 
     for payload in article_payloads:
+        source_meta = NEWS_SOURCE_MAP[payload["source_key"]]
+        existing_article = db.scalar(select(NewsArticle).where(NewsArticle.title == payload["title"]))
         raw_json = {
             key: value.isoformat() if isinstance(value, datetime) else value
             for key, value in payload.items()
         }
-        article = NewsArticle(
-            title=payload["title"],
-            body=payload["body"],
-            source_name=payload["source_name"],
-            source_url=payload["source_url"],
-            published_at=payload["published_at"],
-            raw_json=raw_json,
-            processed_status="processed",
+        raw_json.update(
+            {
+                "source_url": source_meta["url"],
+                "source_name": source_meta["name"],
+                "credibility_rating": source_meta["credibility_rating"],
+                "credibility_label": source_meta["credibility_label"],
+                "source_homepage": source_meta["url"],
+                "notes": source_meta["notes"],
+                "original_language": payload.get("original_language", source_meta["language"]),
+            }
         )
-        db.add(article)
-        db.flush()
+        if existing_article:
+            article = existing_article
+            article.body = payload["body"]
+            article.source_name = source_meta["name"]
+            article.source_url = source_meta["url"]
+            article.published_at = payload["published_at"]
+            article.raw_json = raw_json
+            article.processed_status = "processed"
+        else:
+            article = NewsArticle(
+                title=payload["title"],
+                body=payload["body"],
+                source_name=source_meta["name"],
+                source_url=source_meta["url"],
+                published_at=payload["published_at"],
+                raw_json=raw_json,
+                processed_status="processed",
+            )
+            db.add(article)
+            db.flush()
 
         market = market_map.get(payload["market_code"])
         extracted = extract_primary_event(payload["title"], payload["body"], market.region if market else "ERCOT")
-        if extracted:
+        existing_event = db.scalar(select(Event).where(Event.article_id == article.id))
+        if extracted and not existing_event:
             db.add(
                 Event(
                     article_id=article.id,
@@ -344,15 +500,16 @@ def seed_database(db: Session) -> None:
         organisation="3x Demo",
         role="analyst",
     )
-    db.add(demo_user)
-    db.flush()
-    db.add(
-        UserWatchlist(
-            user_id=demo_user.id,
-            market_id=markets[0].id,
-            configuration_json={"alert_preferences": ["spike_risk", "outage", "policy"]},
+    if not db.scalar(select(User.id).where(User.email == demo_user.email)):
+        db.add(demo_user)
+        db.flush()
+        db.add(
+            UserWatchlist(
+                user_id=demo_user.id,
+                market_id=market_map["ERCOT_NORTH"].id,
+                configuration_json={"alert_preferences": ["spike_risk", "outage", "policy"]},
+            )
         )
-    )
 
     alerts = [
         Alert(
@@ -384,10 +541,16 @@ def seed_database(db: Session) -> None:
             severity="medium",
         ),
     ]
-    db.add_all(alerts)
+    existing_alert_titles = set(db.scalars(select(Alert.title)))
+    for alert in alerts:
+        if alert.title not in existing_alert_titles:
+            db.add(alert)
     db.flush()
 
-    for market in markets:
+    for market in market_map.values():
+        has_forecasts = db.scalar(select(func.count()).select_from(Forecast).where(Forecast.market_id == market.id))
+        if has_forecasts:
+            continue
         latest_price = db.scalars(
             select(PricePoint)
             .where(PricePoint.market_id == market.id)

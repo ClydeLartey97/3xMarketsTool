@@ -16,13 +16,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <div className="rounded-xl bg-slate px-3 py-2 text-sm font-semibold uppercase tracking-[0.24em] text-white">
-                  3x
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.22em] text-slate/50">Power intelligence platform</p>
-                  <h1 className="font-display text-3xl text-slate">Energy Market Intelligence</h1>
-                </div>
+                <Link href="/" className="flex items-center gap-3">
+                  <div className="rounded-xl bg-slate px-4 py-3 text-lg font-semibold uppercase tracking-[0.18em] text-white">
+                    3x
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate/50">Power intelligence platform</p>
+                    <h1 className="font-display text-3xl text-slate">Energy Market Intelligence</h1>
+                  </div>
+                </Link>
               </div>
             </div>
             <nav className="flex flex-wrap gap-3">

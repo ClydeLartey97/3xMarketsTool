@@ -51,6 +51,38 @@ export type EventItem = {
   created_at: string;
 };
 
+export type NewsArticle = {
+  id: number;
+  market_id: number | null;
+  market_code: string | null;
+  title: string;
+  display_title: string;
+  summary: string;
+  display_summary: string;
+  source_name: string;
+  source_url: string;
+  source_language: string;
+  is_auto_translated: boolean;
+  credibility_rating: number;
+  credibility_label: string;
+  published_at: string;
+  event_type: string | null;
+  price_direction: string | null;
+  affected_region: string | null;
+};
+
+export type NewsSource = {
+  key: string;
+  name: string;
+  url: string;
+  language: string;
+  country: string;
+  coverage: string[];
+  credibility_rating: number;
+  credibility_label: string;
+  notes: string;
+};
+
 export type AlertItem = {
   id: number;
   market_id: number;
@@ -68,6 +100,8 @@ export type DashboardData = {
   forecasts: ForecastPoint[];
   recent_prices: PricePoint[];
   recent_events: EventItem[];
+  recent_news: NewsArticle[];
+  tracked_sources: NewsSource[];
   active_alerts: AlertItem[];
   key_metrics: Record<string, number>;
 };

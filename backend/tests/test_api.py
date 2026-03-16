@@ -10,6 +10,8 @@ def test_dashboard_endpoint(client) -> None:
     body = response.json()
     assert body["market"]["code"] == "ERCOT_NORTH"
     assert len(body["recent_prices"]) > 0
+    assert len(body["recent_news"]) > 0
+    assert len(body["tracked_sources"]) >= 20
     assert "avg_price_24h" in body["key_metrics"]
 
 

@@ -1,4 +1,14 @@
-import { DashboardData, EventItem, ForecastPoint, ForecastRunResponse, Market, PricePoint, AlertItem } from "@/types/domain";
+import {
+  DashboardData,
+  EventItem,
+  ForecastPoint,
+  ForecastRunResponse,
+  Market,
+  PricePoint,
+  AlertItem,
+  NewsArticle,
+  NewsSource,
+} from "@/types/domain";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
@@ -28,6 +38,14 @@ export function getForecast(marketId: number): Promise<ForecastPoint[]> {
 
 export function getEvents(marketId?: number): Promise<EventItem[]> {
   return fetchJson<EventItem[]>(marketId ? `/markets/${marketId}/events` : "/events");
+}
+
+export function getNews(marketId: number): Promise<NewsArticle[]> {
+  return fetchJson<NewsArticle[]>(`/markets/${marketId}/news`);
+}
+
+export function getNewsSources(): Promise<NewsSource[]> {
+  return fetchJson<NewsSource[]>("/news/sources");
 }
 
 export function getAlerts(marketId: number): Promise<AlertItem[]> {

@@ -65,6 +65,38 @@ class ArticleIngestRequest(BaseModel):
     market_code: Optional[str] = None
 
 
+class NewsArticleRead(BaseModel):
+    id: int
+    market_id: Optional[int]
+    market_code: Optional[str]
+    title: str
+    display_title: str
+    summary: str
+    display_summary: str
+    source_name: str
+    source_url: str
+    source_language: str
+    is_auto_translated: bool
+    credibility_rating: float
+    credibility_label: str
+    published_at: datetime
+    event_type: Optional[str]
+    price_direction: Optional[str]
+    affected_region: Optional[str]
+
+
+class NewsSourceRead(BaseModel):
+    key: str
+    name: str
+    url: str
+    language: str
+    country: str
+    coverage: list[str]
+    credibility_rating: float
+    credibility_label: str
+    notes: str
+
+
 class EventRead(BaseModel):
     id: int
     article_id: Optional[int]
@@ -134,5 +166,7 @@ class DashboardResponse(BaseModel):
     forecasts: list[ForecastRead]
     recent_prices: list[PricePointRead]
     recent_events: list[EventRead]
+    recent_news: list[NewsArticleRead]
+    tracked_sources: list[NewsSourceRead]
     active_alerts: list[AlertRead]
     key_metrics: dict[str, float]

@@ -19,7 +19,8 @@ const TIMEFRAME_OPTIONS = [
 function buildChartData(dashboard: DashboardData, horizonHours: number) {
   const historyWindow = horizonHours <= 12 ? 18 : horizonHours <= 24 ? 30 : 48;
   const history = dashboard.recent_prices.slice(-historyWindow).map((point) => ({
-    timestamp: new Date(point.timestamp).toLocaleString([], {
+    timestamp: point.timestamp,
+    label: new Date(point.timestamp).toLocaleString([], {
       month: "short",
       day: "numeric",
       hour: "numeric",
@@ -27,7 +28,8 @@ function buildChartData(dashboard: DashboardData, horizonHours: number) {
     actual: point.price_value,
   }));
   const forward = dashboard.forecasts.slice(0, horizonHours).map((point, index, arr) => ({
-    timestamp: new Date(point.forecast_for_timestamp).toLocaleString([], {
+    timestamp: point.forecast_for_timestamp,
+    label: new Date(point.forecast_for_timestamp).toLocaleString([], {
       month: "short",
       day: "numeric",
       hour: "numeric",
@@ -38,7 +40,7 @@ function buildChartData(dashboard: DashboardData, horizonHours: number) {
     confidenceRatio: arr.length <= 1 ? 0 : index / (arr.length - 1),
   }));
 
-  return { history, forward, combined: [...history, ...forward] };
+  return { history, forward };
 }
 
 export function DashboardExperience({

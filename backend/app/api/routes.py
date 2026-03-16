@@ -17,12 +17,15 @@ from app.schemas.domain import (
     ForecastRead,
     HealthResponse,
     MarketRead,
+    NewsArticleRead,
+    NewsSourceRead,
     PricePointRead,
 )
 from app.services.alert_service import list_alerts, refresh_alerts_for_market
 from app.services.event_service import ingest_article, list_events
 from app.services.forecast_service import list_forecasts, list_recent_prices, run_forecast_for_market
 from app.services.market_service import get_market_by_code, get_market_by_id, list_markets
+from app.services.news_service import list_news_articles, list_news_sources
 
 router = APIRouter()
 
@@ -114,6 +117,18 @@ def get_events(db: Session = Depends(get_db)) -> list[EventRead]:
     return [EventRead.model_validate(item) for item in list_events(db)]
 
 
+@router.get("/markets/{market_id}/news", response_model=list[NewsArticleRead])
+def get_market_news(market_id: int, db: Session = Depends(get_db)) -> list[NewsArticleRead]:
+    if not get_market_by_id(db, market_id):
+        raise HTTPException(status_code=404, detail="Market not found")
+    return list_news_articles(db, market_id=market_id)
+
+
+@router.get("/news/sources", response_model=list[NewsSourceRead])
+def get_news_sources() -> list[NewsSourceRead]:
+    return list_news_sources()
+
+
 @router.post("/articles/ingest", response_model=Optional[EventRead])
 def post_article(payload: ArticleIngestRequest, db: Session = Depends(get_db)) -> EventRead | None:
     event = ingest_article(db, payload)
@@ -137,6 +152,7 @@ def get_dashboard(market_code: str, db: Session = Depends(get_db)) -> DashboardR
     latest_forecast = forecasts[0] if forecasts else None
     prices = list_recent_prices(db, market.id, 72)
     events = list_events(db, market.id, 72)
+    news = list_news_articles(db, market.id, 168, 20)
     alerts = list_alerts(db, market.id, 72)
 
     avg_price = round(sum(point.price_value for point in prices[-24:]) / max(len(prices[-24:]), 1), 2)
@@ -157,6 +173,8 @@ def get_dashboard(market_code: str, db: Session = Depends(get_db)) -> DashboardR
         forecasts=[ForecastRead.model_validate(item) for item in forecasts],
         recent_prices=[PricePointRead.model_validate(item) for item in prices],
         recent_events=[EventRead.model_validate(item) for item in events],
+        recent_news=news,
+        tracked_sources=list_news_sources(),
         active_alerts=[AlertRead.model_validate(item) for item in alerts],
         key_metrics={
             "avg_price_24h": avg_price,
