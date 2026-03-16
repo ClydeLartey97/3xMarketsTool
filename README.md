@@ -1,6 +1,6 @@
 # 3x MVP
 
-3x is a Python-first energy market intelligence MVP focused on power markets, starting with ERCOT. The backend owns ingestion, forecast generation, event extraction, event impact estimation, alerts, and API delivery; the Next.js frontend is a thin institutional dashboard over those services.
+3x is a Python-first energy market intelligence MVP focused on power markets, starting with ERCOT while remaining expandable to East Coast U.S. and UK power markets. The backend owns ingestion, forecast generation, event extraction, event impact estimation, alerts, and API delivery; the Next.js frontend is a thin institutional dashboard over those services.
 
 ## Architecture Summary
 
@@ -8,7 +8,7 @@
 - `frontend/` contains the Next.js dashboard, market detail view, event intelligence page, and developer/API surface.
 - `infrastructure/` contains Docker Compose for local startup with PostgreSQL and Redis.
 
-The code is organized so ERCOT is the first launch market without hard-coding the platform to a single commodity forever. `Market` remains generic, event types are explicit and extensible, and the forecast layer uses a shared interface that can later support richer power or cross-commodity models.
+The code is organized so ERCOT is the first launch market without hard-coding the platform to a single commodity forever. `Market` remains generic, event types are explicit and extensible, and the forecast layer uses a shared interface that can later support richer power or cross-commodity models. The local seed layer now includes ERCOT, PJM, NYISO, ISO-NE, and Great Britain market definitions.
 
 ## Product Scope
 
@@ -148,10 +148,11 @@ Coverage includes:
 ## Demo Path
 
 1. Open the dashboard and review the ERCOT North forecast.
-2. Inspect the confidence band and spike probability.
-3. Scroll the structured event feed to see how articles become market signals.
-4. Open the market detail page to view historical prices and alerts.
-5. Visit the developer page to confirm the API-first platform posture.
+2. Open one of the East Coast or UK market cards to inspect seeded expansion-market coverage.
+3. Inspect the confidence band and spike probability.
+4. Scroll the structured event feed to see how articles become market signals.
+5. Open the market detail page to view historical prices and alerts.
+6. Visit the developer page to confirm the API-first platform posture.
 
 ## Future Roadmap
 

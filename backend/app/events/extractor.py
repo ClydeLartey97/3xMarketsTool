@@ -54,6 +54,15 @@ REGION_MAP = {
     "north hub": "ERCOT North",
     "houston": "ERCOT Houston",
     "west zone": "ERCOT West",
+    "pjm": "PJM",
+    "mid-atlantic": "PJM Mid-Atlantic",
+    "new york iso": "NYISO",
+    "zone j": "NYISO Zone J",
+    "iso-new england": "ISO-NE",
+    "mass hub": "ISO-NE Mass Hub",
+    "britain": "Great Britain",
+    "great britain": "Great Britain",
+    "uk": "Great Britain",
 }
 
 

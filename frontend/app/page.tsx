@@ -42,7 +42,7 @@ export default async function HomePage() {
               <h2 className="mt-2 font-display text-4xl">{dashboard.market.name}</h2>
               <p className="mt-3 max-w-xl text-sm text-white/72">
                 3x is tracking forecast risk, event-driven dislocations, and local power price sensitivity
-                across the first launch market with a backend-driven intelligence stack.
+                across ERCOT first, while the platform seed layer already supports East Coast U.S. and UK power markets.
               </p>
             </div>
             <Link href={`/markets/${dashboard.market.code}`} className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate">
@@ -75,6 +75,29 @@ export default async function HomePage() {
           </div>
         </div>
         <AlertsPanel alerts={dashboard.active_alerts} />
+      </section>
+
+      <section className="rounded-[2rem] border border-white/60 bg-white/85 p-6 shadow-panel">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.24em] text-slate/60">Market Coverage</p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate">Seeded launch and expansion markets</h2>
+          </div>
+          <p className="text-sm text-slate/65">ERCOT, East Coast U.S., and Great Britain are now modeled in the local seed layer.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {markets.map((market) => (
+            <Link
+              key={market.code}
+              href={`/markets/${market.code}`}
+              className="rounded-3xl border border-slate/10 bg-mist/40 p-4 transition hover:border-slate/20 hover:bg-mist/70"
+            >
+              <p className="text-xs uppercase tracking-[0.18em] text-slate/55">{market.region}</p>
+              <h3 className="mt-2 text-lg font-semibold text-slate">{market.name}</h3>
+              <p className="mt-1 text-sm text-slate/70">{market.timezone}</p>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-[2rem] border border-white/60 bg-white/85 p-6 shadow-panel">
