@@ -6,8 +6,8 @@ import { getAlerts, getDashboard, getEvents, getForecast, getMarkets, getPrices 
 
 export const dynamic = "force-dynamic";
 
-export default async function MarketDetailPage({ params }: { params: { marketCode: string } }) {
-  const { marketCode } = params;
+export default async function MarketDetailPage({ params }: { params: Promise<{ marketCode: string }> }) {
+  const { marketCode } = await params;
   const markets = await getMarkets();
   const market = markets.find((item) => item.code === marketCode) ?? markets[0];
   const [dashboard, prices, forecasts, events, alerts] = await Promise.all([
@@ -18,18 +18,17 @@ export default async function MarketDetailPage({ params }: { params: { marketCod
     getAlerts(market.id),
   ]);
 
-  const chartData = [
-    ...prices.slice(-48).map((point) => ({
-      timestamp: new Date(point.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric" }),
-      actual: point.price_value,
-    })),
-    ...forecasts.slice(0, 24).map((point) => ({
-      timestamp: new Date(point.forecast_for_timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric" }),
-      forecast: point.point_estimate,
-      lower: point.lower_bound,
-      upper: point.upper_bound,
-    })),
-  ];
+  const historyData = prices.slice(-48).map((point) => ({
+    timestamp: new Date(point.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric" }),
+    actual: point.price_value,
+  }));
+  const forecastChart = forecasts.slice(0, 24).map((point, index, arr) => ({
+    timestamp: new Date(point.forecast_for_timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric" }),
+    forecast: point.point_estimate,
+    lower: point.lower_bound,
+    upper: point.upper_bound,
+    confidenceRatio: arr.length <= 1 ? 0 : index / (arr.length - 1),
+  }));
 
   return (
     <main className="space-y-6">
@@ -57,7 +56,7 @@ export default async function MarketDetailPage({ params }: { params: { marketCod
           </div>
           <div className="text-sm text-slate/65">Timezone: {market.timezone}</div>
         </div>
-        <PriceForecastChart data={chartData} />
+        <PriceForecastChart history={historyData} forecast={forecastChart} />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">

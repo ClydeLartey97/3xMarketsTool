@@ -6,18 +6,28 @@ function severityClass(severity: string): string {
   return "bg-slate/10 text-slate";
 }
 
-export function EventFeed({ events }: { events: EventItem[] }) {
+export function EventFeed({
+  events,
+  compact = false,
+  title = "Latest market-relevant signals",
+  subtitle = "Structured Events",
+}: {
+  events: EventItem[];
+  compact?: boolean;
+  title?: string;
+  subtitle?: string;
+}) {
   return (
     <section className="rounded-[1.8rem] border border-white/60 bg-white/85 p-6 shadow-panel">
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.26em] text-slate/60">Structured Events</p>
-          <h2 className="mt-1 text-2xl font-semibold text-slate">Latest market-relevant signals</h2>
+          <p className="text-xs uppercase tracking-[0.26em] text-slate/60">{subtitle}</p>
+          <h2 className="mt-1 text-2xl font-semibold text-slate">{title}</h2>
         </div>
       </div>
-      <div className="space-y-4">
+      <div className={compact ? "space-y-3" : "space-y-4"}>
         {events.map((event) => (
-          <article key={event.id} className="rounded-3xl border border-slate/8 bg-mist/40 p-4">
+          <article key={event.id} className={`rounded-3xl border border-slate/8 bg-mist/40 ${compact ? "p-4" : "p-4"}`}>
             <div className="flex flex-wrap items-center gap-3">
               <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${severityClass(event.severity)}`}>
                 {event.severity}
@@ -28,8 +38,8 @@ export function EventFeed({ events }: { events: EventItem[] }) {
               <span className="text-xs text-slate/55">{new Date(event.created_at).toLocaleString()}</span>
             </div>
             <h3 className="mt-3 text-lg font-semibold text-slate">{event.title}</h3>
-            <p className="mt-2 text-sm text-slate/75">{event.description}</p>
-            <div className="mt-4 grid gap-3 text-sm text-slate/75 md:grid-cols-4">
+            <p className="mt-2 text-sm text-slate/75">{compact ? `${event.description.slice(0, 140)}...` : event.description}</p>
+            <div className={`mt-4 grid gap-3 text-sm text-slate/75 ${compact ? "md:grid-cols-2" : "md:grid-cols-4"}`}>
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-slate/50">Region</p>
                 <p>{event.affected_region}</p>
