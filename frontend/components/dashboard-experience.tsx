@@ -187,9 +187,21 @@ export function DashboardExperience({
       <section className="grid gap-6 lg:grid-cols-2">
         <DriverList
           drivers={[
-            dashboard.latest_forecast?.rationale_summary ?? "Model rationale unavailable.",
-            `Average price over the latest window is $${dashboard.key_metrics.avg_price_24h.toFixed(2)} with ${dashboard.key_metrics.high_severity_events} high-severity events currently influencing context.`,
-            "Confidence fades further out because the system relies more heavily on weather, load, and event persistence assumptions at longer horizons.",
+            {
+              id: "rationale",
+              title: "Model read",
+              body: dashboard.latest_forecast?.rationale_summary ?? "Model rationale unavailable.",
+            },
+            {
+              id: "market-context",
+              title: "Observed context",
+              body: `Average price over the latest window is $${dashboard.key_metrics.avg_price_24h.toFixed(2)} with ${dashboard.key_metrics.high_severity_events} high-severity events currently influencing context.`,
+            },
+            {
+              id: "confidence",
+              title: "Confidence profile",
+              body: "Confidence fades further out because the system relies more heavily on weather, load, and event persistence assumptions at longer horizons.",
+            },
           ]}
           compact
         />

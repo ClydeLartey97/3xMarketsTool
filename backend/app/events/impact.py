@@ -9,6 +9,7 @@ def estimate_price_impact_pct(event: ExtractedEvent) -> float | None:
         "transmission_outage": 3.8,
         "extreme_weather_alert": 2.6,
         "renewable_forecast_revision": 2.2,
+        "demand_shock": 2.9,
         "regulatory_policy_announcement": 1.0,
     }.get(event.event_type, 1.0)
 

@@ -33,17 +33,41 @@ EVENT_PATTERNS: dict[str, dict[str, object]] = {
         "price_direction": "bullish",
     },
     "extreme_weather_alert": {
-        "keywords": ["extreme heat", "heat advisory", "cold snap", "winter storm", "weather alert"],
+        "keywords": ["extreme heat", "heat advisory", "cold snap", "winter storm", "weather alert", "heatwave", "summer outlook"],
         "asset_type": "weather",
         "price_direction": "bullish",
     },
     "renewable_forecast_revision": {
-        "keywords": ["wind forecast revised lower", "solar forecast revised lower", "renewable forecast revision"],
+        "keywords": [
+            "wind forecast revised lower",
+            "solar forecast revised lower",
+            "renewable forecast revision",
+            "wind profile softens",
+            "negative prices",
+            "renewable variability",
+            "solar output",
+        ],
         "asset_type": "renewables",
         "price_direction": "bullish",
     },
+    "demand_shock": {
+        "keywords": ["peak demand", "demand growth", "load growth", "data center", "large load"],
+        "asset_type": "demand",
+        "price_direction": "bullish",
+    },
     "regulatory_policy_announcement": {
-        "keywords": ["regulatory filing", "market rule change", "policy announcement", "commission approved"],
+        "keywords": [
+            "regulatory filing",
+            "market rule change",
+            "policy announcement",
+            "commission approved",
+            "price collar",
+            "grid connections reform",
+            "action plan",
+            "market integration",
+            "market coupling",
+            "consultation",
+        ],
         "asset_type": "policy",
         "price_direction": "uncertain",
     },
@@ -63,6 +87,11 @@ REGION_MAP = {
     "britain": "Great Britain",
     "great britain": "Great Britain",
     "uk": "Great Britain",
+    "germany": "Germany",
+    "france": "France",
+    "nordic": "Nordics",
+    "nord pool": "Nordics",
+    "sweden": "Nordics",
 }
 
 
@@ -95,6 +124,9 @@ def extract_primary_event(title: str, body: str, market_region: str = "ERCOT") -
     elif "advisory" in haystack or "watch" in haystack:
         severity = "medium"
         confidence = 0.64
+    elif matched_type == "demand_shock":
+        severity = "medium"
+        confidence = 0.76
 
     region = market_region
     for key, mapped in REGION_MAP.items():

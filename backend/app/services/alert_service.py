@@ -17,6 +17,7 @@ def list_alerts(db: Session, market_id: int, hours: int = 72) -> list[Alert]:
 
 
 def refresh_alerts_for_market(db: Session, market_id: int) -> list[Alert]:
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
     forecasts = list(
         db.scalars(
             select(Forecast)
@@ -28,6 +29,11 @@ def refresh_alerts_for_market(db: Session, market_id: int) -> list[Alert]:
     events = list(
         db.scalars(
             select(Event).where(Event.market_id == market_id).order_by(Event.created_at.desc()).limit(5)
+        ).all()
+    )
+    existing_titles = set(
+        db.scalars(
+            select(Alert.title).where(Alert.market_id == market_id, Alert.created_at >= since)
         ).all()
     )
 
@@ -55,6 +61,7 @@ def refresh_alerts_for_market(db: Session, market_id: int) -> list[Alert]:
         )
 
     for alert in generated:
-        db.add(alert)
+        if alert.title not in existing_titles:
+            db.add(alert)
     db.commit()
     return generated

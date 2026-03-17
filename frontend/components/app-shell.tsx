@@ -17,7 +17,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div>
               <div className="flex items-center gap-3">
                 <Link href="/" className="flex items-center gap-3">
-                  <div className="rounded-xl bg-slate px-4 py-3 text-lg font-semibold uppercase tracking-[0.18em] text-white">
+                  <div className="rounded-[1.1rem] bg-slate px-5 py-3 text-3xl font-semibold tracking-tight text-white">
                     3x
                   </div>
                   <div>

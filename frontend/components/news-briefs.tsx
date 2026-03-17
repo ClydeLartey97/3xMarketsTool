@@ -12,10 +12,10 @@ export function NewsBriefs({ items }: { items: NewsArticle[] }) {
       <div className="mb-5 flex items-center justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.26em] text-slate/60">Structured Market-Moving Developments</p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate">News and event context</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-slate">Article-backed market evidence</h2>
         </div>
         <div className="rounded-full border border-slate/10 bg-[#f5f8fb] px-3 py-2 text-xs uppercase tracking-[0.18em] text-slate/55">
-          Click-through sources
+          Direct article links
         </div>
       </div>
       <div className="space-y-4">
@@ -48,6 +48,7 @@ export function NewsBriefs({ items }: { items: NewsArticle[] }) {
               {item.affected_region ? <span>{item.affected_region}</span> : null}
               {item.event_type ? <span>{item.event_type.replaceAll("_", " ")}</span> : null}
               {item.price_direction ? <span>{item.price_direction}</span> : null}
+              <span className="font-semibold text-slate/62">Open article</span>
             </div>
           </a>
         ))}

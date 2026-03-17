@@ -76,7 +76,7 @@ def get_prices(market_id: int, limit: int = Query(default=168, le=720), db: Sess
 
 
 @router.get("/markets/{market_id}/forecast", response_model=list[ForecastRead])
-def get_market_forecast(market_id: int, limit: int = Query(default=24, le=168), db: Session = Depends(get_db)) -> list[ForecastRead]:
+def get_market_forecast(market_id: int, limit: int = Query(default=48, le=168), db: Session = Depends(get_db)) -> list[ForecastRead]:
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     forecasts = list_forecasts(db, market_id, limit)
@@ -84,11 +84,15 @@ def get_market_forecast(market_id: int, limit: int = Query(default=24, le=168), 
 
 
 @router.post("/forecasts/run", response_model=ForecastRunResponse)
-def run_forecast(market_code: str = Query(default="ERCOT_NORTH"), db: Session = Depends(get_db)) -> ForecastRunResponse:
+def run_forecast(
+    market_code: str = Query(default="ERCOT_NORTH"),
+    horizon_hours: int = Query(default=48, ge=12, le=96),
+    db: Session = Depends(get_db),
+) -> ForecastRunResponse:
     market = get_market_by_code(db, market_code)
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
-    forecasts, metrics = run_forecast_for_market(db, market)
+    forecasts, metrics = run_forecast_for_market(db, market, horizon_hours=horizon_hours)
     refresh_alerts_for_market(db, market.id)
     return ForecastRunResponse(
         market=MarketRead(
@@ -148,7 +152,8 @@ def get_dashboard(market_code: str, db: Session = Depends(get_db)) -> DashboardR
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
 
-    forecasts = list_forecasts(db, market.id, 24)
+    forecasts, metrics = run_forecast_for_market(db, market, horizon_hours=48)
+    refresh_alerts_for_market(db, market.id)
     latest_forecast = forecasts[0] if forecasts else None
     prices = list_recent_prices(db, market.id, 72)
     events = list_events(db, market.id, 72)
@@ -180,5 +185,9 @@ def get_dashboard(market_code: str, db: Session = Depends(get_db)) -> DashboardR
             "avg_price_24h": avg_price,
             "avg_spike_probability_12h": avg_spike_probability,
             "high_severity_events": high_severity_events,
+            "model_mae": metrics["mae"],
+            "model_rmse": metrics["rmse"],
+            "directional_accuracy": metrics["directional_accuracy"],
+            "spike_precision": metrics["spike_precision"],
         },
     )

@@ -36,6 +36,13 @@ def build_feature_frame(
     frame["demand_change"] = frame["demand_mw"].diff().fillna(0.0)
     frame["wind_to_demand_ratio"] = frame["wind_generation_estimate"] / frame["demand_mw"].replace(0, 1)
     frame["solar_to_demand_ratio"] = frame["solar_generation_estimate"] / frame["demand_mw"].replace(0, 1)
+    frame["net_load_mw"] = frame["demand_mw"] - frame["wind_generation_estimate"] - frame["solar_generation_estimate"]
+    frame["net_load_change"] = frame["net_load_mw"].diff().fillna(0.0)
+    frame["renewable_share"] = (
+        (frame["wind_generation_estimate"] + frame["solar_generation_estimate"]) / frame["demand_mw"].replace(0, 1)
+    )
+    frame["scarcity_index"] = (frame["net_load_mw"] / frame["demand_mw"].replace(0, 1)).clip(lower=0.0)
+    frame["forecast_step"] = 0
 
     frame["event_count"] = frame["event_count"].fillna(0.0)
     frame["event_severity"] = frame["event_severity"].fillna(0.0)
