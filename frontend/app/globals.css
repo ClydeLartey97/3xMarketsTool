@@ -2,20 +2,128 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+/* ─── Theme tokens (RGB channels for Tailwind opacity support) ─── */
 :root {
   color-scheme: light;
+  --radius-card: 1.5rem;
+  --radius-pill: 99px;
+
+  /* Surfaces */
+  --bg:         242 246 250;   /* #f2f6fa - page background */
+  --surface:    255 255 255;   /* #ffffff - card */
+  --well:       244 248 251;   /* #f4f8fb - inner / deeply nested */
+
+  /* Borders */
+  --seam:       209 220 232;   /* #d1dce8 */
+  --seam-hi:    173 196 216;   /* #adc4d8 hover */
+
+  /* Text */
+  --ink:        8   17  26;    /* #08111a */
+
+  /* Accent (green - same in both modes) */
+  --accent:     16  185 129;   /* #10b981 */
+  --accent-fg:  8   17  26;    /* dark text on green bg */
+
+  /* Price signals */
+  --price-up:   5   150 105;   /* #059669 - darker green for light bg */
+  --price-dn:   220 38  38;    /* #dc2626 - darker red */
+  --price-hot:  234 88  12;    /* #ea580c - darker orange */
+  --price-warn: 217 119 6;     /* #d97706 */
+  --price-info: 37  99  235;   /* #2563eb */
+
+  /* SVG chart colors (full values — used directly in SVG attrs) */
+  --svg-grid:   #d1dce8;
+  --svg-line:   rgba(8,17,26,0.60);
+  --svg-band:   rgba(16,185,129,0.07);
 }
 
-* {
-  box-sizing: border-box;
+.dark {
+  color-scheme: dark;
+
+  --bg:         7   17  26;    /* #07111a */
+  --surface:    13  23  36;    /* #0d1724 */
+  --well:       7   14  22;    /* #070e16 */
+
+  --seam:       26  45  63;    /* #1a2d3f */
+  --seam-hi:    42  74  96;    /* #2a4a60 */
+
+  --ink:        255 255 255;   /* #ffffff */
+
+  --accent:     16  185 129;   /* #10b981 */
+  --accent-fg:  7   17  26;    /* dark text on green bg */
+
+  --price-up:   52  211 153;   /* #34d399 */
+  --price-dn:   248 113 113;   /* #f87171 */
+  --price-hot:  251 146 60;    /* #fb923c */
+  --price-warn: 251 191 36;    /* #fbbf24 */
+  --price-info: 96  165 250;   /* #60a5fa */
+
+  --svg-grid:   #1a2d3f;
+  --svg-line:   rgba(255,255,255,0.65);
+  --svg-band:   rgba(16,185,129,0.10);
 }
+
+/* ─── Base ─── */
+* { box-sizing: border-box; }
+
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 body {
   margin: 0;
-  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  font-family: "Inter", "Segoe UI", "Helvetica Neue", sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  background-color: rgb(var(--bg));
+  color: rgb(var(--ink));
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+a { color: inherit; text-decoration: none; }
+
+/* ─── Utilities ─── */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
+
+.font-mono {
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+}
+
+/* Dark-panel scrollbar */
+.dark-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+.dark-scroll::-webkit-scrollbar-track { background: transparent; }
+.dark-scroll::-webkit-scrollbar-thumb { background: rgba(var(--ink) / 0.12); border-radius: 3px; }
+.dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(var(--ink) / 0.22); }
+
+/* ─── Animations ─── */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+.live-dot { animation: live-pulse 2s ease-in-out infinite; }
+
+@keyframes price-flash {
+  0%   { color: #6ee7b7; }
+  100% { color: inherit; }
+}
+.price-updated { animation: price-flash 1.2s ease-out forwards; }
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--ink) / 0.04) 25%,
+    rgb(var(--ink) / 0.08) 50%,
+    rgb(var(--ink) / 0.04) 75%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 0.5rem;
+}
+
+@keyframes fadeIn  { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes slideUp { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }

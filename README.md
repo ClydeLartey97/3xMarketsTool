@@ -106,6 +106,7 @@ This starts:
 - `GET /api/markets/{market_id}/alerts`
 - `GET /api/events`
 - `POST /api/articles/ingest`
+- `POST /api/risk-assessment`
 - `POST /api/forecasts/run?market_code=ERCOT_NORTH`
 - `GET /api/dashboard/ERCOT_NORTH`
 

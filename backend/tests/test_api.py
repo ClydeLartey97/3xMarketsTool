@@ -29,3 +29,21 @@ def test_ingest_article(client) -> None:
     )
     assert response.status_code == 200
     assert response.json()["event_type"] == "transmission_outage"
+
+
+def test_risk_assessment_endpoint(client) -> None:
+    response = client.post(
+        "/api/risk-assessment",
+        json={
+            "market_code": "ERCOT_NORTH",
+            "position_gbp": 10000,
+            "horizon_hours": 24,
+            "direction": "long",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["market_code"] == "ERCOT_NORTH"
+    assert body["risk_gbp"] >= 0
+    assert body["scorer_provider"] in {"heuristic", "gemini"}

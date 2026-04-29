@@ -28,3 +28,16 @@ def test_forecasts_differ_across_markets(db_session) -> None:
     ercot_curve = [round(item.point_estimate, 2) for item in ercot_forecasts]
     gb_curve = [round(item.point_estimate, 2) for item in gb_forecasts]
     assert ercot_curve != gb_curve
+
+
+def test_forecast_cache_respects_requested_horizon(db_session) -> None:
+    market = db_session.scalar(select(Market).where(Market.code == "ERCOT_NORTH"))
+    assert market is not None
+
+    short_forecasts, _ = run_forecast_for_market(db_session, market, horizon_hours=12)
+    longer_forecasts, _ = run_forecast_for_market(db_session, market, horizon_hours=24)
+    repeated_short, _ = run_forecast_for_market(db_session, market, horizon_hours=12)
+
+    assert len(short_forecasts) == 12
+    assert len(longer_forecasts) == 24
+    assert len(repeated_short) == 12

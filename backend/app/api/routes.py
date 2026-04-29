@@ -20,10 +20,18 @@ from app.schemas.domain import (
     NewsArticleRead,
     NewsSourceRead,
     PricePointRead,
+    RiskAssessmentRequest,
+    RiskAssessmentResponse,
 )
+from app.services.risk_engine import RiskInputs, assess_risk
 from app.services.alert_service import list_alerts, refresh_alerts_for_market
 from app.services.event_service import ingest_article, list_events
-from app.services.forecast_service import list_forecasts, list_recent_prices, run_forecast_for_market
+from app.services.forecast_service import (
+    invalidate_forecast_cache,
+    list_forecasts,
+    list_recent_prices,
+    run_forecast_for_market,
+)
 from app.services.market_service import get_market_by_code, get_market_by_id, list_markets
 from app.services.news_service import list_news_articles, list_news_sources
 
@@ -144,6 +152,46 @@ def get_market_alerts(market_id: int, db: Session = Depends(get_db)) -> list[Ale
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     return [AlertRead.model_validate(item) for item in list_alerts(db, market_id)]
+
+
+@router.post("/markets/{market_code}/refresh")
+def refresh_market_data(market_code: str, db: Session = Depends(get_db)) -> dict:
+    """Trigger immediate data refresh for a market and invalidate forecast cache."""
+    from app.core.config import get_settings
+    from app.ingestion.real_data import populate_market_real_data
+
+    market = get_market_by_code(db, market_code)
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+    settings = get_settings()
+    try:
+        sources = populate_market_real_data(
+            db=db, market=market, market_code=market_code,
+            eia_api_key=settings.eia_api_key, days=1,
+        )
+        invalidate_forecast_cache(market_code)
+        db.commit()
+        return {"status": "refreshed", "market": market_code, "sources": sources}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/risk-assessment", response_model=RiskAssessmentResponse)
+def post_risk_assessment(payload: RiskAssessmentRequest, db: Session = Depends(get_db)) -> RiskAssessmentResponse:
+    try:
+        result = assess_risk(
+            db,
+            RiskInputs(
+                market_code=payload.market_code,
+                position_gbp=payload.position_gbp,
+                horizon_hours=payload.horizon_hours,
+                target_timestamp=payload.target_timestamp,
+                direction=payload.direction,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return RiskAssessmentResponse(**result)
 
 
 @router.get("/dashboard/{market_code}", response_model=DashboardResponse)

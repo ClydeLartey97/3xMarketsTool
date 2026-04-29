@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -11,6 +11,33 @@ from app.forecasting.feature_builder import build_feature_frame
 from app.forecasting.model import FEATURE_COLUMNS, GradientBoostingForecastModel
 from app.models import DemandPoint, Event, Forecast, Market, PricePoint, WeatherPoint
 from app.services.event_service import events_as_feature_frame
+
+# ── In-process forecast cache (15-minute TTL) ─────────────────────────────────
+_forecast_cache: dict[str, tuple[list[Forecast], dict[str, float], datetime]] = {}
+_CACHE_TTL_MINUTES = 15
+
+
+def _cache_get(market_code: str, horizon_hours: int) -> tuple[list[Forecast], dict[str, float]] | None:
+    entry = _forecast_cache.get(market_code)
+    if entry:
+        forecasts, metrics, cached_at = entry
+        if (
+            datetime.now(timezone.utc) - cached_at < timedelta(minutes=_CACHE_TTL_MINUTES)
+            and len(forecasts) >= horizon_hours
+        ):
+            return forecasts[:horizon_hours], metrics
+    return None
+
+
+def _cache_set(market_code: str, forecasts: list[Forecast], metrics: dict[str, float]) -> None:
+    _forecast_cache[market_code] = (forecasts, metrics, datetime.now(timezone.utc))
+
+
+def invalidate_forecast_cache(market_code: str | None = None) -> None:
+    if market_code:
+        _forecast_cache.pop(market_code, None)
+    else:
+        _forecast_cache.clear()
 
 
 def _to_dataframe(records: list, mapping: dict[str, str] | None = None) -> pd.DataFrame:
@@ -95,7 +122,21 @@ def _market_signature(frame: pd.DataFrame) -> dict[str, object]:
     }
 
 
-def run_forecast_for_market(db: Session, market: Market, horizon_hours: int = 24) -> tuple[list[Forecast], dict[str, float]]:
+def run_forecast_for_market(
+    db: Session,
+    market: Market,
+    horizon_hours: int = 24,
+    use_cache: bool = True,
+) -> tuple[list[Forecast], dict[str, float]]:
+    # Return cached result if still fresh
+    if use_cache:
+        cached = _cache_get(market.code, horizon_hours)
+        if cached:
+            forecasts, metrics = cached
+            # Check DB still has these forecasts (could have been cleared)
+            if forecasts and db.get(Forecast, forecasts[0].id):
+                return forecasts, metrics
+
     prices = list(
         db.scalars(
             select(PricePoint).where(PricePoint.market_id == market.id).order_by(PricePoint.timestamp.asc())
@@ -285,4 +326,5 @@ def run_forecast_for_market(db: Session, market: Market, horizon_hours: int = 24
     db.commit()
     for forecast in forecasts:
         db.refresh(forecast)
+    _cache_set(market.code, forecasts, metrics)
     return forecasts, metrics

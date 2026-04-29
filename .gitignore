@@ -6,6 +6,7 @@ __pycache__/
 node_modules/
 *.pyc
 *.pyo
+*.tsbuildinfo
 .env
 backend/test_gridsense.db
 backend/gridsense.db

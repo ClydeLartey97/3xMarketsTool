@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.news_sources import NEWS_SOURCE_MAP
 from app.events.extractor import extract_primary_event
 from app.events.impact import estimate_price_impact_pct
+from app.ingestion.real_data import populate_market_real_data
 from app.models import Alert, DemandPoint, Event, Forecast, Market, NewsArticle, PricePoint, User, UserWatchlist, WeatherPoint
+
+logger = logging.getLogger(__name__)
 
 
 MARKET_DEFINITIONS = [
@@ -401,6 +406,13 @@ CURVE_SOURCE_MAP = {
 
 
 def seed_database(db: Session) -> None:
+    try:
+        from app.services.forecast_service import invalidate_forecast_cache
+
+        invalidate_forecast_cache()
+    except Exception:
+        pass
+
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     market_map = {market.code: market for market in db.scalars(select(Market))}
 
@@ -432,8 +444,36 @@ def seed_database(db: Session) -> None:
         db.flush()
         market_map[market.code] = market
 
+    # ── Populate market data (real APIs first, synthetic fallback) ──────────
+    settings = get_settings()
     rng = np.random.default_rng(7)
-    timestamps = [now - timedelta(hours=hour) for hour in range(24 * 14, 0, -1)]
+
+    for market in market_map.values():
+        has_data = db.scalar(
+            select(func.count()).select_from(PricePoint).where(PricePoint.market_id == market.id)
+        )
+        if has_data and has_data >= 48:
+            continue  # already populated from a previous run
+
+        # Clear any legacy synthetic seed data before re-populating with real data
+        db.execute(delete(PricePoint).where(PricePoint.market_id == market.id, PricePoint.source.like("synthetic_seed%")))
+        db.execute(delete(WeatherPoint).where(WeatherPoint.market_id == market.id, WeatherPoint.source.like("synthetic_seed%")))
+        db.execute(delete(DemandPoint).where(DemandPoint.market_id == market.id, DemandPoint.source.like("synthetic_seed%")))
+        db.execute(delete(Forecast).where(Forecast.market_id == market.id))
+        db.flush()
+
+        try:
+            sources = populate_market_real_data(
+                db=db,
+                market=market,
+                market_code=market.code,
+                eia_api_key=settings.eia_api_key,
+                days=14,
+            )
+            logger.info("Populated %s with real data. Sources: %s", market.code, sources)
+        except Exception as exc:
+            logger.error("Failed to populate %s with real data: %s", market.code, exc)
+
     article_payloads = [
         {
             "seed_key": "ercot-load-growth-utility-dive",
@@ -607,6 +647,9 @@ def seed_database(db: Session) -> None:
     for market in market_map.values():
         profile = next(item["profile"] for item in MARKET_DEFINITIONS if item["code"] == market.code)
         shape = MARKET_SYNTHETIC_SHAPES.get(market.code, MARKET_SYNTHETIC_SHAPES["ERCOT_NORTH"])
+        market_data_rows = db.scalar(
+            select(func.count()).select_from(PricePoint).where(PricePoint.market_id == market.id)
+        )
         current_seed_rows = db.scalar(
             select(func.count()).select_from(PricePoint).where(
                 PricePoint.market_id == market.id,
@@ -619,6 +662,8 @@ def seed_database(db: Session) -> None:
                 PricePoint.source.like("synthetic_seed%"),
             )
         )
+        if market_data_rows and market_data_rows >= 48:
+            continue
         if current_seed_rows:
             continue
         if legacy_seed_rows:

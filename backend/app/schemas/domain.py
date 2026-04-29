@@ -160,6 +160,43 @@ class HealthResponse(BaseModel):
     database: str
 
 
+class RiskAssessmentRequest(BaseModel):
+    market_code: str
+    position_gbp: float = Field(default=10000.0, gt=0)
+    horizon_hours: int = Field(default=24, ge=1, le=168)
+    direction: str = Field(default="long", pattern="^(long|short)$")
+    target_timestamp: Optional[datetime] = None
+
+
+class RiskAssessmentResponse(BaseModel):
+    market_code: str
+    market_name: str
+    as_of: datetime
+    position_gbp: float
+    direction: str
+    horizon_hours: int
+    target_timestamp: datetime
+    spot_price: float
+    forecast_price: float
+    expected_price: float
+    sigma_price: float
+    sigma_hourly_pct: float
+    expected_return_pct: float
+    sigma_return_pct: float
+    risk_gbp: float
+    likely_gbp: float
+    upside_gbp: float
+    var95_gbp: float
+    edge_score: float
+    confidence: float
+    regime: str
+    catalyst_severity: float
+    asymmetry: float
+    tail_multiplier: float
+    scorer_provider: str
+    rationale: str
+
+
 class DashboardResponse(BaseModel):
     market: MarketRead
     latest_forecast: Optional[ForecastRead]

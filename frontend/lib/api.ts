@@ -10,10 +10,15 @@ import {
   NewsSource,
 } from "@/types/domain";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+const PUBLIC_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+const SERVER_API_BASE_URL = process.env.API_INTERNAL_BASE_URL ?? PUBLIC_API_BASE_URL;
+
+function apiBaseUrl(): string {
+  return typeof window === "undefined" ? SERVER_API_BASE_URL : PUBLIC_API_BASE_URL;
+}
 
 async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, { cache: "no-store" });
+  const response = await fetch(`${apiBaseUrl()}${path}`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`API request failed for ${path}`);
   }
@@ -54,4 +59,57 @@ export function getAlerts(marketId: number): Promise<AlertItem[]> {
 
 export function runForecast(marketCode: string): Promise<ForecastRunResponse> {
   return fetchJson<ForecastRunResponse>(`/forecasts/run?market_code=${marketCode}`);
+}
+
+export type RiskAssessment = {
+  market_code: string;
+  market_name: string;
+  as_of: string;
+  position_gbp: number;
+  direction: "long" | "short";
+  horizon_hours: number;
+  target_timestamp: string;
+  spot_price: number;
+  forecast_price: number;
+  expected_price: number;
+  sigma_price: number;
+  sigma_hourly_pct: number;
+  expected_return_pct: number;
+  sigma_return_pct: number;
+  risk_gbp: number;
+  likely_gbp: number;
+  upside_gbp: number;
+  var95_gbp: number;
+  edge_score: number;
+  confidence: number;
+  regime: "calm" | "trending" | "stressed";
+  catalyst_severity: number;
+  asymmetry: number;
+  tail_multiplier: number;
+  scorer_provider: string;
+  rationale: string;
+};
+
+export type RiskAssessmentRequest = {
+  market_code: string;
+  position_gbp: number;
+  horizon_hours: number;
+  direction: "long" | "short";
+  target_timestamp?: string | null;
+};
+
+export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {
+  const response = await fetch(`${apiBaseUrl()}/risk-assessment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      target_timestamp: payload.target_timestamp ?? null,
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`risk-assessment failed: ${response.status}`);
+  }
+  return response.json() as Promise<RiskAssessment>;
 }
