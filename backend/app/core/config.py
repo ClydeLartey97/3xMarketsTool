@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     default_market_code: str = "ERCOT_NORTH"
     default_timezone: str = "America/Chicago"
     seed_days: int = 14
+    demo_mode: bool = Field(default=False, alias="DEMO_MODE")
 
     # Real data API keys (optional — app degrades gracefully without them)
     eia_api_key: str = Field(default="", alias="EIA_API_KEY")

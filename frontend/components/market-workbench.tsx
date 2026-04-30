@@ -110,7 +110,11 @@ export function MarketWorkbench({
             onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
           />
         </ClientErrorBoundary>
-        <RiskPanel marketCode={dashboard.market.code} cursorTimestampMs={cursorTs} />
+        <RiskPanel
+          marketCode={dashboard.market.code}
+          cursorTimestampMs={cursorTs}
+          dataStatus={dashboard.market.data_status}
+        />
       </section>
 
       {/* Signals + news */}

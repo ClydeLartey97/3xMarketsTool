@@ -6,11 +6,12 @@ The backend owns ingestion, feature engineering, forecasting, event extraction, 
 
 ## What It Does
 
-- Tracks configured power markets with seeded or live/fallback price, demand, weather, wind, and solar data.
+- Tracks configured power markets with seeded, live, and backfilled price, demand, weather, wind, and solar data.
 - Builds probabilistic hourly forecasts with point estimates, confidence bands, spike probabilities, and model rationales.
 - Ingests curated and RSS energy news, extracts market-relevant events, and estimates directional price impact.
-- Scores position risk via `risk`, `likely`, and `upside` outputs using forecast distributions plus news/event context.
+- Scores position risk via `risk`, `likely`, and `upside` outputs using Monte Carlo price paths, forecast distributions, FX conversion, and news/event context.
 - Provides a Next.js dashboard, market workbench, event feed, API reference page, dark/light themes, and backend-offline states.
+- Surfaces data provenance so users can see what share of the recent chart is real versus synthetic/computed.
 
 ## Architecture
 
@@ -22,7 +23,7 @@ backend/
     db/               SQLAlchemy engine/session setup
     events/           rule-based event extraction and impact heuristics
     forecasting/      feature builder and model interface/implementation
-    ingestion/        real data, RSS, and seed population
+    ingestion/        real data, backfills, RSS, and seed population
     models/           SQLAlchemy ORM models
     schemas/          Pydantic response/request models
     services/         market, news, forecast, risk, alert service logic
@@ -38,11 +39,11 @@ infrastructure/       Docker Compose for Postgres, Redis, backend, frontend
 
 ## Requirements
 
-- Python 3.12 recommended. The backend Dockerfile uses Python 3.12, and pinned data-science packages may not have wheels for newer Python versions.
+- Python 3.14 is tested locally for the backend suite. Python 3.12 remains compatible with the backend Dockerfile.
 - Node.js 20 or newer.
 - npm.
 - Optional: Docker and Docker Compose.
-- Optional: EIA API key for richer U.S. grid data. The app degrades to computed/synthetic fallback data when unavailable.
+- Optional but recommended: EIA API key for real U.S. grid demand and generation history. Without it, U.S. markets can still show computed chart continuity but are flagged as degraded.
 
 ## Local Quick Start
 
@@ -99,6 +100,27 @@ Useful optional variables:
 - `GEMINI_API_KEY` or `GOOGLE_API_KEY`: enables Gemini news-context scoring for the risk engine. Without it, the app uses deterministic heuristic scoring.
 - `FORECAST_CACHE_TTL_MINUTES`: forecast cache TTL, default `15`.
 - `DATA_REFRESH_INTERVAL_MINUTES`: background refresh interval, default `30`.
+- `DEMO_MODE`: when `true`, permits computed/synthetic fallback data without marking the market degraded. Defaults to `false`.
+
+## Historical Backfill
+
+Phase 3 adds a rerunnable historical backfill path. It keeps the existing hourly timestamp dedupe, so it is safe to run more than once.
+
+```bash
+cd backend
+PYTHONPATH=. python3 scripts/backfill.py --lookback-days 730 --market GB_POWER
+PYTHONPATH=. EIA_API_KEY=your_key_here python3 scripts/backfill.py --lookback-days 365 --market ERCOT_NORTH
+```
+
+If no `--market` is provided, the script runs every configured market.
+
+Current adapters:
+
+- `GB_POWER`: ELEXON BMRS Market Index Data in 7-day windows.
+- U.S. markets: EIA hourly demand/generation in monthly windows when `EIA_API_KEY` is set.
+- All markets: Open-Meteo archive weather for long historical ranges.
+
+Backfilled U.S. markets without an EIA key are still chartable, but their prices are computed from fundamentals and the API marks the market `data_status="degraded"`.
 
 ## Docker Compose
 
@@ -121,14 +143,15 @@ The frontend uses `API_INTERNAL_BASE_URL` for server-side container calls and `N
 - `GET /api/health`
 - `GET /api/markets`
 - `GET /api/markets/{market_id}`
-- `GET /api/markets/{market_id}/prices`
+- `GET /api/markets/{market_id}/prices?limit=720`
+- `GET /api/markets/{market_id}/history?from=2025-04-30T00:00:00Z&to=2026-04-30T00:00:00Z`
 - `GET /api/markets/{market_id}/forecast`
 - `GET /api/markets/{market_id}/events`
 - `GET /api/markets/{market_id}/news`
 - `GET /api/markets/{market_id}/alerts`
 - `GET /api/events`
 - `GET /api/news/sources`
-- `GET /api/dashboard/{market_code}`
+- `GET /api/dashboard/{market_code}?history_hours=720`
 - `POST /api/articles/ingest`
 - `POST /api/forecasts/run?market_code=ERCOT_NORTH`
 - `POST /api/markets/{market_code}/refresh`
@@ -159,6 +182,16 @@ The forecast service combines:
 
 Responses include hourly forecasts, lower/upper bands, spike probability, model version, feature snapshots, and rationale summaries.
 
+## Data Provenance
+
+Dashboard responses include:
+
+- `key_metrics.data_freshness_minutes`: age of the newest price point in minutes.
+- `key_metrics.synthetic_share_24h`: fraction of the last 24 hours using computed or synthetic price sources.
+- `market.data_status`: `ready` or `degraded`.
+
+The dashboard displays a "Data: X% real / Y% synthetic" strip. When `data_status="degraded"`, the risk panel hides the headline risk numbers and asks the user to refresh or backfill real data instead of presenting synthetic-driven risk as if it were market-grade.
+
 ## Event And News Intelligence
 
 The event pipeline stores raw `news_articles`, extracts structured `events`, and estimates price impact with explicit uncertainty. Current event types include:
@@ -176,16 +209,17 @@ RSS ingestion pulls recent articles from public energy sources and avoids duplic
 
 `POST /api/risk-assessment` converts a market, position size, direction, and horizon into:
 
-- `risk_gbp`: 95 percent CVaR-style downside estimate,
+- `risk_gbp`: 95 percent empirical CVaR downside estimate,
 - `likely_gbp`: expected P&L,
 - `upside_gbp`: 95th-percentile upside estimate,
-- supporting volatility, confidence, regime, catalyst severity, asymmetry, and rationale fields.
+- path-dependent fields such as probability of loss and max drawdown,
+- supporting volatility, confidence, regime, catalyst severity, asymmetry, FX, and rationale fields.
 
-The risk engine uses forecast bands, realized price volatility, recent events, and scored article context. If no LLM API key is configured, it uses a deterministic heuristic scorer.
+The risk engine uses Monte Carlo simulation, forecast-implied volatility, realized price volatility, recent events, native market currencies, FX conversion to GBP, and scored article context. If no LLM API key is configured, it uses a deterministic heuristic scorer.
 
 ## Frontend Pages
 
-- `/`: market cards with latest spot, next-hour forecast, 24h average, and spike risk.
+- `/`: market cards, range-selectable history chart, latest forecast, data-quality strip, and event context.
 - `/markets/{marketCode}`: market workbench with charting, forecast band, drawing tools, signal stack, news briefs, model rationale, and risk panel.
 - `/events`: all structured market events.
 - `/developer`: API endpoint and platform notes.
@@ -198,11 +232,11 @@ Backend syntax check:
 python3 -m compileall -q backend/app backend/scripts backend/tests
 ```
 
-Backend tests, in a Python 3.12 environment with dependencies installed:
+Backend tests, in a Python environment with dependencies installed:
 
 ```bash
 cd backend
-PYTHONPATH=. pytest
+PYTHONPATH=. python3 -m pytest tests/
 ```
 
 Frontend checks:
@@ -218,7 +252,7 @@ npm audit --audit-level=moderate
 
 1. Open `/` and scan the market cards.
 2. Open `ERCOT_NORTH` or another market card.
-3. Use the chart controls and inspect the forecast band.
+3. Use the dashboard history controls: `1D`, `1W`, `1M`, `1Y`, `2Y`, or `Max`.
 4. Adjust the position size, horizon, and direction in the risk panel.
 5. Review news evidence and structured event catalysts.
 6. Visit `/events` to inspect the broader event feed.
@@ -227,13 +261,14 @@ npm audit --audit-level=moderate
 ## Notes And Caveats
 
 - This is an MVP and educational decision-support tool, not financial advice.
-- Some market data is computed or synthetic when public APIs are unavailable or unauthenticated.
+- Some market data is computed or synthetic when public APIs are unavailable or unauthenticated. The UI now labels this explicitly.
+- U.S. real historical data requires `EIA_API_KEY`; otherwise U.S. markets are marked degraded outside demo mode.
 - The local SQLite database is created under `backend/threex.db` by default and is ignored by git.
 - The frontend has both server-side and browser-side API calls, so keep `API_INTERNAL_BASE_URL` and `NEXT_PUBLIC_API_BASE_URL` distinct when running in containers.
 
 ## Roadmap
 
-- Add richer market-specific adapters and backfills.
+- Complete real U.S. historical backfill once an EIA key is configured in the environment.
 - Add migrations instead of relying on `metadata.create_all` for schema setup.
 - Add authentication and saved user watchlists.
 - Add model backtesting and forecast performance reporting.

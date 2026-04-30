@@ -36,6 +36,7 @@ class PricePoint(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     horizon_type: Mapped[str] = mapped_column(String(32), default="spot")
     price_value: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
     source: Mapped[str] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
@@ -123,6 +124,7 @@ class Forecast(Base):
     point_estimate: Mapped[float] = mapped_column(Float)
     lower_bound: Mapped[float] = mapped_column(Float)
     upper_bound: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(3), default="USD", nullable=False)
     spike_probability: Mapped[float] = mapped_column(Float)
     model_version: Mapped[str] = mapped_column(String(64))
     rationale_summary: Mapped[str] = mapped_column(Text)

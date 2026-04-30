@@ -25,6 +25,7 @@ function formatGbp(value: number) {
 export type RiskPanelProps = {
   marketCode: string;
   cursorTimestampMs: number | null;
+  dataStatus?: string;
   initialPosition?: number;
   initialHorizon?: number;
 };
@@ -32,6 +33,7 @@ export type RiskPanelProps = {
 export function RiskPanel({
   marketCode,
   cursorTimestampMs,
+  dataStatus = "ready",
   initialPosition = 10000,
   initialHorizon = 24,
 }: RiskPanelProps) {
@@ -42,8 +44,15 @@ export function RiskPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDegraded = dataStatus === "degraded";
 
   useEffect(() => {
+    if (isDegraded) {
+      setData(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       let cancelled = false;
@@ -72,7 +81,7 @@ export function RiskPanel({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [marketCode, position, horizon, direction, cursorTimestampMs]);
+  }, [marketCode, position, horizon, direction, cursorTimestampMs, isDegraded]);
 
   const riskColor = data && data.edge_score > 0.5 ? "text-price-up" : data && data.edge_score < -0.2 ? "text-price-dn" : "text-ink/80";
   const provider = data?.scorer_provider ?? "—";
@@ -89,7 +98,7 @@ export function RiskPanel({
             provider === "gemini" ? "bg-accent/10 text-accent" : "bg-ink/5 text-ink/50"
           }`}
         >
-          {provider === "gemini" ? "AI scoring" : "heuristic"}
+          {isDegraded ? "degraded" : provider === "gemini" ? "AI scoring" : "heuristic"}
         </span>
       </div>
 
@@ -168,29 +177,38 @@ export function RiskPanel({
       </div>
 
       {/* The three numbers */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-xl border border-seam bg-bg p-3">
-          <p className="text-[10px] uppercase tracking-widest text-ink/40">Risk (95% CVaR)</p>
-          <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-price-dn">
-            {data ? formatGbp(data.risk_gbp) : "—"}
+      {isDegraded ? (
+        <div className="rounded-xl border border-price-dn/25 bg-price-dn/10 p-4 text-sm leading-relaxed text-ink/70">
+          <p className="font-semibold text-price-dn">Insufficient real data - try refresh.</p>
+          <p className="mt-1 text-xs text-ink/50">
+            Risk numbers are hidden until this market has a real price source in the selected window.
           </p>
-          <p className="mt-1 text-[10px] text-ink/40">expected loss in worst 5%</p>
         </div>
-        <div className="rounded-xl border border-seam bg-bg p-3">
-          <p className="text-[10px] uppercase tracking-widest text-ink/40">Likely</p>
-          <p className={`mt-1.5 font-mono text-xl font-semibold tabular-nums ${data && data.likely_gbp >= 0 ? "text-price-up" : "text-price-dn"}`}>
-            {data ? formatGbp(data.likely_gbp) : "—"}
-          </p>
-          <p className="mt-1 text-[10px] text-ink/40">expected P&amp;L</p>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-xl border border-seam bg-bg p-3">
+            <p className="text-[10px] uppercase tracking-widest text-ink/40">Risk (95% CVaR)</p>
+            <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-price-dn">
+              {data ? formatGbp(data.risk_gbp) : "—"}
+            </p>
+            <p className="mt-1 text-[10px] text-ink/40">expected loss in worst 5%</p>
+          </div>
+          <div className="rounded-xl border border-seam bg-bg p-3">
+            <p className="text-[10px] uppercase tracking-widest text-ink/40">Likely</p>
+            <p className={`mt-1.5 font-mono text-xl font-semibold tabular-nums ${data && data.likely_gbp >= 0 ? "text-price-up" : "text-price-dn"}`}>
+              {data ? formatGbp(data.likely_gbp) : "—"}
+            </p>
+            <p className="mt-1 text-[10px] text-ink/40">expected P&amp;L</p>
+          </div>
+          <div className="rounded-xl border border-seam bg-bg p-3">
+            <p className="text-[10px] uppercase tracking-widest text-ink/40">Upside</p>
+            <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-price-up">
+              {data ? formatGbp(data.upside_gbp) : "—"}
+            </p>
+            <p className="mt-1 text-[10px] text-ink/40">95th percentile</p>
+          </div>
         </div>
-        <div className="rounded-xl border border-seam bg-bg p-3">
-          <p className="text-[10px] uppercase tracking-widest text-ink/40">Upside</p>
-          <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-price-up">
-            {data ? formatGbp(data.upside_gbp) : "—"}
-          </p>
-          <p className="mt-1 text-[10px] text-ink/40">95th percentile</p>
-        </div>
-      </div>
+      )}
 
       {/* Edge / regime */}
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">

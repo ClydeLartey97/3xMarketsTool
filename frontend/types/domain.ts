@@ -5,6 +5,7 @@ export type Market = {
   commodity_type: string;
   region: string;
   timezone: string;
+  data_status: string;
   metadata: Record<string, unknown>;
 };
 
@@ -14,6 +15,7 @@ export type PricePoint = {
   timestamp: string;
   horizon_type: string;
   price_value: number;
+  currency: string;
   source: string;
 };
 
@@ -25,6 +27,7 @@ export type ForecastPoint = {
   point_estimate: number;
   lower_bound: number;
   upper_bound: number;
+  currency: string;
   spike_probability: number;
   model_version: string;
   rationale_summary: string;

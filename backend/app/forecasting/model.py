@@ -10,6 +10,10 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from app.forecasting.base import ForecastModel
 
 
+# Standard normal one-sided 95% quantile.
+_Z95 = 1.6449
+
+
 FEATURE_COLUMNS = [
     "hour",
     "day_of_week",
@@ -104,12 +108,14 @@ class GradientBoostingForecastModel(ForecastModel):
     def predict_distribution(self, frame: pd.DataFrame) -> pd.DataFrame:
         preds = self.predict(frame)
         horizon_scale = 1.0 + frame["forecast_step"].fillna(0.0).clip(lower=0.0).to_numpy() / 18.0
-        band_width = 1.28 * self.residual_std * horizon_scale
+        sigma = self.residual_std * horizon_scale
+        band_width = _Z95 * sigma
         return pd.DataFrame(
             {
                 "point_estimate": preds,
                 "lower_bound": preds - band_width,
                 "upper_bound": preds + band_width,
+                "sigma_price": sigma,
             },
             index=frame.index,
         )

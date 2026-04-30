@@ -8,7 +8,8 @@ import { DriverList } from "@/components/driver-list";
 import { EventFeed } from "@/components/event-feed";
 import { PriceForecastChart } from "@/components/price-forecast-chart";
 import { getDashboard } from "@/lib/api";
-import { DashboardData, Market } from "@/types/domain";
+import { MARKET_HISTORY_RANGES, MarketHistoryRange, useMarketHistory } from "@/lib/use-market-history";
+import { DashboardData, Market, PricePoint } from "@/types/domain";
 
 const TIMEFRAME_OPTIONS = [
   { label: "Next 12 hours", value: 12 },
@@ -16,9 +17,8 @@ const TIMEFRAME_OPTIONS = [
   { label: "Next 48 hours", value: 48 },
 ];
 
-function buildChartData(dashboard: DashboardData, horizonHours: number) {
-  const historyWindow = horizonHours <= 12 ? 18 : horizonHours <= 24 ? 30 : 48;
-  const history = dashboard.recent_prices.slice(-historyWindow).map((point) => ({
+function buildChartData(dashboard: DashboardData, horizonHours: number, historyPoints: PricePoint[]) {
+  const history = historyPoints.map((point) => ({
     timestamp: point.timestamp,
     label: new Date(point.timestamp).toLocaleString([], {
       month: "short",
@@ -43,6 +43,42 @@ function buildChartData(dashboard: DashboardData, horizonHours: number) {
   return { history, forward };
 }
 
+function formatFreshness(minutes: number) {
+  if (!Number.isFinite(minutes)) {
+    return "unknown";
+  }
+  if (minutes < 60) {
+    return `${Math.max(0, Math.round(minutes))} min ago`;
+  }
+  const hours = minutes / 60;
+  if (hours < 48) {
+    return `${Math.round(hours)} hr ago`;
+  }
+  return `${Math.round(hours / 24)} days ago`;
+}
+
+function DataQualityStrip({ dashboard }: { dashboard: DashboardData }) {
+  const syntheticShare = dashboard.key_metrics.synthetic_share_24h ?? 1;
+  const syntheticPct = Math.round(syntheticShare * 100);
+  const realPct = Math.max(0, 100 - syntheticPct);
+  const freshness = dashboard.key_metrics.data_freshness_minutes ?? Number.NaN;
+  const isDegraded = dashboard.market.data_status === "degraded" || syntheticShare > 0.5;
+
+  return (
+    <section
+      className={`rounded-[1.4rem] border px-5 py-3 text-sm shadow-panel ${
+        isDegraded
+          ? "border-[#c94d3f]/45 bg-[#fff4f1] text-[#7b2d25]"
+          : "border-[#0f8a6b]/25 bg-[#effaf5] text-[#135f4c]"
+      }`}
+    >
+      <span className="font-semibold">Data:</span> {realPct}% real / {syntheticPct}% synthetic - last refresh{" "}
+      {formatFreshness(freshness)}
+      {dashboard.market.data_status === "degraded" ? " - insufficient real price data" : ""}
+    </section>
+  );
+}
+
 export function DashboardExperience({
   markets,
   initialDashboard,
@@ -52,6 +88,7 @@ export function DashboardExperience({
 }) {
   const [selectedMarketCode, setSelectedMarketCode] = useState(initialDashboard.market.code);
   const [timeframeHours, setTimeframeHours] = useState(24);
+  const [historyRange, setHistoryRange] = useState<MarketHistoryRange>("1M");
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -81,12 +118,20 @@ export function DashboardExperience({
   }, [selectedMarketCode, dashboard.market.code]);
 
   const selectedMarket = markets.find((market) => market.code === selectedMarketCode) ?? markets[0];
-  const chartData = useMemo(() => buildChartData(dashboard, timeframeHours), [dashboard, timeframeHours]);
+  const { history, isLoading: isHistoryLoading } = useMarketHistory(
+    selectedMarketCode,
+    historyRange,
+    selectedMarket?.id,
+    dashboard.recent_prices,
+  );
+  const chartData = useMemo(() => buildChartData(dashboard, timeframeHours, history), [dashboard, timeframeHours, history]);
   const latestForecast = dashboard.forecasts[0] ?? dashboard.latest_forecast;
   const visibleEvents = dashboard.recent_events.slice(0, 3);
 
   return (
     <main className="space-y-6">
+      <DataQualityStrip dashboard={dashboard} />
+
       <section className="rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-panel backdrop-blur">
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <div>
@@ -162,8 +207,25 @@ export function DashboardExperience({
             </h2>
           </div>
           <div className="rounded-full border border-slate/10 bg-[#f5f8fb] px-4 py-2 text-sm text-slate/68">
-            {isLoading ? "Loading market..." : `${timeframeHours}-hour view · ${dashboard.market.name}`}
+            {isLoading || isHistoryLoading ? "Loading market..." : `${historyRange} history · ${timeframeHours}-hour forecast`}
           </div>
+        </div>
+
+        <div className="mb-5 flex flex-wrap gap-2">
+          {MARKET_HISTORY_RANGES.map((range) => (
+            <button
+              key={range}
+              type="button"
+              onClick={() => setHistoryRange(range)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                historyRange === range
+                  ? "border-[#122238] bg-[#122238] text-white shadow-sm"
+                  : "border-slate/10 bg-[#f5f8fb] text-slate/66 hover:border-slate/25 hover:text-slate"
+              }`}
+            >
+              {range}
+            </button>
+          ))}
         </div>
 
         <PriceForecastChart history={chartData.history} forecast={chartData.forward} />

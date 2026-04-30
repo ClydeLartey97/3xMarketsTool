@@ -8,7 +8,8 @@ from sqlalchemy import delete, desc, select
 from sqlalchemy.orm import Session
 
 from app.forecasting.feature_builder import build_feature_frame
-from app.forecasting.model import FEATURE_COLUMNS, GradientBoostingForecastModel
+from app.forecasting.model import FEATURE_COLUMNS, GradientBoostingForecastModel, _Z95
+from app.ingestion.real_data import market_currency
 from app.models import DemandPoint, Event, Forecast, Market, PricePoint, WeatherPoint
 from app.services.event_service import events_as_feature_frame
 
@@ -60,6 +61,21 @@ def list_recent_prices(db: Session, market_id: int, limit: int = 168) -> list[Pr
         .limit(limit)
     )
     return list(reversed(list(db.scalars(stmt).all())))
+
+
+def list_price_history(
+    db: Session,
+    market_id: int,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> list[PricePoint]:
+    stmt = select(PricePoint).where(PricePoint.market_id == market_id)
+    if start is not None:
+        stmt = stmt.where(PricePoint.timestamp >= start)
+    if end is not None:
+        stmt = stmt.where(PricePoint.timestamp <= end)
+    stmt = stmt.order_by(PricePoint.timestamp.asc())
+    return list(db.scalars(stmt).all())
 
 
 def list_forecasts(db: Session, market_id: int, limit: int = 48) -> list[Forecast]:
@@ -297,8 +313,10 @@ def run_forecast_for_market(
         blend = min(0.52, 0.2 + (step / 60.0))
         point_estimate = ((1.0 - blend) * float(dist["point_estimate"])) + (blend * structural_target)
         confidence_scale = 1.0 + abs(point_estimate - float(dist["point_estimate"])) / max(rolling_std, 6.0) * 0.12
-        lower_bound = point_estimate - ((point_estimate - float(dist["lower_bound"])) * confidence_scale)
-        upper_bound = point_estimate + ((float(dist["upper_bound"]) - point_estimate) * confidence_scale)
+        sigma_price = float(dist["sigma_price"]) * confidence_scale
+        band_width = _Z95 * sigma_price
+        lower_bound = point_estimate - band_width
+        upper_bound = point_estimate + band_width
         rolling_price = point_estimate
         projected_prices.append(point_estimate)
         future_rows.append(row)
@@ -309,16 +327,19 @@ def run_forecast_for_market(
                 ((point_estimate - float(row["rolling_mean_24"])) / max(float(row["rolling_std_24"]), 8.0)) * 0.12 + 0.18,
             ),
         )
+        snapshot = {key: round(float(row[key]), 4) for key in FEATURE_COLUMNS if key in row}
+        snapshot["sigma_price"] = round(sigma_price, 4)
         forecast = Forecast(
             market_id=market.id,
             forecast_for_timestamp=pd.Timestamp(row["timestamp"]).to_pydatetime(),
             point_estimate=round(point_estimate, 2),
             lower_bound=round(float(lower_bound), 2),
             upper_bound=round(float(upper_bound), 2),
+            currency=market_currency(market.code),
             spike_probability=round(float(spike_probability), 3),
             model_version=model.model_name,
             rationale_summary=model.explain(row),
-            feature_snapshot_json={key: round(float(row[key]), 4) for key in FEATURE_COLUMNS if key in row},
+            feature_snapshot_json=snapshot,
         )
         db.add(forecast)
         forecasts.append(forecast)

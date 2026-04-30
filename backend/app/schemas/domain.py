@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,6 +12,7 @@ class MarketBase(BaseModel):
     commodity_type: str
     region: str
     timezone: str
+    data_status: str = "ready"
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -27,6 +28,7 @@ class PricePointRead(BaseModel):
     timestamp: datetime
     horizon_type: str
     price_value: float
+    currency: str = "USD"
     source: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -140,6 +142,7 @@ class ForecastRead(BaseModel):
     point_estimate: float
     lower_bound: float
     upper_bound: float
+    currency: str = "USD"
     spike_probability: float
     model_version: str
     rationale_summary: str
@@ -160,12 +163,33 @@ class HealthResponse(BaseModel):
     database: str
 
 
+class ScenarioOverride(BaseModel):
+    """One named what-if shock to the simulator inputs."""
+    name: str
+    sigma_multiplier: float = 1.0          # widen/narrow vol
+    drift_shift: float = 0.0                # log-return drift add per hour
+    spot_shock_pct: float = 0.0             # one-shot % move at t=0
+
+
 class RiskAssessmentRequest(BaseModel):
     market_code: str
     position_gbp: float = Field(default=10000.0, gt=0)
+    position_unit: Literal["GBP", "MWh"] = "GBP"
+    position_mwh: Optional[float] = Field(default=None, gt=0)
+    hedge_ratio: float = Field(default=1.0, ge=0.0, le=1.0)
     horizon_hours: int = Field(default=24, ge=1, le=168)
     direction: str = Field(default="long", pattern="^(long|short)$")
     target_timestamp: Optional[datetime] = None
+    scenarios: list[ScenarioOverride] = Field(default_factory=list)
+    n_paths: int = Field(default=5000, ge=500, le=20000)
+
+
+class ScenarioOutcome(BaseModel):
+    name: str
+    risk_gbp: float
+    likely_gbp: float
+    upside_gbp: float
+    prob_loss: float
 
 
 class RiskAssessmentResponse(BaseModel):
@@ -186,7 +210,13 @@ class RiskAssessmentResponse(BaseModel):
     risk_gbp: float
     likely_gbp: float
     upside_gbp: float
+    risk_metric: str = "cvar_95_normal"
     var95_gbp: float
+    prob_loss: float = 0.0
+    max_drawdown_gbp: float = 0.0
+    fx_to_gbp: float = 1.0
+    price_currency: str = "USD"
+    n_paths: int = 0
     edge_score: float
     confidence: float
     regime: str
@@ -195,6 +225,7 @@ class RiskAssessmentResponse(BaseModel):
     tail_multiplier: float
     scorer_provider: str
     rationale: str
+    scenarios: list[ScenarioOutcome] = Field(default_factory=list)
 
 
 class DashboardResponse(BaseModel):

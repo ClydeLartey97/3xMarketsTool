@@ -37,6 +37,18 @@ export function getPrices(marketId: number): Promise<PricePoint[]> {
   return fetchJson<PricePoint[]>(`/markets/${marketId}/prices`);
 }
 
+export function getMarketHistory(marketId: number, from?: string, to?: string): Promise<PricePoint[]> {
+  const params = new URLSearchParams();
+  if (from) {
+    params.set("from", from);
+  }
+  if (to) {
+    params.set("to", to);
+  }
+  const query = params.toString();
+  return fetchJson<PricePoint[]>(`/markets/${marketId}/history${query ? `?${query}` : ""}`);
+}
+
 export function getForecast(marketId: number): Promise<ForecastPoint[]> {
   return fetchJson<ForecastPoint[]>(`/markets/${marketId}/forecast`);
 }

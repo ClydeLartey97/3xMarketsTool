@@ -92,9 +92,64 @@ MARKET_SOLAR_INSTALLED: dict[str, float] = {
 EUROPEAN_MARKETS = {"EPEX_DE", "EPEX_FR", "NORDPOOL_SE3"}
 GB_MARKETS = {"GB_POWER"}
 
+# Currency that the stored `price_value` is denominated in, per market.
+# Phase-2 fix: previously GB prices were silently converted GBP→USD on
+# ingestion, leaving the DB with mixed undocumented currencies. Each market
+# now stores its native currency and the risk engine handles FX explicitly.
+MARKET_CURRENCY: dict[str, str] = {
+    "ERCOT_NORTH": "USD",
+    "ERCOT_HOUSTON": "USD",
+    "PJM_WESTERN_HUB": "USD",
+    "NYISO_ZONE_J": "USD",
+    "ISONE_MASS_HUB": "USD",
+    "GB_POWER": "GBP",
+    "EPEX_DE": "EUR",
+    "EPEX_FR": "EUR",
+    "NORDPOOL_SE3": "EUR",
+}
+
+
+def market_currency(market_code: str) -> str:
+    return MARKET_CURRENCY.get(market_code, "USD")
+
 EIA_BASE = "https://api.eia.gov/v2"
 OPENMETEO_BASE = "https://api.open-meteo.com/v1"
+OPENMETEO_ARCHIVE_BASE = "https://archive-api.open-meteo.com/v1"
 ELEXON_BASE = "https://data.elexon.co.uk/bmrs/api/v1"
+
+
+def _ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _iso_z(value: datetime) -> str:
+    return _ensure_utc(value).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _iter_time_windows(start: datetime, end: datetime, window_days: int):
+    cursor = _ensure_utc(start)
+    limit = _ensure_utc(end)
+    step = timedelta(days=window_days)
+    while cursor < limit:
+        next_cursor = min(cursor + step, limit)
+        yield cursor, next_cursor
+        cursor = next_cursor
+
+
+def _iter_month_windows(start: datetime, end: datetime):
+    cursor = _ensure_utc(start)
+    limit = _ensure_utc(end)
+    while cursor < limit:
+        if cursor.month == 12:
+            next_month = datetime(cursor.year + 1, 1, 1, tzinfo=timezone.utc)
+        else:
+            next_month = datetime(cursor.year, cursor.month + 1, 1, tzinfo=timezone.utc)
+        next_cursor = min(next_month, limit)
+        yield cursor, next_cursor
+        cursor = next_cursor
+
 
 # ── Weather (Open-Meteo, free, no auth) ───────────────────────────────────────
 
@@ -125,6 +180,47 @@ def fetch_weather(lat: float, lon: float, past_days: int = 14) -> pd.DataFrame:
         return df
     except Exception as exc:
         logger.warning("Open-Meteo fetch failed (%.2f, %.2f): %s", lat, lon, exc)
+        return pd.DataFrame()
+
+
+def fetch_weather_archive(lat: float, lon: float, start: datetime, end: datetime) -> pd.DataFrame:
+    """Fetch historical hourly weather from Open-Meteo's archive API."""
+    start_utc = _ensure_utc(start)
+    end_utc = _ensure_utc(end)
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "temperature_2m,wind_speed_10m,direct_radiation,precipitation",
+        "start_date": start_utc.date().isoformat(),
+        "end_date": end_utc.date().isoformat(),
+        "wind_speed_unit": "ms",
+        "timezone": "UTC",
+    }
+    try:
+        with httpx.Client(timeout=35.0) as client:
+            resp = client.get(f"{OPENMETEO_ARCHIVE_BASE}/archive", params=params)
+            resp.raise_for_status()
+            data = resp.json()
+        h = data["hourly"]
+        wind_values = h.get("wind_speed_10m", h.get("windspeed_10m", [0.0] * len(h["time"])))
+        df = pd.DataFrame({
+            "timestamp": pd.to_datetime(h["time"], utc=True),
+            "temperature_c": h["temperature_2m"],
+            "wind_speed": wind_values,
+            "direct_radiation": h.get("direct_radiation", [0.0] * len(h["time"])),
+            "precipitation": h.get("precipitation", [0.0] * len(h["time"])),
+        })
+        df = df[(df["timestamp"] >= start_utc) & (df["timestamp"] <= end_utc)]
+        df = df.sort_values("timestamp").reset_index(drop=True)
+        logger.info(
+            "Open-Meteo archive: fetched %d weather points (%.2f, %.2f)",
+            len(df),
+            lat,
+            lon,
+        )
+        return df
+    except Exception as exc:
+        logger.warning("Open-Meteo archive fetch failed (%.2f, %.2f): %s", lat, lon, exc)
         return pd.DataFrame()
 
 
@@ -188,39 +284,196 @@ def fetch_eia_generation(respondent: str, fuel_type: str, api_key: str, days: in
         return pd.DataFrame()
 
 
+def _fetch_eia_records(endpoint: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    offset = 0
+    page_size = 5000
+    try:
+        with httpx.Client(timeout=35.0) as client:
+            while True:
+                page_params = {**params, "length": page_size, "offset": offset}
+                resp = client.get(f"{EIA_BASE}/{endpoint}", params=page_params)
+                resp.raise_for_status()
+                page = resp.json().get("response", {}).get("data", [])
+                if not page:
+                    break
+                records.extend(page)
+                if len(page) < page_size:
+                    break
+                offset += page_size
+    except Exception as exc:
+        logger.warning("EIA paged fetch failed (%s): %s", endpoint, exc)
+        return []
+    return records
+
+
+def _eia_hourly_frame(records: list[dict[str, Any]], value_column: str) -> pd.DataFrame:
+    if not records:
+        return pd.DataFrame()
+    df = pd.DataFrame(records)
+    df["timestamp"] = pd.to_datetime(df["period"], format="%Y-%m-%dT%H", utc=True)
+    df[value_column] = pd.to_numeric(df["value"], errors="coerce")
+    return (
+        df[["timestamp", value_column]]
+        .dropna()
+        .drop_duplicates(subset=["timestamp"])
+        .sort_values("timestamp")
+        .reset_index(drop=True)
+    )
+
+
+def fetch_eia_demand_window(
+    respondent: str,
+    api_key: str,
+    start: datetime,
+    end: datetime,
+) -> pd.DataFrame:
+    params = {
+        "api_key": api_key,
+        "frequency": "hourly",
+        "data[0]": "value",
+        "facets[respondent][0]": respondent,
+        "facets[type][0]": "D",
+        "sort[0][column]": "period",
+        "sort[0][direction]": "asc",
+        "start": _ensure_utc(start).strftime("%Y-%m-%dT%H"),
+        "end": _ensure_utc(end).strftime("%Y-%m-%dT%H"),
+    }
+    records = _fetch_eia_records("electricity/rto/region-data/data/", params)
+    return _eia_hourly_frame(records, "demand_mw")
+
+
+def fetch_eia_generation_window(
+    respondent: str,
+    fuel_type: str,
+    api_key: str,
+    start: datetime,
+    end: datetime,
+) -> pd.DataFrame:
+    params = {
+        "api_key": api_key,
+        "frequency": "hourly",
+        "data[0]": "value",
+        "facets[respondent][0]": respondent,
+        "facets[fueltype][0]": fuel_type,
+        "sort[0][column]": "period",
+        "sort[0][direction]": "asc",
+        "start": _ensure_utc(start).strftime("%Y-%m-%dT%H"),
+        "end": _ensure_utc(end).strftime("%Y-%m-%dT%H"),
+    }
+    records = _fetch_eia_records("electricity/rto/fuel-type-data/data/", params)
+    return _eia_hourly_frame(records, "value")
+
+
+def fetch_eia_demand_history(respondent: str, api_key: str, start: datetime, end: datetime) -> pd.DataFrame:
+    frames = [fetch_eia_demand_window(respondent, api_key, w_start, w_end) for w_start, w_end in _iter_month_windows(start, end)]
+    frames = [frame for frame in frames if not frame.empty]
+    if not frames:
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    return result.drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+
+
+def fetch_eia_generation_history(
+    respondent: str,
+    fuel_type: str,
+    api_key: str,
+    start: datetime,
+    end: datetime,
+) -> pd.DataFrame:
+    frames = [
+        fetch_eia_generation_window(respondent, fuel_type, api_key, w_start, w_end)
+        for w_start, w_end in _iter_month_windows(start, end)
+    ]
+    frames = [frame for frame in frames if not frame.empty]
+    if not frames:
+        return pd.DataFrame()
+    result = pd.concat(frames, ignore_index=True)
+    return result.drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+
+
 # ── ELEXON (GB actual spot price) ─────────────────────────────────────────────
 
-def fetch_elexon_prices(days: int = 14) -> pd.DataFrame:
-    """Fetch UK Market Index Data from ELEXON BMRS (free, no auth)."""
-    end = datetime.now(timezone.utc)
-    start = end - timedelta(days=days)
-    params = {
-        "from": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "to": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
-    }
+def _parse_elexon_mid_records(records: list[dict[str, Any]]) -> pd.DataFrame:
+    if not records:
+        return pd.DataFrame()
+    df = pd.DataFrame(records)
+    if "startTime" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["startTime"], utc=True, errors="coerce")
+    else:
+        df["settlement_dt"] = pd.to_datetime(df["settlementDate"])
+        df["timestamp"] = df["settlement_dt"] + pd.to_timedelta(
+            (df["settlementPeriod"].astype(int) - 1) * 30,
+            unit="m",
+        )
+        df["timestamp"] = df["timestamp"].dt.tz_localize("Europe/London", ambiguous="NaT", nonexistent="NaT")
+        df["timestamp"] = df["timestamp"].dt.tz_convert("UTC")
+    df["price_gbp_mwh"] = pd.to_numeric(df["price"], errors="coerce")
+    if "volume" in df.columns:
+        df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0.0)
+    else:
+        df["volume"] = 0.0
+    df = df.dropna(subset=["timestamp", "price_gbp_mwh"])
+    if df.empty:
+        return pd.DataFrame()
+
+    df["weighted_price"] = df["price_gbp_mwh"] * df["volume"]
+    grouped = (
+        df.groupby("timestamp", as_index=False)
+        .agg(
+            volume_sum=("volume", "sum"),
+            weighted_sum=("weighted_price", "sum"),
+            mean_price=("price_gbp_mwh", "mean"),
+        )
+    )
+    grouped["price_gbp_mwh"] = np.where(
+        grouped["volume_sum"] > 0,
+        grouped["weighted_sum"] / grouped["volume_sum"],
+        grouped["mean_price"],
+    )
+    result = (
+        grouped[["timestamp", "price_gbp_mwh"]]
+        .set_index("timestamp")
+        .sort_index()
+        .resample("1h")
+        .mean()
+        .dropna()
+        .reset_index()
+    )
+    return result.sort_values("timestamp").reset_index(drop=True)
+
+
+def _fetch_elexon_prices_window(start: datetime, end: datetime) -> pd.DataFrame:
+    """Fetch a single short ELEXON MID window."""
+    params = {"from": _iso_z(start), "to": _iso_z(end)}
     try:
         with httpx.Client(timeout=25.0) as client:
             resp = client.get(f"{ELEXON_BASE}/datasets/MID", params=params)
             resp.raise_for_status()
             records = resp.json().get("data", [])
-        if not records:
-            return pd.DataFrame()
-        df = pd.DataFrame(records)
-        df["settlement_dt"] = pd.to_datetime(df["settlementDate"])
-        df["timestamp"] = df["settlement_dt"] + pd.to_timedelta(
-            (df["settlementPeriod"].astype(int) - 1) * 30, unit="m"
-        )
-        df["timestamp"] = df["timestamp"].dt.tz_localize("Europe/London", ambiguous="NaT", nonexistent="NaT")
-        df = df.dropna(subset=["timestamp"])
-        df["timestamp"] = df["timestamp"].dt.tz_convert("UTC")
-        df["price_gbp_mwh"] = pd.to_numeric(df["price"], errors="coerce")
-        df = df[["timestamp", "price_gbp_mwh"]].dropna()
-        df = df.set_index("timestamp").resample("1h").mean().reset_index().sort_values("timestamp")
-        logger.info("ELEXON: fetched %d hourly price points", len(df))
-        return df
+        return _parse_elexon_mid_records(records)
     except Exception as exc:
-        logger.warning("ELEXON fetch failed: %s", exc)
+        logger.warning("ELEXON fetch failed (%s → %s): %s", _iso_z(start), _iso_z(end), exc)
         return pd.DataFrame()
+
+
+def fetch_elexon_prices_between(start: datetime, end: datetime, window_days: int = 7) -> pd.DataFrame:
+    """Fetch UK Market Index Data from ELEXON BMRS in API-safe windows."""
+    frames = [_fetch_elexon_prices_window(w_start, w_end) for w_start, w_end in _iter_time_windows(start, end, window_days)]
+    frames = [frame for frame in frames if not frame.empty]
+    if not frames:
+        return pd.DataFrame()
+    df = pd.concat(frames, ignore_index=True)
+    df = df.drop_duplicates(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+    logger.info("ELEXON: fetched %d hourly price points", len(df))
+    return df
+
+
+def fetch_elexon_prices(days: int = 14) -> pd.DataFrame:
+    """Fetch UK Market Index Data from ELEXON BMRS (free, no auth)."""
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=days)
+    return fetch_elexon_prices_between(start, end, window_days=7)
 
 
 # ── Energy prices from yfinance ───────────────────────────────────────────────
@@ -448,6 +701,212 @@ def _timestamp_key(value: Any) -> datetime:
     return ts.floor("h").to_pydatetime().replace(tzinfo=None)
 
 
+def _set_market_data_status(market: Any, status: str) -> None:
+    metadata = dict(market.metadata_json or {})
+    if metadata.get("data_status") != status:
+        metadata["data_status"] = status
+        market.metadata_json = metadata
+
+
+def _has_real_price_source(sources: dict[str, str]) -> bool:
+    return sources.get("prices") in {"elexon-bmrs"}
+
+
+def _apply_data_status(market: Any, sources: dict[str, str], *, demo_mode: bool) -> str:
+    status = "ready" if demo_mode or _has_real_price_source(sources) else "degraded"
+    _set_market_data_status(market, status)
+    return status
+
+
+def _hourly_timestamps(start: datetime, end: datetime) -> list[datetime]:
+    cursor = _ensure_utc(start).replace(minute=0, second=0, microsecond=0)
+    limit = _ensure_utc(end)
+    timestamps: list[datetime] = []
+    while cursor < limit:
+        timestamps.append(cursor)
+        cursor += timedelta(hours=1)
+    return timestamps
+
+
+def _normalise_hourly(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    if df.empty:
+        return df
+    frame = df.copy()
+    frame["timestamp"] = pd.to_datetime(frame["timestamp"], utc=True).dt.floor("h")
+    keep = ["timestamp", *columns]
+    return (
+        frame[keep]
+        .dropna(subset=["timestamp"])
+        .groupby("timestamp", as_index=False)
+        .mean(numeric_only=True)
+        .sort_values("timestamp")
+        .reset_index(drop=True)
+    )
+
+
+def _insert_market_frames(
+    db: Any,
+    market: Any,
+    market_code: str,
+    *,
+    weather_df: pd.DataFrame,
+    demand_df: pd.DataFrame,
+    wind_eia_df: pd.DataFrame,
+    solar_eia_df: pd.DataFrame,
+    gb_prices_df: pd.DataFrame,
+    gas_price: float,
+    sources: dict[str, str],
+    start: datetime,
+    end: datetime,
+    rng: np.random.Generator,
+) -> int:
+    from app.models import DemandPoint, PricePoint, WeatherPoint
+    from sqlalchemy import select
+
+    is_european = market_code in EUROPEAN_MARKETS
+    is_nordic = market_code == "NORDPOOL_SE3"
+    is_gb = market_code in GB_MARKETS
+
+    if weather_df.empty:
+        weather_df = _synthetic_weather_df(_hourly_timestamps(start, end), market_code, rng)
+        sources["weather"] = "synthetic"
+    else:
+        weather_df = _normalise_hourly(
+            weather_df,
+            ["temperature_c", "wind_speed", "direct_radiation", "precipitation"],
+        )
+
+    for frame_name, frame in [
+        ("demand", demand_df),
+        ("wind", wind_eia_df),
+        ("solar", solar_eia_df),
+        ("gb_prices", gb_prices_df),
+    ]:
+        if frame.empty:
+            continue
+        if frame_name == "demand":
+            demand_df = _normalise_hourly(frame, ["demand_mw"])
+        elif frame_name == "wind":
+            wind_eia_df = _normalise_hourly(frame, ["wind_mw"])
+        elif frame_name == "solar":
+            solar_eia_df = _normalise_hourly(frame, ["solar_mw"])
+        else:
+            gb_prices_df = _normalise_hourly(frame, ["price_gbp_mwh"])
+
+    merged = weather_df.copy()
+    for extra_df, col in [
+        (demand_df, "demand_mw"),
+        (wind_eia_df, "wind_mw"),
+        (solar_eia_df, "solar_mw"),
+    ]:
+        if not extra_df.empty:
+            merged = merged.merge(extra_df[["timestamp", col]], on="timestamp", how="left")
+        else:
+            merged[col] = np.nan
+
+    if not gb_prices_df.empty:
+        merged = merged.merge(gb_prices_df[["timestamp", "price_gbp_mwh"]], on="timestamp", how="left")
+    else:
+        merged["price_gbp_mwh"] = np.nan
+
+    peak_demand = MARKET_PEAK_DEMAND.get(market_code, 50000.0)
+    demand_baseline = peak_demand * 0.64
+    wind_installed = MARKET_WIND_INSTALLED.get(market_code, 5000.0)
+    solar_installed = MARKET_SOLAR_INSTALLED.get(market_code, 3000.0)
+    regional_basis = MARKET_REGIONAL_BASIS.get(market_code, 0.0)
+
+    for idx, row in merged.iterrows():
+        ts = pd.Timestamp(row["timestamp"])
+        if pd.isna(row.get("demand_mw")):
+            merged.at[idx, "demand_mw"] = synthetic_demand(
+                ts.hour,
+                ts.dayofweek,
+                float(row["temperature_c"]),
+                demand_baseline,
+                ts.month,
+                rng,
+            )
+        if pd.isna(row.get("wind_mw")):
+            merged.at[idx, "wind_mw"] = _wind_gen(float(row["wind_speed"]), wind_installed)
+        if pd.isna(row.get("solar_mw")):
+            merged.at[idx, "solar_mw"] = _solar_gen(
+                float(row.get("direct_radiation", 0.0)),
+                solar_installed,
+                ts.hour,
+            )
+
+    existing_ts = set(
+        _timestamp_key(r[0]) for r in db.execute(
+            select(PricePoint.timestamp).where(PricePoint.market_id == market.id)
+        ).all()
+    )
+
+    inserted = 0
+    for _, row in merged.iterrows():
+        ts = pd.Timestamp(row["timestamp"]).to_pydatetime()
+        ts_key = _timestamp_key(ts)
+        if ts_key in existing_ts:
+            continue
+
+        demand_mw = float(row["demand_mw"])
+        wind_mw = float(row.get("wind_mw", 0.0))
+        solar_mw = float(row.get("solar_mw", 0.0))
+        temp_c = float(row["temperature_c"])
+        wind_speed = float(row["wind_speed"])
+        precip = float(row.get("precipitation", 0.0))
+        hour = pd.Timestamp(ts).hour
+
+        if is_gb and not pd.isna(row.get("price_gbp_mwh")):
+            price = float(row["price_gbp_mwh"])
+            price_source = "elexon-bmrs"
+        else:
+            price = compute_power_price(
+                gas_price=gas_price,
+                demand_mw=demand_mw,
+                wind_mw=wind_mw,
+                solar_mw=solar_mw,
+                temp_c=temp_c,
+                demand_peak_mw=peak_demand,
+                regional_basis=regional_basis,
+                hour=hour,
+                rng=rng,
+                is_european=is_european,
+                is_nordic=is_nordic,
+            )
+            price_source = "computed-fundamentals"
+            sources.setdefault("prices", price_source)
+
+        db.add(PricePoint(
+            market_id=market.id,
+            timestamp=ts,
+            horizon_type="spot",
+            price_value=price,
+            currency=market_currency(market_code),
+            source=price_source,
+        ))
+        db.add(WeatherPoint(
+            market_id=market.id,
+            timestamp=ts,
+            temperature_c=temp_c,
+            wind_speed=wind_speed,
+            wind_generation_estimate=wind_mw,
+            solar_generation_estimate=solar_mw,
+            precipitation=precip,
+            source=sources.get("weather", "synthetic"),
+        ))
+        db.add(DemandPoint(
+            market_id=market.id,
+            timestamp=ts,
+            demand_mw=demand_mw,
+            source=sources.get("demand", "computed"),
+        ))
+        existing_ts.add(ts_key)
+        inserted += 1
+
+    db.flush()
+    return inserted
+
+
 # ── Main ingestion orchestrator ───────────────────────────────────────────────
 
 def populate_market_real_data(
@@ -461,15 +920,16 @@ def populate_market_real_data(
     Fetch and insert real data for one market.
     Returns a dict of {layer: source_description}.
     """
-    from app.models import DemandPoint, PricePoint, WeatherPoint
-    from sqlalchemy import select
-
     rng = np.random.default_rng()
     sources: dict[str, str] = {}
+    from app.core.config import get_settings
+
+    settings = get_settings()
 
     is_european = market_code in EUROPEAN_MARKETS
-    is_nordic = market_code == "NORDPOOL_SE3"
     is_gb = market_code in GB_MARKETS
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=days)
 
     # ── Weather ───────────────────────────────────────────────────────────
     coords = MARKET_COORDS.get(market_code)
@@ -478,13 +938,6 @@ def populate_market_real_data(
         weather_df = fetch_weather(coords[0], coords[1], past_days=days)
     if not weather_df.empty:
         sources["weather"] = "open-meteo"
-    else:
-        now_utc = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-        timestamps = [now_utc - timedelta(hours=i) for i in range(days * 24, 0, -1)]
-        weather_df = _synthetic_weather_df(timestamps, market_code, rng)
-        sources["weather"] = "synthetic"
-
-    weather_df["timestamp"] = pd.to_datetime(weather_df["timestamp"], utc=True).dt.floor("h")
 
     # ── Gas price ─────────────────────────────────────────────────────────
     if is_european or is_gb:
@@ -493,8 +946,6 @@ def populate_market_real_data(
     else:
         gas_price = get_gas_price_usd_mmbtu()
         sources["gas_price"] = "yfinance-NGAS"
-
-    gbp_usd = get_gbp_usd_rate() if is_gb else 1.0
 
     # ── US demand + generation (EIA) ──────────────────────────────────────
     respondent = EIA_RESPONDENTS.get(market_code)
@@ -520,119 +971,145 @@ def populate_market_real_data(
         if not gb_prices_df.empty:
             sources["prices"] = "elexon-bmrs"
 
-    # ── Merge all series on hourly UTC timestamps ─────────────────────────
-    merged = weather_df.copy()
-    for extra_df, col in [
-        (demand_df, "demand_mw"),
-        (wind_eia_df, "wind_mw"),
-        (solar_eia_df, "solar_mw"),
-    ]:
-        if not extra_df.empty:
-            extra_df = extra_df.copy()
-            extra_df["timestamp"] = pd.to_datetime(extra_df["timestamp"], utc=True).dt.floor("h")
-            merged = merged.merge(extra_df[["timestamp", col]], on="timestamp", how="left")
-        else:
-            merged[col] = np.nan
-
-    if not gb_prices_df.empty:
-        gb_prices_df = gb_prices_df.copy()
-        gb_prices_df["timestamp"] = pd.to_datetime(gb_prices_df["timestamp"], utc=True).dt.floor("h")
-        merged = merged.merge(gb_prices_df[["timestamp", "price_gbp_mwh"]], on="timestamp", how="left")
-    else:
-        merged["price_gbp_mwh"] = np.nan
-
-    # ── Fill missing demand/generation from physics-based estimates ───────
-    peak_demand = MARKET_PEAK_DEMAND.get(market_code, 50000.0)
-    demand_baseline = peak_demand * 0.64
-    wind_installed = MARKET_WIND_INSTALLED.get(market_code, 5000.0)
-    solar_installed = MARKET_SOLAR_INSTALLED.get(market_code, 3000.0)
-    regional_basis = MARKET_REGIONAL_BASIS.get(market_code, 0.0)
-
-    for idx, row in merged.iterrows():
-        ts = pd.Timestamp(row["timestamp"])
-        if pd.isna(row.get("demand_mw")):
-            merged.at[idx, "demand_mw"] = synthetic_demand(
-                ts.hour, ts.dayofweek, float(row["temperature_c"]),
-                demand_baseline, ts.month, rng,
-            )
-        if pd.isna(row.get("wind_mw")):
-            merged.at[idx, "wind_mw"] = _wind_gen(float(row["wind_speed"]), wind_installed)
-        if pd.isna(row.get("solar_mw")):
-            merged.at[idx, "solar_mw"] = _solar_gen(
-                float(row.get("direct_radiation", 0.0)), solar_installed, ts.hour
-            )
-
-    # ── Check what's already in DB (avoid duplicates) ────────────────────
-    existing_ts = set(
-        _timestamp_key(r[0]) for r in db.execute(
-            select(PricePoint.timestamp).where(PricePoint.market_id == market.id)
-        ).all()
+    inserted = _insert_market_frames(
+        db,
+        market,
+        market_code,
+        weather_df=weather_df,
+        demand_df=demand_df,
+        wind_eia_df=wind_eia_df,
+        solar_eia_df=solar_eia_df,
+        gb_prices_df=gb_prices_df,
+        gas_price=gas_price,
+        sources=sources,
+        start=start,
+        end=end,
+        rng=rng,
     )
-
-    inserted = 0
-    for _, row in merged.iterrows():
-        ts = pd.Timestamp(row["timestamp"]).to_pydatetime()
-        ts_key = _timestamp_key(ts)
-        if ts_key in existing_ts:
-            continue
-
-        demand_mw = float(row["demand_mw"])
-        wind_mw = float(row.get("wind_mw", 0.0))
-        solar_mw = float(row.get("solar_mw", 0.0))
-        temp_c = float(row["temperature_c"])
-        wind_speed = float(row["wind_speed"])
-        precip = float(row.get("precipitation", 0.0))
-        hour = pd.Timestamp(ts).hour
-
-        # Price: use ELEXON directly for GB, else compute from fundamentals
-        if is_gb and not pd.isna(row.get("price_gbp_mwh")):
-            price = float(row["price_gbp_mwh"]) * gbp_usd
-        else:
-            price = compute_power_price(
-                gas_price=gas_price,
-                demand_mw=demand_mw,
-                wind_mw=wind_mw,
-                solar_mw=solar_mw,
-                temp_c=temp_c,
-                demand_peak_mw=peak_demand,
-                regional_basis=regional_basis,
-                hour=hour,
-                rng=rng,
-                is_european=is_european,
-                is_nordic=is_nordic,
-            )
-            if "prices" not in sources:
-                sources["prices"] = "computed-fundamentals"
-
-        db.add(PricePoint(
-            market_id=market.id,
-            timestamp=ts,
-            horizon_type="spot",
-            price_value=price,
-            source=sources.get("prices", "computed"),
-        ))
-        db.add(WeatherPoint(
-            market_id=market.id,
-            timestamp=ts,
-            temperature_c=temp_c,
-            wind_speed=wind_speed,
-            wind_generation_estimate=wind_mw,
-            solar_generation_estimate=solar_mw,
-            precipitation=precip,
-            source="open-meteo" if sources.get("weather") == "open-meteo" else "synthetic",
-        ))
-        db.add(DemandPoint(
-            market_id=market.id,
-            timestamp=ts,
-            demand_mw=demand_mw,
-            source=sources.get("demand", "computed"),
-        ))
-        existing_ts.add(ts_key)
-        inserted += 1
-
-    db.flush()
+    _apply_data_status(market, sources, demo_mode=settings.demo_mode)
     logger.info(
         "Market %s: inserted %d new data points. Sources: %s",
         market_code, inserted, sources,
     )
     return sources
+
+
+def backfill_market(
+    market_code: str,
+    lookback_days: int = 730,
+    *,
+    db: Any | None = None,
+    eia_api_key: str | None = None,
+    end: datetime | None = None,
+) -> dict[str, Any]:
+    """Backfill one market with historical hourly data.
+
+    Safe to re-run: insertion goes through the same hourly timestamp dedupe
+    used by the regular refresh path.
+    """
+    if db is None:
+        from app.core.config import get_settings
+        from app.db.session import SessionLocal
+
+        settings = get_settings()
+        with SessionLocal() as session:
+            summary = backfill_market(
+                market_code,
+                lookback_days=lookback_days,
+                db=session,
+                eia_api_key=eia_api_key if eia_api_key is not None else settings.eia_api_key,
+                end=end,
+            )
+            session.commit()
+            return summary
+
+    from app.core.config import get_settings
+    from app.models import Market, PricePoint
+    from sqlalchemy import func, select
+
+    settings = get_settings()
+    api_key = eia_api_key if eia_api_key is not None else settings.eia_api_key
+    market = db.scalar(select(Market).where(Market.code == market_code))
+    if market is None:
+        raise ValueError(f"Market not found: {market_code}")
+
+    rng = np.random.default_rng()
+    end_utc = _ensure_utc(end or datetime.now(timezone.utc))
+    start_utc = end_utc - timedelta(days=lookback_days)
+    sources: dict[str, str] = {}
+
+    coords = MARKET_COORDS.get(market_code)
+    weather_df = pd.DataFrame()
+    if coords:
+        weather_df = fetch_weather_archive(coords[0], coords[1], start_utc, end_utc)
+    if not weather_df.empty:
+        sources["weather"] = "open-meteo-archive"
+
+    is_european = market_code in EUROPEAN_MARKETS
+    is_gb = market_code in GB_MARKETS
+    if is_european or is_gb:
+        gas_price = get_ttf_gas_price_eur_mwh()
+        sources["gas_price"] = "yfinance-TTF"
+    else:
+        gas_price = get_gas_price_usd_mmbtu()
+        sources["gas_price"] = "yfinance-NGAS"
+
+    respondent = EIA_RESPONDENTS.get(market_code)
+    demand_df = pd.DataFrame()
+    wind_eia_df = pd.DataFrame()
+    solar_eia_df = pd.DataFrame()
+    if respondent and api_key:
+        demand_df = fetch_eia_demand_history(respondent, api_key, start_utc, end_utc)
+        if not demand_df.empty:
+            sources["demand"] = f"eia-{respondent}"
+        raw_wind = fetch_eia_generation_history(respondent, "WND", api_key, start_utc, end_utc)
+        if not raw_wind.empty:
+            wind_eia_df = raw_wind.rename(columns={"value": "wind_mw"})
+        raw_solar = fetch_eia_generation_history(respondent, "SUN", api_key, start_utc, end_utc)
+        if not raw_solar.empty:
+            solar_eia_df = raw_solar.rename(columns={"value": "solar_mw"})
+
+    gb_prices_df = pd.DataFrame()
+    if is_gb:
+        gb_prices_df = fetch_elexon_prices_between(start_utc, end_utc, window_days=7)
+        if not gb_prices_df.empty:
+            sources["prices"] = "elexon-bmrs"
+
+    inserted = _insert_market_frames(
+        db,
+        market,
+        market_code,
+        weather_df=weather_df,
+        demand_df=demand_df,
+        wind_eia_df=wind_eia_df,
+        solar_eia_df=solar_eia_df,
+        gb_prices_df=gb_prices_df,
+        gas_price=gas_price,
+        sources=sources,
+        start=start_utc,
+        end=end_utc,
+        rng=rng,
+    )
+    data_status = _apply_data_status(market, sources, demo_mode=settings.demo_mode)
+    price_points_after = db.scalar(
+        select(func.count()).select_from(PricePoint).where(PricePoint.market_id == market.id)
+    ) or 0
+    real_price_points_after = db.scalar(
+        select(func.count()).select_from(PricePoint).where(
+            PricePoint.market_id == market.id,
+            PricePoint.source.notin_(["computed-fundamentals", "synthetic"]),
+        )
+    ) or 0
+    summary = {
+        "market": market_code,
+        "lookback_days": lookback_days,
+        "start": start_utc.isoformat(),
+        "end": end_utc.isoformat(),
+        "inserted": inserted,
+        "price_points_after": int(price_points_after),
+        "real_price_points_after": int(real_price_points_after),
+        "data_status": data_status,
+        "sources": sources,
+    }
+    logger.info("Backfill summary: %s", summary)
+    return summary

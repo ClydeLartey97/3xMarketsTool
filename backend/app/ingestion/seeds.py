@@ -11,7 +11,7 @@ from app.core.config import get_settings
 from app.core.news_sources import NEWS_SOURCE_MAP
 from app.events.extractor import extract_primary_event
 from app.events.impact import estimate_price_impact_pct
-from app.ingestion.real_data import populate_market_real_data
+from app.ingestion.real_data import market_currency, populate_market_real_data
 from app.models import Alert, DemandPoint, Event, Forecast, Market, NewsArticle, PricePoint, User, UserWatchlist, WeatherPoint
 
 logger = logging.getLogger(__name__)
@@ -708,6 +708,7 @@ def seed_database(db: Session) -> None:
                     timestamp=ts,
                     horizon_type="spot",
                     price_value=round(float(price), 2),
+                    currency=market_currency(market.code),
                     source=SYNTHETIC_SEED_SOURCE,
                 )
             )
