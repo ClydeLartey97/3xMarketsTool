@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { DriverList } from "@/components/driver-list";
 import { EventFeed } from "@/components/event-feed";
+import { MarketsTicker } from "@/components/markets-ticker";
 import { PriceForecastChart } from "@/components/price-forecast-chart";
 import { getDashboard } from "@/lib/api";
 import { MARKET_HISTORY_RANGES, MarketHistoryRange, useMarketHistory } from "@/lib/use-market-history";
@@ -130,6 +131,7 @@ export function DashboardExperience({
 
   return (
     <main className="space-y-6">
+      <MarketsTicker activeCode={selectedMarketCode} />
       <DataQualityStrip dashboard={dashboard} />
 
       <section className="rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-panel backdrop-blur">

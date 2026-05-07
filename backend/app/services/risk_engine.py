@@ -385,6 +385,134 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
     expected_return_pct = direction_sign * (expected_price - spot) / spot
     sigma_return_pct = sigma_hourly * np.sqrt(max(1.0, inputs.horizon_hours))
 
+    # ── Coefficient breakdown ───────────────────────────────────────────────
+    # Every parameter that influenced the three headline numbers, exposed
+    # for the UI / audit. Grouped so the frontend can render in sections.
+    coeff_items: list[dict[str, Any]] = [
+        # Forecast group
+        {"key": "spot_price", "label": "Spot price (P₀)", "value": round(spot, 4),
+         "unit": price_currency + "/MWh", "group": "forecast",
+         "description": "Last observed market price; the simulator's t=0 anchor."},
+        {"key": "forecast_price", "label": "Forecast point (P̂_h)", "value": round(point, 4),
+         "unit": price_currency + "/MWh", "group": "forecast",
+         "description": "Model point estimate at the chosen horizon."},
+        {"key": "horizon_log_return", "label": "Forecast-implied log return", "value": round(horizon_log_return, 6),
+         "unit": "log-return", "group": "forecast",
+         "description": "ln(P̂_h / P₀). Drives base drift."},
+        {"key": "drift_hourly_base", "label": "Base hourly drift (μ_base)", "value": round(drift_hourly_base, 6),
+         "unit": "log-return/hr", "group": "forecast",
+         "description": "Log-return per hour from the forecast point alone."},
+        {"key": "sigma_model_price", "label": "Model σ at horizon (price)", "value": round(sigma_model, 4),
+         "unit": price_currency + "/MWh", "group": "forecast",
+         "description": "Forecast-snapshot σ; widens the model's predictive band."},
+        {"key": "model_directional_accuracy", "label": "Model directional accuracy", "value": round(float(model_metrics.get("directional_accuracy", 0.0) or 0.0), 4),
+         "unit": "ratio", "group": "forecast",
+         "description": "Fraction of test rows whose direction the model called correctly."},
+        {"key": "model_mae", "label": "Model MAE", "value": round(float(model_metrics.get("mae", 0.0) or 0.0), 4),
+         "unit": price_currency + "/MWh", "group": "forecast",
+         "description": "Mean absolute error of the model on the held-out slice."},
+
+        # Realised volatility group
+        {"key": "sigma_hourly_realised", "label": "Realised hourly σ", "value": round(float(sigma_h), 6),
+         "unit": "log-return/hr", "group": "realised_vol",
+         "description": "Robust σ of recent hourly log returns (MAD-based)."},
+        {"key": "sigma_realised_horizon_price", "label": "Realised σ at horizon (price)", "value": round(float(sigma_realised_price), 4),
+         "unit": price_currency + "/MWh", "group": "realised_vol",
+         "description": "Realised hourly σ × √h × spot, in price units."},
+        {"key": "n_observed_returns", "label": "# realised returns", "value": float(returns.size),
+         "unit": "count", "group": "realised_vol",
+         "description": "Sample size used for realised vol; drives the blend weight."},
+        {"key": "realised_vol_weight", "label": "Realised-vol blend weight", "value": round(float(w_realised), 4),
+         "unit": "ratio", "group": "realised_vol",
+         "description": "Weight on realised vs. model σ; saturates at 1.0 with ≥ 168h of returns."},
+        {"key": "sigma_price_horizon_blend", "label": "Blended σ at horizon (price)", "value": round(float(sigma_price_horizon), 4),
+         "unit": price_currency + "/MWh", "group": "realised_vol",
+         "description": "(1−w)·σ_model + w·σ_realised. Pre-tail-multiplier."},
+
+        # LLM context group
+        {"key": "tail_multiplier", "label": "LLM tail multiplier", "value": round(float(context["tail_multiplier"]), 4),
+         "unit": "x", "group": "llm",
+         "description": "News/event-driven volatility inflation. >1.2 swaps CVaR formula to t(5)."},
+        {"key": "asymmetry", "label": "LLM asymmetry", "value": round(float(context["asymmetry"]), 4),
+         "unit": "[-1,1]", "group": "llm",
+         "description": "Directional skew of news flow. +1 = upside-loaded, −1 = downside-loaded."},
+        {"key": "catalyst_severity", "label": "LLM catalyst severity", "value": round(float(context["catalyst_severity"]), 4),
+         "unit": "[0,1]", "group": "llm",
+         "description": "How loaded the news/event flow is with price-moving catalysts."},
+        {"key": "asym_drift_per_hour", "label": "Asymmetry-driven drift", "value": round(float(asym_drift), 6),
+         "unit": "log-return/hr", "group": "llm",
+         "description": "0.05 · σ_h · asymmetry · catalyst_severity. Adds to base drift."},
+        {"key": "drift_hourly_total", "label": "Total hourly drift (μ)", "value": round(float(drift_hourly), 6),
+         "unit": "log-return/hr", "group": "llm",
+         "description": "μ_base + μ_asym. Fed to the simulator."},
+        {"key": "cvar_multiplier", "label": "CVaR multiplier", "value": round(float(_cvar95_multiplier(float(context["tail_multiplier"]))), 4),
+         "unit": "x", "group": "llm",
+         "description": "Closed-form CVaR multiplier (Gaussian → t(5) blend) — informational; the headline CVaR is empirical."},
+        {"key": "regime_score", "label": "Regime", "value": {"calm": 0.0, "trending": 0.5, "stressed": 1.0}.get(str(context["regime"]), 0.0),
+         "unit": "calm=0, trending=0.5, stressed=1", "group": "llm",
+         "description": "LLM read of the current regime."},
+        {"key": "llm_confidence", "label": "LLM confidence", "value": round(float(context["confidence"]), 4),
+         "unit": "[0,1]", "group": "llm",
+         "description": "How confident the scorer is in this read."},
+
+        # FX group
+        {"key": "fx_to_gbp", "label": "FX to GBP", "value": round(float(fx), 6),
+         "unit": "GBP / " + price_currency, "group": "fx",
+         "description": "Conversion from market's native currency to GBP."},
+        {"key": "price_currency_native", "label": "Native price currency", "value": 1.0,
+         "unit": price_currency, "group": "fx",
+         "description": "Currency of the underlying price feed for this market."},
+
+        # Position group
+        {"key": "position_gbp", "label": "Position (GBP notional)", "value": round(float(inputs.position_gbp), 2),
+         "unit": "GBP", "group": "position",
+         "description": "User-supplied GBP notional. Converted to native via FX."},
+        {"key": "position_native", "label": "Position (native notional)", "value": round(float(position_native), 4),
+         "unit": "MWh" if inputs.position_unit == "MWh" else price_currency,
+         "group": "position",
+         "description": "What the simulator actually multiplies P&L by."},
+        {"key": "hedge_ratio", "label": "Hedge ratio", "value": round(float(inputs.hedge_ratio), 4),
+         "unit": "ratio", "group": "position",
+         "description": "Fraction of nominal position that is unhedged. 1 = fully exposed."},
+        {"key": "direction_sign", "label": "Direction sign", "value": float(direction_sign),
+         "unit": "+1 long / -1 short", "group": "position",
+         "description": "Multiplies P&L. +1 for long, -1 for short."},
+        {"key": "horizon_hours", "label": "Horizon", "value": float(inputs.horizon_hours),
+         "unit": "hours", "group": "position",
+         "description": "How far ahead the simulation runs."},
+        {"key": "n_paths", "label": "# Monte Carlo paths", "value": float(inputs.n_paths),
+         "unit": "count", "group": "position",
+         "description": "Larger = lower sampling error in the three numbers."},
+
+        # Result group — what came out
+        {"key": "sigma_hourly_used", "label": "σ hourly fed to simulator", "value": round(float(sigma_hourly), 6),
+         "unit": "log-return/hr", "group": "result",
+         "description": "Pre-tail-multiplier σ; the simulator inflates by the tail multiplier internally."},
+        {"key": "sigma_horizon_pct", "label": "σ over horizon (%)", "value": round(float(sigma_return_pct * 100), 4),
+         "unit": "%", "group": "result",
+         "description": "σ scaled to the full horizon, expressed as % of spot."},
+        {"key": "expected_return_pct", "label": "Expected return (%)", "value": round(float(expected_return_pct * 100), 4),
+         "unit": "%", "group": "result",
+         "description": "Empirical mean return of the simulated paths."},
+        {"key": "prob_loss", "label": "P(loss)", "value": round(float(prob_loss), 4),
+         "unit": "[0,1]", "group": "result",
+         "description": "Empirical fraction of paths with negative P&L."},
+        {"key": "edge_score", "label": "Edge score", "value": round(float(edge), 4),
+         "unit": "ratio", "group": "result",
+         "description": "likely_gbp / risk_gbp, clamped to [-2, +2]. Reward / risk."},
+        {"key": "max_drawdown_gbp", "label": "95th-pct max drawdown", "value": round(float(max_dd_gbp), 2),
+         "unit": "GBP", "group": "result",
+         "description": "Worst path-running loss at the 95th percentile."},
+    ]
+
+    equation = (
+        f"P&L = direction × position_native × (P_T − P_0) × FX_to_GBP, "
+        f"where P_t follows GBM-with-tails: dlnP = μ dt + σ·tail × dW; "
+        f"μ = {drift_hourly:.5f}/hr, σ = {sigma_hourly:.5f}/hr, "
+        f"tail = {context['tail_multiplier']:.2f}, n_paths = {inputs.n_paths}."
+    )
+    coefficients_block = {"items": coeff_items, "equation_summary": equation}
+
     return {
         "market_code": market.code,
         "market_name": market.name,
@@ -421,4 +549,5 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
         "scorer_provider": context.get("provider", "heuristic"),
         "rationale": context["rationale"],
         "scenarios": scenario_outcomes,
+        "coefficients": coefficients_block,
     }

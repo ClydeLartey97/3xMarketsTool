@@ -7,9 +7,10 @@ import { useMemo, useState } from "react";
 
 import { ClientErrorBoundary } from "@/components/client-error-boundary";
 import { NewsBriefs } from "@/components/news-briefs";
+import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
 import { RiskPanel } from "@/components/risk-panel";
 import { SignalStack } from "@/components/signal-stack";
-import { DashboardData, Market } from "@/types/domain";
+import { DashboardData, Market, RiskAssessment } from "@/types/domain";
 
 // Chart is canvas-based — render only on client
 const PriceChart = dynamic(() => import("@/components/price-chart").then((m) => m.PriceChart), {
@@ -43,6 +44,8 @@ export function MarketWorkbench({
 }) {
   const router = useRouter();
   const [cursorTs, setCursorTs] = useState<number | null>(null);
+  const [risk, setRisk] = useState<RiskAssessment | null>(null);
+  const [riskLoading, setRiskLoading] = useState(false);
   const history = useMemo(() => buildHistory(dashboard), [dashboard]);
   const forecast = useMemo(() => buildForecast(dashboard), [dashboard]);
 
@@ -114,8 +117,15 @@ export function MarketWorkbench({
           marketCode={dashboard.market.code}
           cursorTimestampMs={cursorTs}
           dataStatus={dashboard.market.data_status}
+          onResult={(result, loading) => {
+            setRisk(result);
+            setRiskLoading(loading);
+          }}
         />
       </section>
+
+      {/* Coefficient breakdown — every parameter that drives the three numbers */}
+      <RiskDecompositionPanel data={risk} loading={riskLoading} />
 
       {/* Signals + news */}
       <SignalStack dashboard={dashboard} />

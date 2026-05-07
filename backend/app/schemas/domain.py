@@ -192,6 +192,26 @@ class ScenarioOutcome(BaseModel):
     prob_loss: float
 
 
+class CoefficientItem(BaseModel):
+    """A single transparent input/parameter that drives a risk number.
+
+    Every coefficient that goes into the three headline numbers is exposed
+    here so traders / analysts can audit exactly how a result was built.
+    """
+    key: str                          # programmatic id (e.g. "sigma_hourly")
+    label: str                        # human label ("Hourly σ (log-return)")
+    value: float                      # current numeric value
+    unit: str                         # "%", "£", "log-return", "ratio", ...
+    group: str                        # "forecast" | "realised_vol" | "llm" | "fx" | "position" | "result"
+    description: str                  # one-line plain-English explanation
+
+
+class CoefficientBlock(BaseModel):
+    """All coefficients grouped + a brief equation summary."""
+    items: list[CoefficientItem] = Field(default_factory=list)
+    equation_summary: str = ""
+
+
 class RiskAssessmentResponse(BaseModel):
     market_code: str
     market_name: str
@@ -226,6 +246,7 @@ class RiskAssessmentResponse(BaseModel):
     scorer_provider: str
     rationale: str
     scenarios: list[ScenarioOutcome] = Field(default_factory=list)
+    coefficients: CoefficientBlock = Field(default_factory=CoefficientBlock)
 
 
 class DashboardResponse(BaseModel):

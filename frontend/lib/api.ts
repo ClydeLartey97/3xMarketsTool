@@ -8,7 +8,10 @@ import {
   AlertItem,
   NewsArticle,
   NewsSource,
+  RiskAssessment,
 } from "@/types/domain";
+
+export type { RiskAssessment } from "@/types/domain";
 
 const PUBLIC_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 const SERVER_API_BASE_URL = process.env.API_INTERNAL_BASE_URL ?? PUBLIC_API_BASE_URL;
@@ -73,41 +76,17 @@ export function runForecast(marketCode: string): Promise<ForecastRunResponse> {
   return fetchJson<ForecastRunResponse>(`/forecasts/run?market_code=${marketCode}`);
 }
 
-export type RiskAssessment = {
-  market_code: string;
-  market_name: string;
-  as_of: string;
-  position_gbp: number;
-  direction: "long" | "short";
-  horizon_hours: number;
-  target_timestamp: string;
-  spot_price: number;
-  forecast_price: number;
-  expected_price: number;
-  sigma_price: number;
-  sigma_hourly_pct: number;
-  expected_return_pct: number;
-  sigma_return_pct: number;
-  risk_gbp: number;
-  likely_gbp: number;
-  upside_gbp: number;
-  var95_gbp: number;
-  edge_score: number;
-  confidence: number;
-  regime: "calm" | "trending" | "stressed";
-  catalyst_severity: number;
-  asymmetry: number;
-  tail_multiplier: number;
-  scorer_provider: string;
-  rationale: string;
-};
-
 export type RiskAssessmentRequest = {
   market_code: string;
   position_gbp: number;
   horizon_hours: number;
   direction: "long" | "short";
   target_timestamp?: string | null;
+  position_unit?: "GBP" | "MWh";
+  position_mwh?: number;
+  hedge_ratio?: number;
+  n_paths?: number;
+  scenarios?: { name: string; sigma_multiplier?: number; drift_shift?: number; spot_shock_pct?: number }[];
 };
 
 export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {

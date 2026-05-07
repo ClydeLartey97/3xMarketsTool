@@ -28,6 +28,7 @@ export type RiskPanelProps = {
   dataStatus?: string;
   initialPosition?: number;
   initialHorizon?: number;
+  onResult?: (result: RiskAssessment | null, loading: boolean) => void;
 };
 
 export function RiskPanel({
@@ -36,6 +37,7 @@ export function RiskPanel({
   dataStatus = "ready",
   initialPosition = 10000,
   initialHorizon = 24,
+  onResult,
 }: RiskPanelProps) {
   const [position, setPosition] = useState<number>(initialPosition);
   const [horizon, setHorizon] = useState<number>(initialHorizon);
@@ -51,12 +53,14 @@ export function RiskPanel({
       setData(null);
       setLoading(false);
       setError(null);
+      onResult?.(null, false);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       let cancelled = false;
       setLoading(true);
+      onResult?.(null, true);
       setError(null);
       runRiskAssessment({
         market_code: marketCode,
@@ -66,10 +70,16 @@ export function RiskPanel({
         target_timestamp: cursorTimestampMs ? new Date(cursorTimestampMs).toISOString() : null,
       })
         .then((res) => {
-          if (!cancelled) setData(res);
+          if (!cancelled) {
+            setData(res);
+            onResult?.(res, false);
+          }
         })
         .catch((err: unknown) => {
-          if (!cancelled) setError(err instanceof Error ? err.message : "assessment failed");
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "assessment failed");
+            onResult?.(null, false);
+          }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -81,7 +91,7 @@ export function RiskPanel({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [marketCode, position, horizon, direction, cursorTimestampMs, isDegraded]);
+  }, [marketCode, position, horizon, direction, cursorTimestampMs, isDegraded, onResult]);
 
   const riskColor = data && data.edge_score > 0.5 ? "text-price-up" : data && data.edge_score < -0.2 ? "text-price-dn" : "text-ink/80";
   const provider = data?.scorer_provider ?? "—";

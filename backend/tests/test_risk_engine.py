@@ -113,6 +113,35 @@ def test_response_includes_fx_and_currency(db_session) -> None:
     assert result["fx_to_gbp"] == pytest.approx(1.0)
 
 
+def test_coefficients_block_present_and_grouped(db_session) -> None:
+    """Every coefficient that drives the three numbers is exposed for audit."""
+    result = _assess(db_session)
+
+    coeffs = result["coefficients"]
+    assert "items" in coeffs and "equation_summary" in coeffs
+    items = coeffs["items"]
+    assert len(items) >= 20
+
+    groups = {item["group"] for item in items}
+    assert groups >= {"forecast", "realised_vol", "llm", "fx", "position", "result"}
+
+    # Spot-check key items exist with sane shapes
+    keys = {item["key"] for item in items}
+    for required in {
+        "spot_price", "forecast_price", "tail_multiplier", "asymmetry",
+        "fx_to_gbp", "position_native", "drift_hourly_total",
+        "sigma_price_horizon_blend", "n_paths", "edge_score",
+    }:
+        assert required in keys, f"missing coefficient {required}"
+
+    for item in items:
+        assert isinstance(item["value"], (int, float))
+        assert item["label"] and item["description"]
+        assert item["unit"]
+
+    assert "GBM-with-tails" in coeffs["equation_summary"]
+
+
 def test_scenarios_widen_risk(db_session) -> None:
     from app.services.risk_engine import ScenarioSpec
 

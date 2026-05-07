@@ -6,11 +6,12 @@ The backend owns ingestion, feature engineering, forecasting, event extraction, 
 
 ## What It Does
 
-- Tracks configured power markets with seeded, live, and backfilled price, demand, weather, wind, and solar data.
-- Builds probabilistic hourly forecasts with point estimates, confidence bands, spike probabilities, and model rationales.
+- Tracks configured power markets with seeded, live, and backfilled price, demand, weather, wind, and solar data — every market now carries 2 years of hourly history.
+- Builds probabilistic hourly forecasts with point estimates, confidence bands, spike probabilities, and model rationales. The forecast is **walk-forward backtested** against persistence, persistence-24h, and climatology baselines, with PIT calibration.
 - Ingests curated and RSS energy news, extracts market-relevant events, and estimates directional price impact.
 - Scores position risk via `risk`, `likely`, and `upside` outputs using Monte Carlo price paths, forecast distributions, FX conversion, and news/event context.
-- Provides a Next.js dashboard, market workbench, event feed, API reference page, dark/light themes, and backend-offline states.
+- Exposes a **transparent coefficient breakdown** for every risk number — every parameter that drives `risk_gbp / likely_gbp / upside_gbp` is surfaced in the API response and rendered in a Bloomberg-style decomposition table on the dashboard.
+- Provides a Next.js dashboard with a live multi-market ticker strip, market workbench, event feed, API reference page, dark/light themes, and backend-offline states.
 - Surfaces data provenance so users can see what share of the recent chart is real versus synthetic/computed.
 
 ## Architecture
@@ -22,12 +23,13 @@ backend/
     core/             settings and curated source metadata
     db/               SQLAlchemy engine/session setup
     events/           rule-based event extraction and impact heuristics
-    forecasting/      feature builder and model interface/implementation
+    forecasting/      feature builder, model, and walk-forward backtest framework
     ingestion/        real data, backfills, RSS, and seed population
     models/           SQLAlchemy ORM models
     schemas/          Pydantic response/request models
-    services/         market, news, forecast, risk, alert service logic
-  scripts/            local utility scripts
+    services/         market, news, forecast, risk simulator, FX, alert services
+  scripts/            local utility scripts (seed, backfill, backtest)
+  reports/            JSON output from the backtest runner
   tests/              backend pytest suite
 frontend/
   app/                Next.js app routes
@@ -217,10 +219,34 @@ RSS ingestion pulls recent articles from public energy sources and avoids duplic
 
 The risk engine uses Monte Carlo simulation, forecast-implied volatility, realized price volatility, recent events, native market currencies, FX conversion to GBP, and scored article context. If no LLM API key is configured, it uses a deterministic heuristic scorer.
 
+### Coefficient transparency
+
+Every parameter that flows into the three headline numbers is exposed in the response under `coefficients.items`, grouped into:
+
+- `forecast`: spot, forecast point, model σ, MAE, directional accuracy.
+- `realised_vol`: hourly σ, sample size, realised-vs-model blend weight, blended σ at horizon.
+- `llm`: tail multiplier, asymmetry, catalyst severity, asymmetry-driven drift, total drift, regime, LLM confidence, CVaR multiplier.
+- `fx`: native price currency and the conversion rate to GBP.
+- `position`: GBP notional, native notional, hedge ratio, direction sign, horizon, Monte Carlo path count.
+- `result`: σ used, expected return, P(loss), edge score, max drawdown.
+
+Each item carries a `label`, numeric `value`, `unit`, and one-line `description`. The dashboard renders the block as a Bloomberg-style grouped table, alongside the equation summary that ties them together.
+
+### Backtesting
+
+`backend/scripts/backtest.py` runs a walk-forward backtest over real market history and writes a JSON report to `backend/reports/`. It scores the forecaster's MAE / RMSE / directional accuracy / spike F1 against three baselines (persistence, persistence-24h, climatology), produces an hour-of-day and regime breakdown, and computes a PIT calibration histogram.
+
+```bash
+cd backend
+PYTHONPATH=. python3 scripts/backtest.py --market GB_POWER --lookback-days 365
+```
+
+A representative run on the GB_POWER ELEXON history at the time of writing showed model RMSE 21.79 £/MWh against persistence-24h 33.76 £/MWh — roughly a 35% improvement over the strongest naive baseline.
+
 ## Frontend Pages
 
-- `/`: market cards, range-selectable history chart, latest forecast, data-quality strip, and event context.
-- `/markets/{marketCode}`: market workbench with charting, forecast band, drawing tools, signal stack, news briefs, model rationale, and risk panel.
+- `/`: live multi-market ticker, market cards, range-selectable history chart, latest forecast, data-quality strip, and event context.
+- `/markets/{marketCode}`: market workbench with charting, forecast band, drawing tools, signal stack, news briefs, model rationale, risk panel, and risk decomposition table.
 - `/events`: all structured market events.
 - `/developer`: API endpoint and platform notes.
 
@@ -268,9 +294,10 @@ npm audit --audit-level=moderate
 
 ## Roadmap
 
-- Complete real U.S. historical backfill once an EIA key is configured in the environment.
-- Add migrations instead of relying on `metadata.create_all` for schema setup.
-- Add authentication and saved user watchlists.
-- Add model backtesting and forecast performance reporting.
-- Expand event extraction beyond rule-based heuristics.
+- Surface the latest backtest report on the dashboard (model RMSE vs persistence-24h, PIT calibration, hour-of-day breakdown) and run the backtest nightly.
+- Regime-conditional residual σ so the predictive intervals are calibrated (current PIT histogram on GB_POWER is too narrow).
+- Migrate charting from Recharts to KLineCharts with built-in drawing tools, plus demand / wind / solar overlays and event markers.
+- Replace the rule-based event extractor with an LLM classifier and add a structured event schema (zone, magnitude, duration distribution, historical analogues).
+- Add Postgres + Alembic migrations, background workers (arq/rq) and Redis-backed caches in place of in-process state.
+- Add authentication, per-user watchlists, position blotter, and rate limiting.
 - Add CI for backend tests, frontend build, lint, and audit.

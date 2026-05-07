@@ -114,3 +114,69 @@ export type ForecastRunResponse = {
   forecast_points: ForecastPoint[];
   metrics: Record<string, number>;
 };
+
+export type CoefficientItem = {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+  group:
+    | "forecast"
+    | "realised_vol"
+    | "llm"
+    | "fx"
+    | "position"
+    | "result"
+    | string;
+  description: string;
+};
+
+export type CoefficientBlock = {
+  items: CoefficientItem[];
+  equation_summary: string;
+};
+
+export type ScenarioOutcome = {
+  name: string;
+  risk_gbp: number;
+  likely_gbp: number;
+  upside_gbp: number;
+  prob_loss: number;
+};
+
+export type RiskAssessment = {
+  market_code: string;
+  market_name: string;
+  as_of: string;
+  position_gbp: number;
+  direction: string;
+  horizon_hours: number;
+  target_timestamp: string;
+  spot_price: number;
+  forecast_price: number;
+  expected_price: number;
+  sigma_price: number;
+  sigma_hourly_pct: number;
+  expected_return_pct: number;
+  sigma_return_pct: number;
+  risk_gbp: number;
+  likely_gbp: number;
+  upside_gbp: number;
+  risk_metric: string;
+  var95_gbp: number;
+  prob_loss: number;
+  max_drawdown_gbp: number;
+  fx_to_gbp: number;
+  price_currency: string;
+  n_paths: number;
+  edge_score: number;
+  confidence: number;
+  regime: string;
+  catalyst_severity: number;
+  asymmetry: number;
+  tail_multiplier: number;
+  scorer_provider: string;
+  rationale: string;
+  scenarios: ScenarioOutcome[];
+  coefficients: CoefficientBlock;
+};
