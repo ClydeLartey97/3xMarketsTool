@@ -241,7 +241,15 @@ cd backend
 PYTHONPATH=. python3 scripts/backtest.py --market GB_POWER --lookback-days 365
 ```
 
-A representative run on the GB_POWER ELEXON history at the time of writing showed model RMSE 21.79 £/MWh against persistence-24h 33.76 £/MWh — roughly a 35% improvement over the strongest naive baseline.
+The checked-in GB_POWER report at `backend/reports/backtest_GB_POWER_20260507_2112.json` covers a 365-day lookback with 49,896 forecasted hourly samples. It shows:
+
+- model RMSE: `21.79` £/MWh,
+- persistence-24h RMSE: `33.76` £/MWh,
+- climatology RMSE: `48.72` £/MWh,
+- 1-hour persistence RMSE: `12.69` £/MWh,
+- PIT max deviation from uniform: `0.2881`, so intervals are still too narrow.
+
+That means the current forecaster beats the day-ahead and climatology baselines, but not the simplest 1-hour persistence baseline yet. Treat the report as a useful Phase 4 diagnostic, not a claim that calibration is solved.
 
 ## Frontend Pages
 
