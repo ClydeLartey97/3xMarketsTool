@@ -1,0 +1,68 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Backtest Report - GB_POWER</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 32px; color: #17202a; }
+    h1 { margin-bottom: 4px; }
+    h2 { margin-top: 34px; border-bottom: 1px solid #d9e2ec; padding-bottom: 6px; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0 22px; }
+    th, td { border: 1px solid #d9e2ec; padding: 8px 10px; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #f5f7fa; }
+    .meta { color: #52616b; margin-top: 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+    .metric { border: 1px solid #d9e2ec; padding: 12px; border-radius: 6px; }
+    .metric span { display: block; color: #52616b; font-size: 12px; text-transform: uppercase; }
+    .metric strong { display: block; font-size: 22px; margin-top: 4px; }
+    .muted { color: #697985; }
+    .ok { color: #0f766e; }
+    .bad { color: #b42318; }
+    svg { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+  <h1>Backtest Report - GB_POWER</h1>
+  <p class="meta">Generated 2026-05-10T12:35:32.202762+00:00 · Samples 432</p>
+
+  <h2>Headline Metrics</h2>
+  <div class="grid">
+    
+      <div class="metric"><span>mae</span><strong>23.2643</strong></div>
+    
+      <div class="metric"><span>rmse</span><strong>30.0041</strong></div>
+    
+      <div class="metric"><span>directional_accuracy</span><strong>0.6343</strong></div>
+    
+      <div class="metric"><span>spike_precision</span><strong>0.0769</strong></div>
+    
+      <div class="metric"><span>spike_recall</span><strong>0.25</strong></div>
+    
+      <div class="metric"><span>spike_f1</span><strong>0.1176</strong></div>
+    
+    <div class="metric"><span>Calibrated</span><strong class="bad">False</strong></div>
+  </div>
+
+  <h2>Vs Baselines</h2>
+  <table><thead><tr><th>name</th><th>directional_accuracy</th><th>mae</th><th>rmse</th></tr></thead><tbody><tr><td>persistence</td><td>0</td><td>13.3342</td><td>29.6017</td></tr><tr><td>persistence_24h</td><td>0.7083</td><td>23.9652</td><td>46.696</td></tr><tr><td>climatology</td><td>0.5023</td><td>87.255</td><td>96.2153</td></tr></tbody></table>
+
+  <h2>Vs Forecasters</h2>
+  <table><thead><tr><th>name</th><th>directional_accuracy</th><th>mae</th><th>rmse</th></tr></thead><tbody><tr><td>gbr</td><td>0.6343</td><td>23.2643</td><td>30.0041</td></tr><tr><td>chronos</td><td>0.662</td><td>17.5673</td><td>30.0973</td></tr></tbody></table>
+
+  <h2>Hour-Of-Day Breakdown</h2>
+  <table><thead><tr><th>name</th><th>directional_accuracy</th><th>mae</th><th>rmse</th></tr></thead><tbody><tr><td>0</td><td>0.2222</td><td>17.3466</td><td>21.6552</td></tr><tr><td>1</td><td>0.5</td><td>14.2319</td><td>16.6137</td></tr><tr><td>2</td><td>0.3889</td><td>17.3653</td><td>19.9661</td></tr><tr><td>3</td><td>0.5556</td><td>17.5744</td><td>18.9168</td></tr><tr><td>4</td><td>0.6667</td><td>20.3985</td><td>21.8497</td></tr><tr><td>5</td><td>0.6667</td><td>27.0678</td><td>28.1174</td></tr><tr><td>6</td><td>0.7778</td><td>26.3238</td><td>27.4748</td></tr><tr><td>7</td><td>0.9444</td><td>44.0971</td><td>49.8364</td></tr><tr><td>8</td><td>0.3889</td><td>28.1987</td><td>34.9797</td></tr><tr><td>9</td><td>0.6667</td><td>24.3592</td><td>33.1234</td></tr><tr><td>10</td><td>0.6667</td><td>26.0929</td><td>34.2476</td></tr><tr><td>11</td><td>0.6111</td><td>24.6249</td><td>32.2512</td></tr><tr><td>12</td><td>0.7778</td><td>27.1937</td><td>35.3533</td></tr><tr><td>13</td><td>0.5556</td><td>19.6322</td><td>27.0483</td></tr><tr><td>14</td><td>0.7222</td><td>18.363</td><td>24.045</td></tr><tr><td>15</td><td>0.7222</td><td>25.1045</td><td>30.8829</td></tr><tr><td>16</td><td>0.7778</td><td>19.2739</td><td>23.6827</td></tr><tr><td>17</td><td>0.8333</td><td>24.2379</td><td>28.9287</td></tr><tr><td>18</td><td>0.6667</td><td>22.7602</td><td>28.4692</td></tr><tr><td>19</td><td>0.5</td><td>16.5423</td><td>22.8835</td></tr><tr><td>20</td><td>0.3889</td><td>18.6839</td><td>28.4584</td></tr><tr><td>21</td><td>0.7778</td><td>28.3644</td><td>41.1625</td></tr><tr><td>22</td><td>0.5556</td><td>24.2962</td><td>36.9837</td></tr><tr><td>23</td><td>0.8889</td><td>26.2091</td><td>30.7699</td></tr></tbody></table>
+
+  <h2>Regime Breakdown</h2>
+  <table><thead><tr><th>name</th><th>directional_accuracy</th><th>mae</th><th>rmse</th></tr></thead><tbody><tr><td>stressed</td><td>0.6364</td><td>59.9012</td><td>62.0967</td></tr><tr><td>trending</td><td>0.6342</td><td>22.307</td><td>28.6882</td></tr></tbody></table>
+
+  <h2>PIT Histogram</h2>
+  <svg role="img" aria-label="PIT histogram" viewBox="0 0 720 220"><rect width="720" height="220" fill="#ffffff"/><line x1="32" x2="688" y1="188" y2="188" stroke="#9aa6b2"/><line x1="32" x2="32" y1="32" y2="188" stroke="#9aa6b2"/><line x1="32" x2="688" y1="114.75" y2="114.75" stroke="#b42318" stroke-dasharray="5 5"/><text x="688" y="108.75" text-anchor="end" fill="#b42318" font-size="12">expected 0.100</text><rect x="34.00" y="52.35" width="61.60" height="135.65" fill="#2f6fed"/><text x="64.80" y="210" text-anchor="middle" fill="#52616b" font-size="11">1</text><rect x="99.60" y="65.90" width="61.60" height="122.10" fill="#2f6fed"/><text x="130.40" y="210" text-anchor="middle" fill="#52616b" font-size="11">2</text><rect x="165.20" y="72.71" width="61.60" height="115.29" fill="#2f6fed"/><text x="196.00" y="210" text-anchor="middle" fill="#52616b" font-size="11">3</text><rect x="230.80" y="87.95" width="61.60" height="100.05" fill="#2f6fed"/><text x="261.60" y="210" text-anchor="middle" fill="#52616b" font-size="11">4</text><rect x="296.40" y="120.17" width="61.60" height="67.83" fill="#2f6fed"/><text x="327.20" y="210" text-anchor="middle" fill="#52616b" font-size="11">5</text><rect x="362.00" y="152.40" width="61.60" height="35.60" fill="#2f6fed"/><text x="392.80" y="210" text-anchor="middle" fill="#52616b" font-size="11">6</text><rect x="427.60" y="160.90" width="61.60" height="27.10" fill="#2f6fed"/><text x="458.40" y="210" text-anchor="middle" fill="#52616b" font-size="11">7</text><rect x="493.20" y="174.45" width="61.60" height="13.55" fill="#2f6fed"/><text x="524.00" y="210" text-anchor="middle" fill="#52616b" font-size="11">8</text><rect x="558.80" y="147.28" width="61.60" height="40.72" fill="#2f6fed"/><text x="589.60" y="210" text-anchor="middle" fill="#52616b" font-size="11">9</text><rect x="624.40" y="113.36" width="61.60" height="74.64" fill="#2f6fed"/><text x="655.20" y="210" text-anchor="middle" fill="#52616b" font-size="11">10</text></svg>
+
+  <h2>LLM Ablation</h2>
+  
+    <p class="muted">No LLM ablation block is present in this JSON report.</p>
+  
+</body>
+</html>

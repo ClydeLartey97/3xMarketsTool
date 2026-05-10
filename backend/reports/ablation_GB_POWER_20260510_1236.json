@@ -1,0 +1,24 @@
+{
+  "breach_rate_with_llm": 0.0,
+  "breach_rate_without_llm": 0.0,
+  "kupiec_p_value_with_llm": 0.473872,
+  "kupiec_p_value_without_llm": 0.473872,
+  "sample_count": 5,
+  "per_regime": {
+    "trending": {
+      "breach_rate_with_llm": 0.0,
+      "breach_rate_without_llm": 0.0,
+      "kupiec_p_value_with_llm": 0.473872,
+      "kupiec_p_value_without_llm": 0.473872,
+      "sample_count": 5
+    }
+  },
+  "market_code": "GB_POWER",
+  "market_name": "Great Britain Power Market",
+  "generated_at": "2026-05-10T12:36:01.191097+00:00",
+  "lookback_days": 2,
+  "position_gbp": 10000.0,
+  "direction": "long",
+  "horizon_hours": 1,
+  "n_paths": 500
+}

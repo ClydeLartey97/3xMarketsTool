@@ -1,0 +1,199 @@
+{
+  "market_code": "GB_POWER",
+  "market_name": "Great Britain Power Market",
+  "generated_at": "2026-05-10T12:35:32.202762+00:00",
+  "lookback_days": 75,
+  "metrics": {
+    "mae": 23.2643,
+    "rmse": 30.0041,
+    "directional_accuracy": 0.6343,
+    "spike_precision": 0.0769,
+    "spike_recall": 0.25,
+    "spike_f1": 0.1176
+  },
+  "metrics_by_hour": {
+    "0": {
+      "mae": 17.3466,
+      "rmse": 21.6552,
+      "directional_accuracy": 0.2222
+    },
+    "1": {
+      "mae": 14.2319,
+      "rmse": 16.6137,
+      "directional_accuracy": 0.5
+    },
+    "2": {
+      "mae": 17.3653,
+      "rmse": 19.9661,
+      "directional_accuracy": 0.3889
+    },
+    "3": {
+      "mae": 17.5744,
+      "rmse": 18.9168,
+      "directional_accuracy": 0.5556
+    },
+    "4": {
+      "mae": 20.3985,
+      "rmse": 21.8497,
+      "directional_accuracy": 0.6667
+    },
+    "5": {
+      "mae": 27.0678,
+      "rmse": 28.1174,
+      "directional_accuracy": 0.6667
+    },
+    "6": {
+      "mae": 26.3238,
+      "rmse": 27.4748,
+      "directional_accuracy": 0.7778
+    },
+    "7": {
+      "mae": 44.0971,
+      "rmse": 49.8364,
+      "directional_accuracy": 0.9444
+    },
+    "8": {
+      "mae": 28.1987,
+      "rmse": 34.9797,
+      "directional_accuracy": 0.3889
+    },
+    "9": {
+      "mae": 24.3592,
+      "rmse": 33.1234,
+      "directional_accuracy": 0.6667
+    },
+    "10": {
+      "mae": 26.0929,
+      "rmse": 34.2476,
+      "directional_accuracy": 0.6667
+    },
+    "11": {
+      "mae": 24.6249,
+      "rmse": 32.2512,
+      "directional_accuracy": 0.6111
+    },
+    "12": {
+      "mae": 27.1937,
+      "rmse": 35.3533,
+      "directional_accuracy": 0.7778
+    },
+    "13": {
+      "mae": 19.6322,
+      "rmse": 27.0483,
+      "directional_accuracy": 0.5556
+    },
+    "14": {
+      "mae": 18.363,
+      "rmse": 24.045,
+      "directional_accuracy": 0.7222
+    },
+    "15": {
+      "mae": 25.1045,
+      "rmse": 30.8829,
+      "directional_accuracy": 0.7222
+    },
+    "16": {
+      "mae": 19.2739,
+      "rmse": 23.6827,
+      "directional_accuracy": 0.7778
+    },
+    "17": {
+      "mae": 24.2379,
+      "rmse": 28.9287,
+      "directional_accuracy": 0.8333
+    },
+    "18": {
+      "mae": 22.7602,
+      "rmse": 28.4692,
+      "directional_accuracy": 0.6667
+    },
+    "19": {
+      "mae": 16.5423,
+      "rmse": 22.8835,
+      "directional_accuracy": 0.5
+    },
+    "20": {
+      "mae": 18.6839,
+      "rmse": 28.4584,
+      "directional_accuracy": 0.3889
+    },
+    "21": {
+      "mae": 28.3644,
+      "rmse": 41.1625,
+      "directional_accuracy": 0.7778
+    },
+    "22": {
+      "mae": 24.2962,
+      "rmse": 36.9837,
+      "directional_accuracy": 0.5556
+    },
+    "23": {
+      "mae": 26.2091,
+      "rmse": 30.7699,
+      "directional_accuracy": 0.8889
+    }
+  },
+  "metrics_by_regime": {
+    "stressed": {
+      "mae": 59.9012,
+      "rmse": 62.0967,
+      "directional_accuracy": 0.6364
+    },
+    "trending": {
+      "mae": 22.307,
+      "rmse": 28.6882,
+      "directional_accuracy": 0.6342
+    }
+  },
+  "calibration": {
+    "n_bins": 10,
+    "shares": [
+      0.1852,
+      0.1667,
+      0.1574,
+      0.1366,
+      0.0926,
+      0.0486,
+      0.037,
+      0.0185,
+      0.0556,
+      0.1019
+    ],
+    "expected_share_per_bin": 0.1,
+    "max_deviation_from_uniform": 0.0852,
+    "well_calibrated": false
+  },
+  "vs_baselines": {
+    "persistence": {
+      "mae": 13.3342,
+      "rmse": 29.6017,
+      "directional_accuracy": 0.0
+    },
+    "persistence_24h": {
+      "mae": 23.9652,
+      "rmse": 46.696,
+      "directional_accuracy": 0.7083
+    },
+    "climatology": {
+      "mae": 87.255,
+      "rmse": 96.2153,
+      "directional_accuracy": 0.5023
+    }
+  },
+  "vs_forecasters": {
+    "gbr": {
+      "mae": 23.2643,
+      "rmse": 30.0041,
+      "directional_accuracy": 0.6343
+    },
+    "chronos": {
+      "mae": 17.5673,
+      "rmse": 30.0973,
+      "directional_accuracy": 0.662
+    }
+  },
+  "sample_count": 432,
+  "horizon_hours": 24,
+  "train_window_hours": 1440,
+  "test_window_hours": 72
+}

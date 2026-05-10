@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db.compat import apply_sqlite_compat_migrations
 from app.db.session import SessionLocal, engine
 from app.ingestion.seeds import seed_database
 
@@ -73,6 +74,7 @@ def _fill_risk_assessment_pnl() -> None:
 async def lifespan(_: FastAPI):
     global _scheduler
     Base.metadata.create_all(bind=engine)
+    apply_sqlite_compat_migrations(engine)
     with SessionLocal() as db:
         seed_database(db)
 
