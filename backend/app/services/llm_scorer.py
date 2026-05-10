@@ -25,9 +25,12 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx
+
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +38,16 @@ logger = logging.getLogger(__name__)
 # ── Cache ────────────────────────────────────────────────────────────────────
 _score_cache: dict[str, tuple[dict[str, Any], datetime]] = {}
 _CACHE_TTL = timedelta(minutes=10)
+_domain_runtime: tuple[Any, Any] | None = None
+_domain_runtime_key: tuple[str, str, str] | None = None
 
 
-def _cache_get(market_code: str) -> dict[str, Any] | None:
-    entry = _score_cache.get(market_code)
+def _cache_key(provider: str, market_code: str) -> str:
+    return f"{provider}:{market_code}"
+
+
+def _cache_get(provider: str, market_code: str) -> dict[str, Any] | None:
+    entry = _score_cache.get(_cache_key(provider, market_code))
     if not entry:
         return None
     payload, cached_at = entry
@@ -47,13 +56,15 @@ def _cache_get(market_code: str) -> dict[str, Any] | None:
     return None
 
 
-def _cache_set(market_code: str, payload: dict[str, Any]) -> None:
-    _score_cache[market_code] = (payload, datetime.now(timezone.utc))
+def _cache_set(provider: str, market_code: str, payload: dict[str, Any]) -> None:
+    _score_cache[_cache_key(provider, market_code)] = (payload, datetime.now(timezone.utc))
 
 
 def invalidate_llm_cache(market_code: str | None = None) -> None:
     if market_code:
-        _score_cache.pop(market_code, None)
+        for key in list(_score_cache):
+            if key.endswith(f":{market_code}"):
+                _score_cache.pop(key, None)
     else:
         _score_cache.clear()
 
@@ -77,17 +88,31 @@ def score_news_context(
 ) -> dict[str, Any]:
     """Score the current news/event context for a market.
 
-    Tries Gemini if `GEMINI_API_KEY` is set, otherwise falls back to a
-    deterministic heuristic scoring. Always returns a valid payload.
+    Uses the configured provider (`heuristic`, `gemini`, or `domain`) and falls
+    back to deterministic heuristic scoring if a remote/local provider is not
+    available. Always returns a valid payload.
     """
-    cached = _cache_get(market_code)
+    settings = get_settings()
+    provider = settings.llm_scorer_provider.strip().lower() or "heuristic"
+    if provider not in {"heuristic", "gemini", "domain"}:
+        logger.warning("Unknown LLM_SCORER_PROVIDER=%s; using heuristic", provider)
+        provider = "heuristic"
+
+    cached = _cache_get(provider, market_code)
     if cached:
         return cached
 
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     payload: dict[str, Any] | None = None
 
-    if api_key and articles:
+    if provider == "domain" and articles:
+        try:
+            payload = _score_with_domain(settings, market_name, region, articles, events_summary)
+        except Exception as exc:  # noqa: BLE001 - scorer must never crash the risk engine
+            logger.warning("Domain news scoring failed for %s, falling back. err=%s", market_code, exc)
+            payload = None
+
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if payload is None and provider == "gemini" and api_key and articles:
         try:
             payload = _score_with_gemini(api_key, market_code, market_name, region, articles, events_summary)
         except Exception as exc:  # noqa: BLE001 — never let scorer crash the app
@@ -97,7 +122,7 @@ def score_news_context(
     if payload is None:
         payload = _score_heuristic(articles, events_summary)
 
-    _cache_set(market_code, payload)
+    _cache_set(provider, market_code, payload)
     return payload
 
 
@@ -172,7 +197,7 @@ def _score_with_gemini(
 
     text = data["candidates"][0]["content"]["parts"][0]["text"]
     parsed = _parse_json_loose(text)
-    return _validate_score(parsed)
+    return _validate_score(parsed, provider="gemini")
 
 
 def _parse_json_loose(text: str) -> dict[str, Any]:
@@ -183,7 +208,7 @@ def _parse_json_loose(text: str) -> dict[str, Any]:
     return json.loads(text)
 
 
-def _validate_score(parsed: dict[str, Any]) -> dict[str, Any]:
+def _validate_score(parsed: dict[str, Any], *, provider: str) -> dict[str, Any]:
     def _clamp(value: Any, lo: float, hi: float, default: float) -> float:
         try:
             v = float(value)
@@ -202,8 +227,120 @@ def _validate_score(parsed: dict[str, Any]) -> dict[str, Any]:
         "regime": regime,
         "confidence": _clamp(parsed.get("confidence"), 0.0, 1.0, 0.5),
         "rationale": str(parsed.get("rationale", ""))[:400] or "LLM read",
-        "provider": "gemini",
+        "provider": provider,
     }
+
+
+# ── Domain LoRA provider ─────────────────────────────────────────────────────
+def _build_domain_prompt(
+    market_name: str,
+    region: str,
+    articles: list[ScoredArticle],
+    events_summary: list[dict[str, Any]],
+) -> str:
+    article_text = "\n\n".join(
+        f"NEWS ARTICLE:\n{article.title}\n{article.summary[:1200]}" for article in articles[:6]
+    )
+    event_text = "\n".join(
+        f"- {event.get('event_type', 'event')} {event.get('severity', 'low')} {event.get('title', '')}"
+        for event in events_summary[:6]
+    )
+    return (
+        "<s>[INST] <<SYS>>\n"
+        "You are a power-market news scorer. Return only compact JSON with keys "
+        "catalyst_severity, asymmetry, tail_multiplier, regime, confidence, and rationale.\n"
+        "<</SYS>>\n\n"
+        f"Market: {market_name} ({region})\n\n"
+        f"{article_text or 'NEWS ARTICLE:\n(none)'}\n\n"
+        f"ACTIVE EVENTS:\n{event_text or '(none)'}\n\n"
+        "Return the score JSON. [/INST]\n"
+    )
+
+
+def _score_with_domain(
+    settings: Any,
+    market_name: str,
+    region: str,
+    articles: list[ScoredArticle],
+    events_summary: list[dict[str, Any]],
+) -> dict[str, Any]:
+    generated = _generate_domain_response(settings, market_name, region, articles, events_summary)
+    parsed = _parse_json_loose(generated)
+    return _validate_score(parsed, provider="domain")
+
+
+def _generate_domain_response(
+    settings: Any,
+    market_name: str,
+    region: str,
+    articles: list[ScoredArticle],
+    events_summary: list[dict[str, Any]],
+) -> str:
+    tokenizer, model = _load_domain_runtime(settings)
+    prompt = _build_domain_prompt(market_name, region, articles, events_summary)
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=1536)
+
+    try:
+        import torch
+    except ImportError as exc:  # pragma: no cover - training deps are optional in app env
+        raise RuntimeError("torch is required for domain scorer inference") from exc
+
+    device = next(model.parameters()).device
+    inputs = {key: value.to(device) for key, value in inputs.items()}
+    with torch.no_grad():
+        output = model.generate(
+            **inputs,
+            max_new_tokens=384,
+            do_sample=False,
+            pad_token_id=tokenizer.eos_token_id,
+        )
+    generated_ids = output[0][inputs["input_ids"].shape[-1]:]
+    return tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+
+
+def _load_domain_runtime(settings: Any) -> tuple[Any, Any]:
+    global _domain_runtime, _domain_runtime_key
+
+    key = (
+        str(settings.domain_scorer_model_dir),
+        str(settings.domain_scorer_base_model),
+        str(settings.domain_scorer_device_map),
+    )
+    if _domain_runtime is not None and _domain_runtime_key == key:
+        return _domain_runtime
+
+    model_dir = Path(settings.domain_scorer_model_dir)
+    if not model_dir.is_absolute():
+        model_dir = Path(__file__).resolve().parents[2] / model_dir
+    adapter_config = model_dir / "adapter_config.json"
+    adapter_weights = model_dir / "adapter_model.safetensors"
+    if not adapter_config.exists() or not adapter_weights.exists():
+        raise RuntimeError(f"domain LoRA adapter weights not found in {model_dir}")
+
+    try:
+        import torch
+        from peft import PeftModel
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+    except ImportError as exc:  # pragma: no cover - train deps are optional in runtime tests
+        raise RuntimeError("domain scorer dependencies are not installed") from exc
+
+    tokenizer_source = model_dir if (model_dir / "tokenizer_config.json").exists() else settings.domain_scorer_base_model
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_source, use_fast=True, trust_remote_code=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    cuda_available = bool(torch.cuda.is_available())
+    model = AutoModelForCausalLM.from_pretrained(
+        settings.domain_scorer_base_model,
+        device_map=settings.domain_scorer_device_map if cuda_available else None,
+        torch_dtype=torch.bfloat16 if cuda_available else torch.float32,
+        trust_remote_code=True,
+    )
+    model = PeftModel.from_pretrained(model, model_dir)
+    model.eval()
+    _domain_runtime = (tokenizer, model)
+    _domain_runtime_key = key
+    return _domain_runtime
 
 
 # ── Heuristic fallback ───────────────────────────────────────────────────────

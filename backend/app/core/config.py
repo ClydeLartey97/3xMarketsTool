@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     active_forecaster: str = Field(default="gbr", alias="ACTIVE_FORECASTER")
     chronos_use_small: bool = Field(default=False, alias="CHRONOS_USE_SMALL")
     chronos_device_map: str = Field(default="cpu", alias="CHRONOS_DEVICE_MAP")
+    llm_scorer_provider: str = Field(default="heuristic", alias="LLM_SCORER_PROVIDER")
+    domain_scorer_model_dir: str = Field(default="models/news_scorer_lora", alias="DOMAIN_SCORER_MODEL_DIR")
+    domain_scorer_base_model: str = Field(
+        default="meta-llama/Llama-3.1-8B-Instruct",
+        alias="DOMAIN_SCORER_BASE_MODEL",
+    )
+    domain_scorer_device_map: str = Field(default="auto", alias="DOMAIN_SCORER_DEVICE_MAP")
 
     # Background refresh interval in minutes
     data_refresh_interval_minutes: int = Field(default=30, alias="DATA_REFRESH_INTERVAL_MINUTES")

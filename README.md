@@ -100,6 +100,8 @@ Useful optional variables:
 
 - `EIA_API_KEY`: enables EIA U.S. grid demand and generation calls.
 - `GEMINI_API_KEY` or `GOOGLE_API_KEY`: enables Gemini news-context scoring for the risk engine. Without it, the app uses deterministic heuristic scoring.
+- `LLM_SCORER_PROVIDER`: news scorer backend, default `heuristic`. Supported values are `heuristic`, `gemini`, and `domain`.
+- `DOMAIN_SCORER_MODEL_DIR`: LoRA adapter directory for `LLM_SCORER_PROVIDER=domain`, default `models/news_scorer_lora`.
 - `FORECAST_CACHE_TTL_MINUTES`: forecast cache TTL, default `15`.
 - `ACTIVE_FORECASTER`: forecast backend, default `gbr`. Supported values are `gbr`, `chronos`, and `naive_persistence_24h`.
 - `CHRONOS_DEVICE_MAP`: Chronos-Bolt inference device, default `cpu`. Use `cuda` on GPU hosts or `mps` on Apple Silicon when available.
