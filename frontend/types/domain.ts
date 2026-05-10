@@ -180,3 +180,14 @@ export type RiskAssessment = {
   scenarios: ScenarioOutcome[];
   coefficients: CoefficientBlock;
 };
+
+export type OptimalHedgeResponse = {
+  market_code: string;
+  hedge_ratio: number;
+  unhedged_ratio: number;
+  risk_before_gbp: number;
+  risk_after_gbp: number;
+  likely_cost_gbp: number;
+  current_assessment: RiskAssessment;
+  hedged_assessment: RiskAssessment;
+};

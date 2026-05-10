@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   createDecision,
+  getOptimalHedge,
   getRiskCalibration,
   runRiskAssessment,
   solveRiskAssessment,
+  type OptimalHedgeResponse,
   type RiskAssessment,
   type RiskCalibration,
 } from "@/lib/api";
@@ -21,6 +23,7 @@ const HORIZONS: Array<{ label: string; value: number }> = [
 
 const PRESETS = [1000, 5000, 10000, 25000, 100000];
 const RISK_PRESETS = [250, 500, 1000, 2500, 5000];
+const HEDGE_SUGGESTION_THRESHOLD_GBP = 500;
 
 function formatGbp(value: number) {
   const sign = value < 0 ? "-" : "";
@@ -62,6 +65,8 @@ export function RiskPanel({
   const [direction, setDirection] = useState<"long" | "short">("long");
   const [data, setData] = useState<RiskAssessment | null>(null);
   const [calibration, setCalibration] = useState<RiskCalibration | null>(null);
+  const [hedgeSuggestion, setHedgeSuggestion] = useState<OptimalHedgeResponse | null>(null);
+  const [hedgeLoading, setHedgeLoading] = useState(false);
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [thesisText, setThesisText] = useState("");
   const [savingDecision, setSavingDecision] = useState(false);
@@ -84,6 +89,36 @@ export function RiskPanel({
       cancelled = true;
     };
   }, [marketId, data?.as_of]);
+
+  useEffect(() => {
+    if (!data || isDegraded || data.risk_gbp < HEDGE_SUGGESTION_THRESHOLD_GBP) {
+      setHedgeSuggestion(null);
+      setHedgeLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setHedgeLoading(true);
+    getOptimalHedge({
+      market_code: data.market_code,
+      position_gbp: data.position_gbp,
+      horizon_hours: data.horizon_hours,
+      direction: data.direction === "short" ? "short" : "long",
+      target_timestamp: data.target_timestamp,
+      n_paths: 500,
+    })
+      .then((result) => {
+        if (!cancelled) setHedgeSuggestion(result);
+      })
+      .catch(() => {
+        if (!cancelled) setHedgeSuggestion(null);
+      })
+      .finally(() => {
+        if (!cancelled) setHedgeLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.as_of, data?.risk_gbp, data?.target_timestamp, isDegraded]);
 
   async function saveDecision() {
     if (!data || thesisText.trim().length === 0) return;
@@ -350,6 +385,22 @@ export function RiskPanel({
             : "(0 reads)"}
         </span>
       </div>
+
+      {hedgeSuggestion || hedgeLoading ? (
+        <div className="mt-3 rounded-lg border border-accent/25 bg-accent/10 px-3 py-2 text-[11px] text-ink/75">
+          <span className="font-semibold text-accent">Suggested hedge:</span>{" "}
+          {hedgeSuggestion ? (
+            <>
+              {direction === "long" ? "short" : "long"} {Math.round(hedgeSuggestion.hedge_ratio * 100)}% notional
+              {" → "}risk drops from {formatGbp(hedgeSuggestion.risk_before_gbp)} to{" "}
+              {formatGbp(hedgeSuggestion.risk_after_gbp)}, costs {formatGbp(hedgeSuggestion.likely_cost_gbp)} in
+              likely P&amp;L.
+            </>
+          ) : (
+            "calculating…"
+          )}
+        </div>
+      ) : null}
 
       {/* Edge / regime */}
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">

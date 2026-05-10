@@ -8,10 +8,11 @@ import {
   AlertItem,
   NewsArticle,
   NewsSource,
+  OptimalHedgeResponse,
   RiskAssessment,
 } from "@/types/domain";
 
-export type { RiskAssessment } from "@/types/domain";
+export type { OptimalHedgeResponse, RiskAssessment } from "@/types/domain";
 
 const PUBLIC_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 const SERVER_API_BASE_URL = process.env.API_INTERNAL_BASE_URL ?? PUBLIC_API_BASE_URL;
@@ -254,6 +255,22 @@ export async function runRiskSensitivity(payload: RiskSensitivityRequest): Promi
     throw new Error(`risk-assessment sensitivity failed: ${response.status}`);
   }
   return response.json() as Promise<RiskSensitivityResponse>;
+}
+
+export async function getOptimalHedge(payload: RiskAssessmentRequest): Promise<OptimalHedgeResponse> {
+  const response = await fetch(`${apiBaseUrl()}/risk-assessment/optimal-hedge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      target_timestamp: payload.target_timestamp ?? null,
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`optimal hedge failed: ${response.status}`);
+  }
+  return response.json() as Promise<OptimalHedgeResponse>;
 }
 
 export function getRiskCalibration(marketId: number): Promise<RiskCalibration> {

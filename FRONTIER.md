@@ -248,6 +248,7 @@ Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Not
 2026-05-10 frontier-C.1 (pending) — Six-hour cached cross-market hourly-return correlation matrix shipped. Tests: pass. Notes: GB_POWER vs ERCOT_NORTH finite/non-zero; full backend pytest 66 passed; frontend tsc clean.
 2026-05-10 frontier-C.2 (pending) — Portfolio-risk endpoint with correlated Monte Carlo aggregation and per-position contributions shipped. Tests: pass. Notes: anti-correlated pure test plus endpoint passed; full backend pytest 68 passed; frontend tsc clean.
 2026-05-10 frontier-C.3 (pending) — Deep hedging MLP, training script, trained policy artifact, and optimal-hedge endpoint shipped. Tests: pass. Notes: trained policy beat random hedge on held-out scenarios; full backend pytest 70 passed; frontend tsc clean.
+2026-05-10 frontier-C.4 (pending) — Risk panel hedge suggestion UI wired to optimal-hedge endpoint. Tests: pass. Notes: optimal-hedge endpoint smoke passed; frontend tsc clean.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …
