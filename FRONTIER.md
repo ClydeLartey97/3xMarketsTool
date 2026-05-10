@@ -256,6 +256,7 @@ Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Not
 2026-05-10 frontier-D.3 (pending) — Configurable domain/gemini/heuristic scorer provider with lazy LoRA adapter loading shipped. Tests: pass. Notes: domain provider round-trip, risk endpoint, and risk engine focused tests 3 passed.
 2026-05-10 frontier-D.4 (pending) — Structured event schema fields, extractor population, and SQLite compatibility migration shipped. Tests: pass. Notes: extractor/compat focused tests 4 passed; API/schema smoke 13 passed; frontend tsc clean.
 2026-05-10 frontier-D.5 (pending) — Historical analogue matcher, analogue API endpoint, ingest/read population, and event-feed surfacing shipped. Tests: pass. Notes: event analogue/API/extractor tests 14 passed; frontend tsc clean.
+2026-05-10 frontier-E.2 (pending) — DC-OPF solver shipped (scipy HiGHS LP, nodal-susceptance B_bus formulation, dual-based LMPs, binding-line detection). Tests: pass. Notes: 5 DC-OPF tests covering 3-bus textbook case, congestion-splits-LMPs, infeasibility detection, flow direction, and < 50ms timing target on 11-bus star network.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …
