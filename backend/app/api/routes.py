@@ -22,10 +22,13 @@ from app.schemas.domain import (
     PricePointRead,
     RiskAssessmentRequest,
     RiskAssessmentResponse,
+    RiskSensitivityRequest,
+    RiskSensitivityResponse,
     RiskSolveRequest,
     RiskSolveResponse,
 )
 from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
+from app.services.risk_sensitivity import run_risk_sensitivity
 from app.services.risk_solver import RiskSolveInputs, solve_position_for_risk
 from app.services.alert_service import list_alerts, refresh_alerts_for_market
 from app.services.event_service import ingest_article, list_events
@@ -264,6 +267,43 @@ def post_risk_assessment_solve(payload: RiskSolveRequest, db: Session = Depends(
         status_code = 404 if "unknown market" in detail else 400
         raise HTTPException(status_code=status_code, detail=detail)
     return RiskSolveResponse(**result)
+
+
+@router.post("/risk-assessment/sensitivity", response_model=RiskSensitivityResponse)
+def post_risk_assessment_sensitivity(
+    payload: RiskSensitivityRequest,
+    db: Session = Depends(get_db),
+) -> RiskSensitivityResponse:
+    try:
+        result = run_risk_sensitivity(
+            db,
+            RiskInputs(
+                market_code=payload.market_code,
+                position_gbp=payload.position_gbp,
+                position_unit=payload.position_unit,
+                position_mwh=payload.position_mwh,
+                hedge_ratio=payload.hedge_ratio,
+                horizon_hours=payload.horizon_hours,
+                target_timestamp=payload.target_timestamp,
+                direction=payload.direction,
+                n_paths=payload.n_paths,
+                scenarios=[
+                    ScenarioSpec(
+                        name=s.name,
+                        sigma_multiplier=s.sigma_multiplier,
+                        drift_shift=s.drift_shift,
+                        spot_shock_pct=s.spot_shock_pct,
+                    )
+                    for s in payload.scenarios
+                ],
+            ),
+            [str(item) for item in payload.coefficients_to_perturb],
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        status_code = 404 if "unknown market" in detail else 400
+        raise HTTPException(status_code=status_code, detail=detail)
+    return RiskSensitivityResponse(**result)
 
 
 @router.get("/dashboard/{market_code}", response_model=DashboardResponse)

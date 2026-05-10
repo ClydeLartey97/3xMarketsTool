@@ -109,6 +109,41 @@ export type RiskSolveResponse = {
   assessment: RiskAssessment;
 };
 
+export type SensitivityCoefficient =
+  | "tail_multiplier"
+  | "asymmetry"
+  | "catalyst_severity"
+  | "sigma_hourly"
+  | "drift_hourly"
+  | "fx_to_gbp"
+  | "hedge_ratio";
+
+export type RiskSensitivityRequest = RiskAssessmentRequest & {
+  coefficients_to_perturb: SensitivityCoefficient[];
+};
+
+export type RiskSensitivityCell = {
+  perturbation_pct: number;
+  risk_gbp: number;
+  likely_gbp: number;
+  upside_gbp: number;
+};
+
+export type RiskSensitivityRow = {
+  coefficient: SensitivityCoefficient;
+  base_value: number;
+  cells: RiskSensitivityCell[];
+};
+
+export type RiskSensitivityResponse = {
+  market_code: string;
+  position_gbp: number;
+  direction: string;
+  horizon_hours: number;
+  perturbations_pct: number[];
+  rows: RiskSensitivityRow[];
+};
+
 export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {
   const response = await fetch(`${apiBaseUrl()}/risk-assessment`, {
     method: "POST",
@@ -140,4 +175,20 @@ export async function solveRiskAssessment(payload: RiskSolveRequest): Promise<Ri
     throw new Error(`risk-assessment solve failed: ${response.status}`);
   }
   return response.json() as Promise<RiskSolveResponse>;
+}
+
+export async function runRiskSensitivity(payload: RiskSensitivityRequest): Promise<RiskSensitivityResponse> {
+  const response = await fetch(`${apiBaseUrl()}/risk-assessment/sensitivity`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      target_timestamp: payload.target_timestamp ?? null,
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`risk-assessment sensitivity failed: ${response.status}`);
+  }
+  return response.json() as Promise<RiskSensitivityResponse>;
 }

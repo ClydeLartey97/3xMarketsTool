@@ -9,6 +9,7 @@ import { ClientErrorBoundary } from "@/components/client-error-boundary";
 import { NewsBriefs } from "@/components/news-briefs";
 import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
 import { RiskPanel } from "@/components/risk-panel";
+import { RiskSensitivityLadder } from "@/components/risk-sensitivity-ladder";
 import { SignalStack } from "@/components/signal-stack";
 import { DashboardData, Market, RiskAssessment } from "@/types/domain";
 
@@ -126,6 +127,7 @@ export function MarketWorkbench({
 
       {/* Coefficient breakdown — every parameter that drives the three numbers */}
       <RiskDecompositionPanel data={risk} loading={riskLoading} />
+      <RiskSensitivityLadder data={risk} loading={riskLoading} />
 
       {/* Signals + news */}
       <SignalStack dashboard={dashboard} />

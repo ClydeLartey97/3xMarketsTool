@@ -85,6 +85,7 @@ class RiskInputs:
     n_paths: int = 5000
     scenarios: list[ScenarioSpec] | None = None
     random_seed: int | None = None
+    coefficient_overrides: dict[str, float] | None = None
 
 
 # Canonical scenarios — keyed by name. Each one specifies a multiplicative
@@ -247,13 +248,17 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
             .limit(10)
         ).all()
     )
-    context = score_news_context(
+    context = dict(score_news_context(
         market_code=market.code,
         market_name=market.name,
         region=market.region,
         articles=_build_scored_articles(news),
         events_summary=_events_summary(events),
-    )
+    ))
+    overrides = inputs.coefficient_overrides or {}
+    for key in ("tail_multiplier", "asymmetry", "catalyst_severity"):
+        if key in overrides:
+            context[key] = float(overrides[key])
 
     # 4) Build the price-distribution σ for the horizon
     # Source 1 — model-implied σ from the forecast snapshot.
@@ -291,6 +296,13 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
     drift_hourly_base = horizon_log_return / max(1.0, inputs.horizon_hours)
     asym_drift = 0.05 * sigma_hourly * float(context["asymmetry"]) * float(context["catalyst_severity"])
     drift_hourly = drift_hourly_base + asym_drift
+    if "sigma_hourly" in overrides:
+        sigma_hourly = max(0.0, float(overrides["sigma_hourly"]))
+        sigma_price_horizon = sigma_hourly * np.sqrt(max(1.0, inputs.horizon_hours)) * spot
+        asym_drift = 0.05 * sigma_hourly * float(context["asymmetry"]) * float(context["catalyst_severity"])
+        drift_hourly = drift_hourly_base + asym_drift
+    if "drift_hourly" in overrides:
+        drift_hourly = float(overrides["drift_hourly"])
 
     direction_sign = 1.0 if inputs.direction.lower() == "long" else -1.0
 
@@ -298,13 +310,16 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
     # native currency (Phase 2.1); convert to GBP at the end.
     price_currency = (getattr(prices[-1], "currency", None) if prices else None) or "USD"
     fx = fx_to_gbp(price_currency)
+    if "fx_to_gbp" in overrides:
+        fx = max(1e-6, float(overrides["fx_to_gbp"]))
+    hedge_ratio = max(0.0, float(overrides.get("hedge_ratio", inputs.hedge_ratio)))
 
     if inputs.position_unit == "MWh":
-        position_native = float(inputs.position_mwh or 0.0) * float(inputs.hedge_ratio)
+        position_native = float(inputs.position_mwh or 0.0) * hedge_ratio
     else:
         # Interpret position_gbp as a GBP-denominated notional. Convert into
         # native price-currency notional for the simulator.
-        position_native = (inputs.position_gbp / max(fx, 1e-6)) * float(inputs.hedge_ratio)
+        position_native = (inputs.position_gbp / max(fx, 1e-6)) * hedge_ratio
 
     base_cfg = SimConfig(
         n_paths=int(inputs.n_paths),
@@ -472,7 +487,7 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
          "unit": "MWh" if inputs.position_unit == "MWh" else price_currency,
          "group": "position",
          "description": "What the simulator actually multiplies P&L by."},
-        {"key": "hedge_ratio", "label": "Hedge ratio", "value": round(float(inputs.hedge_ratio), 4),
+        {"key": "hedge_ratio", "label": "Hedge ratio", "value": round(float(hedge_ratio), 4),
          "unit": "ratio", "group": "position",
          "description": "Fraction of nominal position that is unhedged. 1 = fully exposed."},
         {"key": "direction_sign", "label": "Direction sign", "value": float(direction_sign),

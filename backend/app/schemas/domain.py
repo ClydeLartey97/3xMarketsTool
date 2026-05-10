@@ -269,6 +269,43 @@ class RiskSolveResponse(BaseModel):
     assessment: RiskAssessmentResponse
 
 
+SensitivityCoefficient = Literal[
+    "tail_multiplier",
+    "asymmetry",
+    "catalyst_severity",
+    "sigma_hourly",
+    "drift_hourly",
+    "fx_to_gbp",
+    "hedge_ratio",
+]
+
+
+class RiskSensitivityRequest(RiskAssessmentRequest):
+    coefficients_to_perturb: list[SensitivityCoefficient] = Field(default_factory=list)
+
+
+class RiskSensitivityCell(BaseModel):
+    perturbation_pct: float
+    risk_gbp: float
+    likely_gbp: float
+    upside_gbp: float
+
+
+class RiskSensitivityRow(BaseModel):
+    coefficient: SensitivityCoefficient
+    base_value: float
+    cells: list[RiskSensitivityCell]
+
+
+class RiskSensitivityResponse(BaseModel):
+    market_code: str
+    position_gbp: float
+    direction: str
+    horizon_hours: int
+    perturbations_pct: list[float]
+    rows: list[RiskSensitivityRow]
+
+
 class DashboardResponse(BaseModel):
     market: MarketRead
     latest_forecast: Optional[ForecastRead]

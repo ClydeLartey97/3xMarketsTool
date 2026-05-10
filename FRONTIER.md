@@ -231,6 +231,7 @@ Progress log (append-only)
 Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Notes.
 
 2026-05-10 frontier-A.1 (pending) — Position-sizing solver endpoint and risk-first panel mode shipped. Tests: pass. Notes: backend pytest 44 passed; frontend tsc clean; ESLint hung locally with no diagnostics.
+2026-05-10 frontier-A.2 (pending) — Sensitivity endpoint and workbench heatmap shipped. Tests: pass. Notes: backend pytest 46 passed; frontend tsc clean.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …

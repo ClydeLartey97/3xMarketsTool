@@ -68,3 +68,23 @@ def test_risk_assessment_solve_endpoint(client) -> None:
     assert body["resolved_request"]["position_gbp"] > 0
     assert body["assessment"]["risk_gbp"] >= 490
     assert body["assessment"]["risk_gbp"] <= 510
+
+
+def test_risk_assessment_sensitivity_endpoint(client) -> None:
+    response = client.post(
+        "/api/risk-assessment/sensitivity",
+        json={
+            "market_code": "ERCOT_NORTH",
+            "position_gbp": 10000,
+            "horizon_hours": 24,
+            "direction": "long",
+            "n_paths": 500,
+            "coefficients_to_perturb": ["tail_multiplier"],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["rows"][0]["coefficient"] == "tail_multiplier"
+    risks = [cell["risk_gbp"] for cell in body["rows"][0]["cells"]]
+    assert risks == sorted(risks)
