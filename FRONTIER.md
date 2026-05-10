@@ -242,6 +242,7 @@ Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Not
 2026-05-10 frontier-B.3 (pending) — Chronos-Bolt forecaster adapter, dependency/config docs, and mocked distribution test shipped. Tests: pass. Notes: focused backend 6 passed; full backend pytest 59 passed; frontend tsc clean.
 2026-05-10 frontier-B.4 (pending) — Multi-forecaster walk-forward backtest and CLI comparison flag shipped. Tests: pass. Notes: focused backend 5 passed; full backend pytest 60 passed; frontend tsc clean.
 2026-05-10 frontier-B.5 (pending) — LLM coefficient ablation service, Kupiec POF test, CLI report writer, and synthetic calibration test shipped. Tests: pass. Notes: focused backend 2 passed; full backend pytest 62 passed; frontend tsc clean.
+2026-05-10 frontier-B.6 (pending) — Jinja2 single-file report renderer, inline PIT SVG, sample render test, and GB_POWER HTML artifact shipped. Tests: pass. Notes: focused backend 1 passed; full backend pytest 63 passed; frontend tsc clean.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …
