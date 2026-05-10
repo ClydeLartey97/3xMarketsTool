@@ -25,6 +25,7 @@ from app.schemas.domain import (
     RiskAssessmentRequest,
     RiskAssessmentResponse,
     RiskCalibrationResponse,
+    RiskPathFanResponse,
     RiskSensitivityRequest,
     RiskSensitivityResponse,
     RiskSolveRequest,
@@ -311,6 +312,48 @@ def post_risk_assessment_sensitivity(
         status_code = 404 if "unknown market" in detail else 400
         raise HTTPException(status_code=status_code, detail=detail)
     return RiskSensitivityResponse(**result)
+
+
+@router.post("/risk-assessment/paths", response_model=RiskPathFanResponse)
+def post_risk_assessment_paths(
+    payload: RiskAssessmentRequest,
+    db: Session = Depends(get_db),
+) -> RiskPathFanResponse:
+    try:
+        result = assess_risk(
+            db,
+            RiskInputs(
+                market_code=payload.market_code,
+                position_gbp=payload.position_gbp,
+                position_unit=payload.position_unit,
+                position_mwh=payload.position_mwh,
+                hedge_ratio=payload.hedge_ratio,
+                horizon_hours=payload.horizon_hours,
+                target_timestamp=payload.target_timestamp,
+                direction=payload.direction,
+                n_paths=payload.n_paths,
+                scenarios=[
+                    ScenarioSpec(
+                        name=s.name,
+                        sigma_multiplier=s.sigma_multiplier,
+                        drift_shift=s.drift_shift,
+                        spot_shock_pct=s.spot_shock_pct,
+                    )
+                    for s in payload.scenarios
+                ],
+                random_seed=260512,
+                path_sample_size=200,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return RiskPathFanResponse(
+        market_code=result["market_code"],
+        horizon_hours=result["horizon_hours"],
+        path_hours=list(range(int(result["horizon_hours"]) + 1)),
+        price_paths=result["price_paths"][:200],
+        assessment=RiskAssessmentResponse(**result),
+    )
 
 
 @router.get("/markets/{market_id}/risk-calibration", response_model=RiskCalibrationResponse)

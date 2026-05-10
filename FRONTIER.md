@@ -234,6 +234,7 @@ Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Not
 2026-05-10 frontier-A.2 (pending) — Sensitivity endpoint and workbench heatmap shipped. Tests: pass. Notes: backend pytest 46 passed; frontend tsc clean.
 2026-05-10 frontier-A.3 (pending) — Calibration logging, P&L fill, API badge payload, and workbench badge shipped. Tests: pass. Notes: backend pytest 50 passed; frontend tsc clean.
 2026-05-10 frontier-A.4 (pending) — Decision diary create/list endpoints, save modal, maturity update, and workbench panel shipped. Tests: pass. Notes: backend pytest 51 passed; frontend tsc clean.
+2026-05-10 frontier-A.5 (pending) — Path-fan endpoint and SVG workbench visualization shipped. Tests: pass. Notes: backend pytest 52 passed; frontend tsc clean.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …

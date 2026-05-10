@@ -181,6 +181,14 @@ export type DecisionItem = {
   thesis_text: string;
 };
 
+export type RiskPathFanResponse = {
+  market_code: string;
+  horizon_hours: number;
+  path_hours: number[];
+  price_paths: number[][];
+  assessment: RiskAssessment;
+};
+
 export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {
   const response = await fetch(`${apiBaseUrl()}/risk-assessment`, {
     method: "POST",
@@ -250,4 +258,20 @@ export async function createDecision(payload: DecisionCreateRequest): Promise<De
 export function getDecisions(marketId?: number): Promise<DecisionItem[]> {
   const query = marketId ? `?market_id=${marketId}` : "";
   return fetchJson<DecisionItem[]>(`/decisions${query}`);
+}
+
+export async function getRiskPaths(payload: RiskAssessmentRequest): Promise<RiskPathFanResponse> {
+  const response = await fetch(`${apiBaseUrl()}/risk-assessment/paths`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      target_timestamp: payload.target_timestamp ?? null,
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`risk paths failed: ${response.status}`);
+  }
+  return response.json() as Promise<RiskPathFanResponse>;
 }

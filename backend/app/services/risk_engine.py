@@ -86,6 +86,7 @@ class RiskInputs:
     scenarios: list[ScenarioSpec] | None = None
     random_seed: int | None = None
     coefficient_overrides: dict[str, float] | None = None
+    path_sample_size: int | None = None
 
 
 # Canonical scenarios — keyed by name. Each one specifies a multiplicative
@@ -529,6 +530,12 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
     )
     coefficients_block = {"items": coeff_items, "equation_summary": equation}
 
+    sampled_paths: list[list[float]] = []
+    if inputs.path_sample_size:
+        sample_size = min(max(1, int(inputs.path_sample_size)), base_result.paths.shape[0])
+        sample_indices = np.linspace(0, base_result.paths.shape[0] - 1, sample_size, dtype=int)
+        sampled_paths = np.round(base_result.paths[sample_indices], 4).tolist()
+
     return {
         "market_code": market.code,
         "market_name": market.name,
@@ -566,4 +573,5 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
         "rationale": context["rationale"],
         "scenarios": scenario_outcomes,
         "coefficients": coefficients_block,
+        "price_paths": sampled_paths,
     }

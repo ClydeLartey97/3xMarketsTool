@@ -343,6 +343,14 @@ class DecisionRead(BaseModel):
     thesis_text: str
 
 
+class RiskPathFanResponse(BaseModel):
+    market_code: str
+    horizon_hours: int
+    path_hours: list[int]
+    price_paths: list[list[float]]
+    assessment: RiskAssessmentResponse
+
+
 class DashboardResponse(BaseModel):
     market: MarketRead
     latest_forecast: Optional[ForecastRead]

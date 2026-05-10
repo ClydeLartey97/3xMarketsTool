@@ -10,6 +10,7 @@ import { DecisionDiary } from "@/components/decision-diary";
 import { NewsBriefs } from "@/components/news-briefs";
 import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
 import { RiskPanel } from "@/components/risk-panel";
+import { RiskPathFan } from "@/components/risk-path-fan";
 import { RiskSensitivityLadder } from "@/components/risk-sensitivity-ladder";
 import { SignalStack } from "@/components/signal-stack";
 import { DashboardData, Market, RiskAssessment } from "@/types/domain";
@@ -130,6 +131,7 @@ export function MarketWorkbench({
       </section>
 
       {/* Coefficient breakdown — every parameter that drives the three numbers */}
+      <RiskPathFan data={risk} loading={riskLoading} />
       <RiskDecompositionPanel data={risk} loading={riskLoading} />
       <RiskSensitivityLadder data={risk} loading={riskLoading} />
 
