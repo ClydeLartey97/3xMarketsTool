@@ -1,0 +1,11 @@
+# Training-only dependencies for the D.2 domain news-scorer LoRA.
+# Install an appropriate CUDA/MPS/CPU PyTorch wheel for your host separately.
+accelerate==1.1.1
+datasets==3.1.0
+peft==0.13.2
+safetensors==0.4.5
+transformers==4.46.3
+trl==0.12.1
+
+# Optional on Linux CUDA hosts for 4-bit loading:
+# bitsandbytes==0.44.1

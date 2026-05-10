@@ -107,6 +107,29 @@ Useful optional variables:
 - `DATA_REFRESH_INTERVAL_MINUTES`: background refresh interval, default `30`.
 - `DEMO_MODE`: when `true`, permits computed/synthetic fallback data without marking the market degraded. Defaults to `false`.
 
+## Domain News Scorer Training
+
+Phase D adds a LoRA training path for the structured news scorer. The runtime
+backend dependencies stay lean; training dependencies live in
+`backend/requirements-train.txt`.
+
+GPU expectation: use a CUDA host with roughly 24GB VRAM for
+`meta-llama/Llama-3.1-8B-Instruct`. If that model is gated for your Hugging Face
+account, use `--model-id Qwen/Qwen2.5-7B-Instruct`.
+
+```bash
+cd backend
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-train.txt
+PYTHONPATH=. python3 scripts/build_news_dataset.py --target-rows 5000
+PYTHONPATH=. python3 scripts/finetune_news_scorer.py --dry-run
+PYTHONPATH=. python3 scripts/finetune_news_scorer.py --model-id meta-llama/Llama-3.1-8B-Instruct
+```
+
+The dry run validates prompt formatting and writes
+`backend/models/news_scorer_lora/training_manifest.json`. A real run writes the
+LoRA adapter files into the same directory.
+
 ## Historical Backfill
 
 Phase 3 adds a rerunnable historical backfill path. It keeps the existing hourly timestamp dedupe, so it is safe to run more than once.

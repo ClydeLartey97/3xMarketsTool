@@ -252,6 +252,7 @@ Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Not
 2026-05-10 frontier-C.5 (pending) — Open-position blotter backed by decision CRUD and portfolio aggregate shipped. Tests: pass. Notes: focused decision tests 2 passed; related backend tests 13 passed; full backend pytest 71 passed; frontend tsc clean; ESLint hung locally with no diagnostics.
 2026-05-10 frontier-C.acceptance (pending) — Portfolio-risk endpoint live, workbench shows aggregate/per-position blotter, and deep hedger beats random on held-out scenarios. Tests: pass. Notes: full backend pytest 71 passed; frontend tsc clean.
 2026-05-10 frontier-D.1 (pending) — News corpus builder and 5,000-row silver-labelled training JSONL shipped. Tests: pass. Notes: 60 live public candidates plus deterministic source-family fill; builder pytest 2 passed; CLI smoke passed.
+2026-05-10 frontier-D.2 (pending) — LoRA fine-tune harness, training deps, GPU docs, and news_scorer_lora dry-run manifest shipped. Tests: pass. Notes: finetune script pytest 2 passed; dry-run formatted 5,000 rows; real adapter training still requires a 24GB-class GPU and model access.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …

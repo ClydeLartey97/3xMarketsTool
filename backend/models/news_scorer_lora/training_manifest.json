@@ -1,0 +1,39 @@
+{
+  "base_model": "meta-llama/Llama-3.1-8B-Instruct",
+  "dataset_path": "/Users/clydelartey/Documents/Code/Market Speculation/backend/data/news_train.jsonl",
+  "dry_run": true,
+  "event_counts": {
+    "demand_shock": 1206,
+    "extreme_weather_alert": 330,
+    "generator_outage": 1293,
+    "regulatory_policy_announcement": 31,
+    "renewable_forecast_revision": 1200,
+    "transmission_outage": 940
+  },
+  "generated_at": "2026-05-10T20:44:12.938185+00:00",
+  "max_seq_length": 1536,
+  "output_contract": {
+    "adapter_config": "adapter_config.json",
+    "adapter_weights": "adapter_model.safetensors",
+    "tokenizer": "tokenizer files saved by transformers"
+  },
+  "row_count": 5000,
+  "sample_ids": [
+    "3bc0b85d11252a03c97436a1479dcc8898d94d38",
+    "6372b121b5bc4d690a423d6b7deb4f5f4b748259",
+    "9d4ba9d690c23b5b0e5c534d6d71ac383773f6f6",
+    "f194d3776a8882822e0448f4e2f5831e9545d720",
+    "ecb928883ebcdbef8e7b10e0e5a6c88fc09def79"
+  ],
+  "source_counts": {
+    "argus_public_rss": 995,
+    "canary_media": 1,
+    "eia_today": 1,
+    "elexon_boa": 1000,
+    "entsoe_unavailability": 1004,
+    "ferc_elibrary": 999,
+    "renewableenergyworld": 3,
+    "reuters_public_rss": 995,
+    "utility_dive": 2
+  }
+}
