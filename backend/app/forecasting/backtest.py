@@ -22,6 +22,7 @@ import pandas as pd
 
 from app.forecasting.feature_builder import build_feature_frame
 from app.forecasting.model import FEATURE_COLUMNS, GradientBoostingForecastModel
+from app.forecasting.regime import classify_regime
 
 
 # ── Result schemas ────────────────────────────────────────────────────────
@@ -54,20 +55,6 @@ class BacktestResult:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
-
-
-def _classify_regime(row: pd.Series) -> str:
-    rolling_std = float(row.get("rolling_std_24", 0.0) or 0.0)
-    rolling_mean = float(row.get("rolling_mean_24", 0.0) or 0.0)
-    event_impact = float(row.get("event_impact", 0.0) or 0.0)
-    if rolling_mean <= 0:
-        return "calm"
-    cv = rolling_std / max(rolling_mean, 1.0)
-    if cv > 0.35 or event_impact > 1.0:
-        return "stressed"
-    if cv > 0.15:
-        return "trending"
-    return "calm"
 
 
 def _is_spike(values: np.ndarray, mean: np.ndarray, std: np.ndarray, k: float = 2.0) -> np.ndarray:
@@ -199,14 +186,18 @@ def walk_forward_backtest(
         try:
             model = GradientBoostingForecastModel()
             model.train(train)
-            preds = model.predict(test).to_numpy()
-            sigmas = np.full_like(preds, model.residual_std, dtype=float)
+            dist = model.predict_distribution(test)
+            preds = dist["point_estimate"].to_numpy(dtype=float)
+            sigmas = dist["sigma_price"].to_numpy(dtype=float)
         except Exception:  # noqa: BLE001 — keep walking on any single-fit failure
             continue
         test = test.copy()
         test["pred"] = preds
         test["sigma_pred"] = sigmas
-        test["regime"] = test.apply(_classify_regime, axis=1)
+        if "regime" in dist.columns:
+            test["regime"] = dist["regime"].to_numpy()
+        else:
+            test["regime"] = test.apply(classify_regime, axis=1)
         pred_records.append(test)
 
     if not pred_records:

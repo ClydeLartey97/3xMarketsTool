@@ -237,6 +237,7 @@ Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Not
 2026-05-10 frontier-A.5 (pending) — Path-fan endpoint and SVG workbench visualization shipped. Tests: pass. Notes: backend pytest 52 passed; frontend tsc clean.
 2026-05-10 frontier-A.6 (pending) — KLineCharts workbench wrapper, fundamentals timeseries API, and wind/solar/event overlays shipped. Tests: pass. Notes: backend pytest 53 passed; frontend tsc clean.
 2026-05-10 frontier-A.7 (pending) — Persisted resizable workbench layout with chart/risk top row and news/events/calibration/diary bottom row shipped. Tests: pass. Notes: backend pytest 53 passed; frontend tsc clean; local Next dev/build smoke blocked by stale hanging Next processes.
+2026-05-10 frontier-B.1 (pending) — Regime classifier extracted, per-regime residual sigma trained and persisted into forecast snapshots. Tests: pass. Notes: focused backend 10 passed; full backend pytest 56 passed; frontend tsc clean.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …

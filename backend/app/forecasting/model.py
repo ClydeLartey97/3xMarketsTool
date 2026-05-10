@@ -8,6 +8,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 from app.forecasting.base import ForecastModel
+from app.forecasting.regime import REGIMES, classify_regime
 
 
 # Standard normal one-sided 95% quantile.
@@ -45,6 +46,7 @@ class GradientBoostingForecastModel(ForecastModel):
     def __init__(self) -> None:
         self.model = GradientBoostingRegressor(random_state=42)
         self.residual_std = 12.0
+        self.residual_std_by_regime: dict[str, float] = {regime: self.residual_std for regime in REGIMES}
         self.metrics: dict[str, float] = {}
         self.model_name = "hybrid-signal-v3"
 
@@ -82,6 +84,7 @@ class GradientBoostingForecastModel(ForecastModel):
             preds = self._composite_signal(test_frame, model_preds)
             residuals = test_frame["price_value"] - preds
             self.residual_std = float(max(residuals.std(ddof=0), 4.0))
+            self.residual_std_by_regime = self._fit_regime_sigmas(test_frame, residuals)
             direction = ((preds - test_frame["price_lag_1"]) > 0) == ((test_frame["price_value"] - test_frame["price_lag_1"]) > 0)
             actual_spike = test_frame["price_value"] > (
                 test_frame["rolling_mean_24"] + (1.4 * test_frame["rolling_std_24"].clip(lower=8.0))
@@ -98,8 +101,21 @@ class GradientBoostingForecastModel(ForecastModel):
                 "spike_precision": round(true_positive / predicted_positive, 3) if predicted_positive else 0.0,
             }
         else:
+            self.residual_std_by_regime = {regime: self.residual_std for regime in REGIMES}
             self.metrics = {"mae": 0.0, "rmse": 0.0, "directional_accuracy": 0.0, "spike_precision": 0.0}
         return self.metrics
+
+    def _fit_regime_sigmas(self, frame: pd.DataFrame, residuals: pd.Series) -> dict[str, float]:
+        regimes = frame.apply(classify_regime, axis=1)
+        counts = regimes.value_counts()
+        if any(int(counts.get(regime, 0)) < 24 for regime in REGIMES):
+            return {regime: self.residual_std for regime in REGIMES}
+
+        residuals_by_regime: dict[str, float] = {}
+        for regime in REGIMES:
+            regime_residuals = residuals.loc[regimes == regime]
+            residuals_by_regime[regime] = float(max(regime_residuals.std(ddof=0), 4.0))
+        return residuals_by_regime
 
     def predict(self, frame: pd.DataFrame) -> pd.Series:
         model_pred = self.model.predict(frame[FEATURE_COLUMNS])
@@ -107,8 +123,13 @@ class GradientBoostingForecastModel(ForecastModel):
 
     def predict_distribution(self, frame: pd.DataFrame) -> pd.DataFrame:
         preds = self.predict(frame)
+        regimes = frame.apply(classify_regime, axis=1)
+        base_sigma = np.array(
+            [self.residual_std_by_regime.get(str(regime), self.residual_std) for regime in regimes],
+            dtype=float,
+        )
         horizon_scale = 1.0 + frame["forecast_step"].fillna(0.0).clip(lower=0.0).to_numpy() / 18.0
-        sigma = self.residual_std * horizon_scale
+        sigma = base_sigma * horizon_scale
         band_width = _Z95 * sigma
         return pd.DataFrame(
             {
@@ -116,6 +137,7 @@ class GradientBoostingForecastModel(ForecastModel):
                 "lower_bound": preds - band_width,
                 "upper_bound": preds + band_width,
                 "sigma_price": sigma,
+                "regime": regimes.to_numpy(),
             },
             index=frame.index,
         )

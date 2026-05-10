@@ -95,4 +95,5 @@ def test_sigma_price_is_persisted_in_snapshot(db_session) -> None:
     for f in forecasts:
         snap = f.feature_snapshot_json or {}
         assert "sigma_price" in snap, "sigma_price missing from forecast snapshot"
+        assert snap.get("regime") in {"calm", "trending", "stressed"}
         assert snap["sigma_price"] > 0

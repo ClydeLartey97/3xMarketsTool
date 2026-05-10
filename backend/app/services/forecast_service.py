@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.forecasting.feature_builder import build_feature_frame
 from app.forecasting.model import FEATURE_COLUMNS, GradientBoostingForecastModel, _Z95
+from app.forecasting.regime import classify_regime
 from app.ingestion.real_data import market_currency
 from app.models import DemandPoint, Event, Forecast, Market, PricePoint, WeatherPoint
 from app.services.event_service import events_as_feature_frame
@@ -329,6 +330,7 @@ def run_forecast_for_market(
         )
         snapshot = {key: round(float(row[key]), 4) for key in FEATURE_COLUMNS if key in row}
         snapshot["sigma_price"] = round(sigma_price, 4)
+        snapshot["regime"] = str(dist.get("regime", classify_regime(row)))
         forecast = Forecast(
             market_id=market.id,
             forecast_for_timestamp=pd.Timestamp(row["timestamp"]).to_pydatetime(),
