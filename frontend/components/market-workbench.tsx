@@ -4,9 +4,12 @@ import dynamic from "next/dynamic";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
+import { CalibrationPanel } from "@/components/calibration-panel";
 import { ClientErrorBoundary } from "@/components/client-error-boundary";
 import { DecisionDiary } from "@/components/decision-diary";
+import { EventFeed } from "@/components/event-feed";
 import { NewsBriefs } from "@/components/news-briefs";
 import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
 import { RiskPanel } from "@/components/risk-panel";
@@ -104,67 +107,94 @@ export function MarketWorkbench({
         </div>
       </section>
 
-      {/* Chart + risk panel — the desk */}
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <ClientErrorBoundary
-          fallbackTitle="Chart engine recovering"
-          fallbackBody="The chart hit a client-side issue. Refresh once. The rest of the desk stays live."
-        >
-          <KlinePriceChart
-            marketId={dashboard.market.id}
-            history={history}
-            forecast={forecast}
-            events={dashboard.recent_events}
-            timezoneLabel={dashboard.market.timezone}
-            onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
-          />
-        </ClientErrorBoundary>
-        <RiskPanel
-          marketId={dashboard.market.id}
-          marketCode={dashboard.market.code}
-          cursorTimestampMs={cursorTs}
-          dataStatus={dashboard.market.data_status}
-          onResult={(result, loading) => {
-            setRisk(result);
-            setRiskLoading(loading);
-          }}
-          onDecisionSaved={() => setDecisionRefresh((value) => value + 1)}
-        />
-      </section>
-
-      {/* Coefficient breakdown — every parameter that drives the three numbers */}
-      <RiskPathFan data={risk} loading={riskLoading} />
-      <RiskDecompositionPanel data={risk} loading={riskLoading} />
-      <RiskSensitivityLadder data={risk} loading={riskLoading} />
-
-      {/* Signals + news */}
-      <SignalStack dashboard={dashboard} />
-
-      <section className="grid gap-4 xl:grid-cols-2">
-        <NewsBriefs items={dashboard.recent_news.slice(0, 8)} />
-        <DecisionDiary marketId={dashboard.market.id} refreshKey={decisionRefresh} />
-      </section>
-
-      <section>
-        <div className="rounded-2xl border border-seam bg-surface p-5">
-          <p className="text-[10px] uppercase tracking-widest text-ink/40">Model rationale</p>
-          <p className="mt-2 text-sm leading-relaxed text-ink/80">
-            {dashboard.latest_forecast?.rationale_summary ?? "No rationale available."}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-ink/45">
-            <span>Directional accuracy <span className="font-mono text-ink/70">{directionalAccuracy}%</span></span>
-            <span>Spike precision <span className="font-mono text-ink/70">{spikePrecision}%</span></span>
-            <span>
-              Avg spike risk (12h){" "}
-              <span className="font-mono text-ink/70">
-                {Math.round((dashboard.key_metrics.avg_spike_probability_12h ?? 0) * 100)}%
-              </span>
-            </span>
-          </div>
-        </div>
+      <section className="h-[calc(100vh-220px)] min-h-[980px]">
+        <PanelGroup autoSaveId="frontier-workbench-rows" direction="vertical" className="h-full">
+          <Panel defaultSize={62} minSize={44}>
+            <PanelGroup autoSaveId="frontier-workbench-top" direction="horizontal" className="h-full">
+              <Panel defaultSize={60} minSize={36}>
+                <div className="h-full overflow-y-auto pr-2">
+                  <ClientErrorBoundary
+                    fallbackTitle="Chart engine recovering"
+                    fallbackBody="The chart hit a client-side issue. Refresh once. The rest of the desk stays live."
+                  >
+                    <KlinePriceChart
+                      marketId={dashboard.market.id}
+                      history={history}
+                      forecast={forecast}
+                      events={dashboard.recent_events}
+                      timezoneLabel={dashboard.market.timezone}
+                      onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
+                    />
+                  </ClientErrorBoundary>
+                </div>
+              </Panel>
+              <ResizeHandle direction="horizontal" />
+              <Panel defaultSize={40} minSize={28}>
+                <div className="h-full space-y-4 overflow-y-auto pl-2">
+                  <RiskPanel
+                    marketId={dashboard.market.id}
+                    marketCode={dashboard.market.code}
+                    cursorTimestampMs={cursorTs}
+                    dataStatus={dashboard.market.data_status}
+                    onResult={(result, loading) => {
+                      setRisk(result);
+                      setRiskLoading(loading);
+                    }}
+                    onDecisionSaved={() => setDecisionRefresh((value) => value + 1)}
+                  />
+                  <RiskPathFan data={risk} loading={riskLoading} />
+                  <RiskDecompositionPanel data={risk} loading={riskLoading} />
+                  <RiskSensitivityLadder data={risk} loading={riskLoading} />
+                  <SignalStack dashboard={dashboard} />
+                </div>
+              </Panel>
+            </PanelGroup>
+          </Panel>
+          <ResizeHandle direction="vertical" />
+          <Panel defaultSize={38} minSize={24}>
+            <PanelGroup autoSaveId="frontier-workbench-bottom" direction="horizontal" className="h-full">
+              <Panel defaultSize={25} minSize={16}>
+                <div className="h-full overflow-y-auto pr-2">
+                  <NewsBriefs items={dashboard.recent_news.slice(0, 8)} />
+                </div>
+              </Panel>
+              <ResizeHandle direction="horizontal" />
+              <Panel defaultSize={25} minSize={16}>
+                <div className="h-full overflow-y-auto px-2">
+                  <EventFeed
+                    events={dashboard.recent_events.slice(0, 8)}
+                    compact
+                    title="Recent structured events"
+                    subtitle="Events"
+                  />
+                </div>
+              </Panel>
+              <ResizeHandle direction="horizontal" />
+              <Panel defaultSize={20} minSize={14}>
+                <div className="h-full overflow-y-auto px-2">
+                  <CalibrationPanel marketId={dashboard.market.id} />
+                </div>
+              </Panel>
+              <ResizeHandle direction="horizontal" />
+              <Panel defaultSize={30} minSize={18}>
+                <div className="h-full overflow-y-auto pl-2">
+                  <DecisionDiary marketId={dashboard.market.id} refreshKey={decisionRefresh} />
+                </div>
+              </Panel>
+            </PanelGroup>
+          </Panel>
+        </PanelGroup>
       </section>
     </main>
   );
+}
+
+function ResizeHandle({ direction }: { direction: "horizontal" | "vertical" }) {
+  const className =
+    direction === "horizontal"
+      ? "mx-2 w-1 rounded-full bg-seam transition hover:bg-seam-hi data-[resize-handle-active]:bg-seam-hi"
+      : "my-2 h-1 rounded-full bg-seam transition hover:bg-seam-hi data-[resize-handle-active]:bg-seam-hi";
+  return <PanelResizeHandle className={className} />;
 }
 
 function KpiTile({
