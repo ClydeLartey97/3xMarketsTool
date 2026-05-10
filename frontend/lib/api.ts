@@ -144,6 +144,15 @@ export type RiskSensitivityResponse = {
   rows: RiskSensitivityRow[];
 };
 
+export type RiskCalibration = {
+  market_id: number;
+  claimed_breach_rate: number;
+  actual_breach_rate: number;
+  kupiec_p_value: number;
+  sample_count: number;
+  calibration_status: "honest" | "understating" | "overstating";
+};
+
 export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {
   const response = await fetch(`${apiBaseUrl()}/risk-assessment`, {
     method: "POST",
@@ -191,4 +200,8 @@ export async function runRiskSensitivity(payload: RiskSensitivityRequest): Promi
     throw new Error(`risk-assessment sensitivity failed: ${response.status}`);
   }
   return response.json() as Promise<RiskSensitivityResponse>;
+}
+
+export function getRiskCalibration(marketId: number): Promise<RiskCalibration> {
+  return fetchJson<RiskCalibration>(`/markets/${marketId}/risk-calibration`);
 }

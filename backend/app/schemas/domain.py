@@ -306,6 +306,15 @@ class RiskSensitivityResponse(BaseModel):
     rows: list[RiskSensitivityRow]
 
 
+class RiskCalibrationResponse(BaseModel):
+    market_id: int
+    claimed_breach_rate: float = 0.05
+    actual_breach_rate: float
+    kupiec_p_value: float
+    sample_count: int
+    calibration_status: Literal["honest", "understating", "overstating"]
+
+
 class DashboardResponse(BaseModel):
     market: MarketRead
     latest_forecast: Optional[ForecastRead]

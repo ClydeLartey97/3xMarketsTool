@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { runRiskAssessment, solveRiskAssessment, type RiskAssessment } from "@/lib/api";
+import {
+  getRiskCalibration,
+  runRiskAssessment,
+  solveRiskAssessment,
+  type RiskAssessment,
+  type RiskCalibration,
+} from "@/lib/api";
 
 const HORIZONS: Array<{ label: string; value: number }> = [
   { label: "6H", value: 6 },
@@ -23,7 +29,12 @@ function formatGbp(value: number) {
   return `${sign}£${abs.toFixed(0)}`;
 }
 
+function formatPct(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 export type RiskPanelProps = {
+  marketId: number;
   marketCode: string;
   cursorTimestampMs: number | null;
   dataStatus?: string;
@@ -33,6 +44,7 @@ export type RiskPanelProps = {
 };
 
 export function RiskPanel({
+  marketId,
   marketCode,
   cursorTimestampMs,
   dataStatus = "ready",
@@ -46,10 +58,25 @@ export function RiskPanel({
   const [horizon, setHorizon] = useState<number>(initialHorizon);
   const [direction, setDirection] = useState<"long" | "short">("long");
   const [data, setData] = useState<RiskAssessment | null>(null);
+  const [calibration, setCalibration] = useState<RiskCalibration | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDegraded = dataStatus === "degraded";
+
+  useEffect(() => {
+    let cancelled = false;
+    getRiskCalibration(marketId)
+      .then((result) => {
+        if (!cancelled) setCalibration(result);
+      })
+      .catch(() => {
+        if (!cancelled) setCalibration(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [marketId, data?.as_of]);
 
   useEffect(() => {
     if (isDegraded) {
@@ -110,6 +137,15 @@ export function RiskPanel({
 
   const riskColor = data && data.edge_score > 0.5 ? "text-price-up" : data && data.edge_score < -0.2 ? "text-price-dn" : "text-ink/80";
   const provider = data?.scorer_provider ?? "—";
+  const calibrationTone = !calibration
+    ? "border-seam bg-bg text-ink/50"
+    : calibration.calibration_status === "honest"
+      ? "border-price-up/25 bg-price-up/10 text-price-up"
+      : calibration.calibration_status === "understating"
+        ? "border-price-dn/25 bg-price-dn/10 text-price-dn"
+        : "border-amber-400/25 bg-amber-400/10 text-amber-300";
+  const calibrationGlyph = calibration?.calibration_status === "honest" ? "✓" : "✗";
+  const calibrationStatus = calibration?.calibration_status ?? "collecting data";
 
   return (
     <div className="rounded-2xl border border-seam bg-surface p-5">
@@ -271,6 +307,17 @@ export function RiskPanel({
           </div>
         </div>
       )}
+
+      <div className={`mt-3 rounded-lg border px-3 py-2 text-[11px] ${calibrationTone}`}>
+        <span className="font-semibold">
+          Calibration: {calibration ? `${calibrationGlyph} ${calibrationStatus}` : "collecting data"}
+        </span>
+        <span className="ml-1 text-ink/55">
+          {calibration
+            ? `(${formatPct(calibration.actual_breach_rate)} breach vs ${formatPct(calibration.claimed_breach_rate)} target, ${calibration.sample_count} reads)`
+            : "(0 reads)"}
+        </span>
+      </div>
 
       {/* Edge / regime */}
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">

@@ -57,6 +57,18 @@ def _refresh_all_markets() -> None:
         logger.error("Background refresh error: %s", exc)
 
 
+def _fill_risk_assessment_pnl() -> None:
+    try:
+        from app.services.risk_calibration import fill_matured_risk_assessment_logs
+
+        with SessionLocal() as db:
+            updated = fill_matured_risk_assessment_logs(db)
+        if updated:
+            logger.info("Filled realized P&L for %d matured risk assessments.", updated)
+    except Exception as exc:
+        logger.error("Risk calibration fill failed: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global _scheduler
@@ -71,6 +83,14 @@ async def lifespan(_: FastAPI):
         "interval",
         minutes=settings.data_refresh_interval_minutes,
         id="market_refresh",
+        max_instances=1,
+        coalesce=True,
+    )
+    _scheduler.add_job(
+        _fill_risk_assessment_pnl,
+        "interval",
+        hours=1,
+        id="risk_assessment_pnl_fill",
         max_instances=1,
         coalesce=True,
     )

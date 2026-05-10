@@ -26,6 +26,7 @@ class Market(Base):
     events: Mapped[list["Event"]] = relationship(back_populates="market")
     forecasts: Mapped[list["Forecast"]] = relationship(back_populates="market")
     alerts: Mapped[list["Alert"]] = relationship(back_populates="market")
+    risk_assessment_logs: Mapped[list["RiskAssessmentLog"]] = relationship(back_populates="market")
 
 
 class PricePoint(Base):
@@ -146,6 +147,23 @@ class Alert(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
 
     market: Mapped["Market"] = relationship(back_populates="alerts")
+
+
+class RiskAssessmentLog(Base):
+    __tablename__ = "risk_assessment_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    market_id: Mapped[int] = mapped_column(ForeignKey("markets.id"), index=True)
+    position_gbp: Mapped[float] = mapped_column(Float)
+    direction: Mapped[str] = mapped_column(String(16))
+    horizon_hours: Mapped[int] = mapped_column(Integer)
+    risk_gbp: Mapped[float] = mapped_column(Float)
+    likely_gbp: Mapped[float] = mapped_column(Float)
+    upside_gbp: Mapped[float] = mapped_column(Float)
+    realized_pnl_gbp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    market: Mapped["Market"] = relationship(back_populates="risk_assessment_logs")
 
 
 class User(Base):

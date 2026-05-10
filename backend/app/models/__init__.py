@@ -1,4 +1,4 @@
-from app.models.entities import Alert, DemandPoint, Event, Forecast, Market, NewsArticle, PricePoint, User, UserWatchlist, WeatherPoint
+from app.models.entities import Alert, DemandPoint, Event, Forecast, Market, NewsArticle, PricePoint, RiskAssessmentLog, User, UserWatchlist, WeatherPoint
 
 __all__ = [
     "Alert",
@@ -8,6 +8,7 @@ __all__ = [
     "Market",
     "NewsArticle",
     "PricePoint",
+    "RiskAssessmentLog",
     "User",
     "UserWatchlist",
     "WeatherPoint",

@@ -115,6 +115,7 @@ export function MarketWorkbench({
           />
         </ClientErrorBoundary>
         <RiskPanel
+          marketId={dashboard.market.id}
           marketCode={dashboard.market.code}
           cursorTimestampMs={cursorTs}
           dataStatus={dashboard.market.data_status}

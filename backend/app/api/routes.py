@@ -22,12 +22,14 @@ from app.schemas.domain import (
     PricePointRead,
     RiskAssessmentRequest,
     RiskAssessmentResponse,
+    RiskCalibrationResponse,
     RiskSensitivityRequest,
     RiskSensitivityResponse,
     RiskSolveRequest,
     RiskSolveResponse,
 )
 from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
+from app.services.risk_calibration import log_risk_assessment, risk_calibration_for_market
 from app.services.risk_sensitivity import run_risk_sensitivity
 from app.services.risk_solver import RiskSolveInputs, solve_position_for_risk
 from app.services.alert_service import list_alerts, refresh_alerts_for_market
@@ -245,6 +247,7 @@ def post_risk_assessment(payload: RiskAssessmentRequest, db: Session = Depends(g
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    log_risk_assessment(db, result)
     return RiskAssessmentResponse(**result)
 
 
@@ -266,6 +269,7 @@ def post_risk_assessment_solve(payload: RiskSolveRequest, db: Session = Depends(
         detail = str(exc)
         status_code = 404 if "unknown market" in detail else 400
         raise HTTPException(status_code=status_code, detail=detail)
+    log_risk_assessment(db, result["assessment"])
     return RiskSolveResponse(**result)
 
 
@@ -304,6 +308,13 @@ def post_risk_assessment_sensitivity(
         status_code = 404 if "unknown market" in detail else 400
         raise HTTPException(status_code=status_code, detail=detail)
     return RiskSensitivityResponse(**result)
+
+
+@router.get("/markets/{market_id}/risk-calibration", response_model=RiskCalibrationResponse)
+def get_market_risk_calibration(market_id: int, db: Session = Depends(get_db)) -> RiskCalibrationResponse:
+    if not get_market_by_id(db, market_id):
+        raise HTTPException(status_code=404, detail="Market not found")
+    return RiskCalibrationResponse(**risk_calibration_for_market(db, market_id))
 
 
 @router.get("/dashboard/{market_code}", response_model=DashboardResponse)
