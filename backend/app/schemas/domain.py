@@ -184,6 +184,15 @@ class RiskAssessmentRequest(BaseModel):
     n_paths: int = Field(default=5000, ge=500, le=20000)
 
 
+class RiskSolveRequest(BaseModel):
+    market_code: str
+    max_risk_gbp: float = Field(gt=0)
+    horizon_hours: int = Field(default=24, ge=1, le=168)
+    direction: Literal["long", "short"] = "long"
+    position_unit: Literal["GBP", "MWh"] = "GBP"
+    target_timestamp: Optional[datetime] = None
+
+
 class ScenarioOutcome(BaseModel):
     name: str
     risk_gbp: float
@@ -247,6 +256,17 @@ class RiskAssessmentResponse(BaseModel):
     rationale: str
     scenarios: list[ScenarioOutcome] = Field(default_factory=list)
     coefficients: CoefficientBlock = Field(default_factory=CoefficientBlock)
+
+
+class RiskSolveResponse(BaseModel):
+    max_risk_gbp: float
+    achieved_risk_gbp: float
+    risk_error_pct: float
+    tolerance_pct: float
+    iterations: int
+    converged: bool
+    resolved_request: RiskAssessmentRequest
+    assessment: RiskAssessmentResponse
 
 
 class DashboardResponse(BaseModel):

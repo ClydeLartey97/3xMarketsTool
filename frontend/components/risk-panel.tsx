@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { runRiskAssessment, type RiskAssessment } from "@/lib/api";
+import { runRiskAssessment, solveRiskAssessment, type RiskAssessment } from "@/lib/api";
 
 const HORIZONS: Array<{ label: string; value: number }> = [
   { label: "6H", value: 6 },
@@ -13,6 +13,7 @@ const HORIZONS: Array<{ label: string; value: number }> = [
 ];
 
 const PRESETS = [1000, 5000, 10000, 25000, 100000];
+const RISK_PRESETS = [250, 500, 1000, 2500, 5000];
 
 function formatGbp(value: number) {
   const sign = value < 0 ? "-" : "";
@@ -40,6 +41,8 @@ export function RiskPanel({
   onResult,
 }: RiskPanelProps) {
   const [position, setPosition] = useState<number>(initialPosition);
+  const [riskFirst, setRiskFirst] = useState(true);
+  const [maxRisk, setMaxRisk] = useState<number>(1000);
   const [horizon, setHorizon] = useState<number>(initialHorizon);
   const [direction, setDirection] = useState<"long" | "short">("long");
   const [data, setData] = useState<RiskAssessment | null>(null);
@@ -57,18 +60,32 @@ export function RiskPanel({
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    let cancelled = false;
     debounceRef.current = setTimeout(() => {
-      let cancelled = false;
       setLoading(true);
       onResult?.(null, true);
       setError(null);
-      runRiskAssessment({
-        market_code: marketCode,
-        position_gbp: position,
-        horizon_hours: horizon,
-        direction,
-        target_timestamp: cursorTimestampMs ? new Date(cursorTimestampMs).toISOString() : null,
-      })
+      const targetTimestamp = cursorTimestampMs ? new Date(cursorTimestampMs).toISOString() : null;
+      const request = riskFirst
+        ? solveRiskAssessment({
+            market_code: marketCode,
+            max_risk_gbp: maxRisk,
+            horizon_hours: horizon,
+            direction,
+            position_unit: "GBP",
+            target_timestamp: targetTimestamp,
+          }).then((res) => {
+            if (!cancelled) setPosition(res.resolved_request.position_gbp);
+            return res.assessment;
+          })
+        : runRiskAssessment({
+            market_code: marketCode,
+            position_gbp: position,
+            horizon_hours: horizon,
+            direction,
+            target_timestamp: targetTimestamp,
+          });
+      request
         .then((res) => {
           if (!cancelled) {
             setData(res);
@@ -84,14 +101,12 @@ export function RiskPanel({
         .finally(() => {
           if (!cancelled) setLoading(false);
         });
-      return () => {
-        cancelled = true;
-      };
     }, 220);
     return () => {
+      cancelled = true;
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [marketCode, position, horizon, direction, cursorTimestampMs, isDegraded, onResult]);
+  }, [marketCode, position, riskFirst, maxRisk, horizon, direction, cursorTimestampMs, isDegraded, onResult]);
 
   const riskColor = data && data.edge_score > 0.5 ? "text-price-up" : data && data.edge_score < -0.2 ? "text-price-dn" : "text-ink/80";
   const provider = data?.scorer_provider ?? "—";
@@ -114,34 +129,71 @@ export function RiskPanel({
 
       {/* Position input */}
       <div className="mb-4 space-y-2">
+        <div className="flex rounded-lg border border-seam bg-bg p-0.5">
+          <button
+            type="button"
+            onClick={() => setRiskFirst(true)}
+            className={`flex-1 rounded px-2 py-1.5 text-[11px] font-mono uppercase tracking-wider transition ${
+              riskFirst ? "bg-ink/10 text-ink" : "text-ink/50 hover:text-ink"
+            }`}
+          >
+            Risk-first
+          </button>
+          <button
+            type="button"
+            onClick={() => setRiskFirst(false)}
+            className={`flex-1 rounded px-2 py-1.5 text-[11px] font-mono uppercase tracking-wider transition ${
+              !riskFirst ? "bg-ink/10 text-ink" : "text-ink/50 hover:text-ink"
+            }`}
+          >
+            Notional
+          </button>
+        </div>
         <label className="block">
-          <span className="mb-1 block text-[10px] uppercase tracking-widest text-ink/40">Position size (GBP)</span>
+          <span className="mb-1 block text-[10px] uppercase tracking-widest text-ink/40">
+            {riskFirst ? "Max risk (GBP)" : "Position size (GBP)"}
+          </span>
           <div className="flex items-center gap-2">
             <span className="text-lg text-ink/60">£</span>
             <input
               type="number"
               min={100}
               step={100}
-              value={position}
-              onChange={(e) => setPosition(Math.max(100, Number(e.target.value) || 0))}
+              value={riskFirst ? maxRisk : position}
+              onChange={(e) => {
+                const nextValue = Math.max(100, Number(e.target.value) || 0);
+                if (riskFirst) {
+                  setMaxRisk(nextValue);
+                } else {
+                  setPosition(nextValue);
+                }
+              }}
               className="w-full rounded-lg border border-seam bg-bg px-3 py-2 text-lg font-mono tabular-nums text-ink outline-none focus:border-seam-hi"
             />
           </div>
         </label>
         <div className="flex flex-wrap gap-1.5">
-          {PRESETS.map((p) => (
+          {(riskFirst ? RISK_PRESETS : PRESETS).map((p) => (
             <button
               key={p}
               type="button"
-              onClick={() => setPosition(p)}
+              onClick={() => (riskFirst ? setMaxRisk(p) : setPosition(p))}
               className={`rounded-md px-2 py-1 text-[11px] font-mono transition ${
-                position === p ? "bg-ink/10 text-ink" : "bg-bg text-ink/55 hover:bg-ink/5 hover:text-ink"
+                (riskFirst ? maxRisk : position) === p
+                  ? "bg-ink/10 text-ink"
+                  : "bg-bg text-ink/55 hover:bg-ink/5 hover:text-ink"
               }`}
             >
               {p >= 1000 ? `${p / 1000}k` : p}
             </button>
           ))}
         </div>
+        {riskFirst ? (
+          <div className="flex items-center justify-between rounded-lg border border-seam bg-bg px-3 py-2 text-[11px]">
+            <span className="uppercase tracking-widest text-ink/40">Resolved position</span>
+            <span className="font-mono tabular-nums text-ink">{formatGbp(position)}</span>
+          </div>
+        ) : null}
       </div>
 
       {/* Horizon + direction */}

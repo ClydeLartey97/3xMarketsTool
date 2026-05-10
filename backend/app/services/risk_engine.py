@@ -84,6 +84,7 @@ class RiskInputs:
     hedge_ratio: float = 1.0
     n_paths: int = 5000
     scenarios: list[ScenarioSpec] | None = None
+    random_seed: int | None = None
 
 
 # Canonical scenarios — keyed by name. Each one specifies a multiplicative
@@ -313,7 +314,7 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
         drift_hourly=float(drift_hourly),
         tail_multiplier=float(context["tail_multiplier"]),
         asymmetry=float(context["asymmetry"]),
-        seed=None,
+        seed=inputs.random_seed,
     )
 
     base_result = simulate_price_paths(base_cfg)
@@ -344,7 +345,7 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
 
     # Scenario sweeps
     scenario_outcomes: list[dict[str, Any]] = []
-    for spec in (inputs.scenarios or []):
+    for index, spec in enumerate(inputs.scenarios or []):
         scenario = _resolve_scenario(spec)
         shocked_spot = max(1e-6, spot * (1.0 + scenario.spot_shock_pct))
         scen_cfg = SimConfig(
@@ -355,7 +356,7 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
             drift_hourly=float(drift_hourly + scenario.drift_shift),
             tail_multiplier=float(context["tail_multiplier"]),
             asymmetry=float(context["asymmetry"]),
-            seed=None,
+            seed=(inputs.random_seed + index + 1) if inputs.random_seed is not None else None,
         )
         scen_result = simulate_price_paths(scen_cfg)
         scen_pnl_native = pnl_from_paths(

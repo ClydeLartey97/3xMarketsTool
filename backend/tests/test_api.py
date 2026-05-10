@@ -47,3 +47,24 @@ def test_risk_assessment_endpoint(client) -> None:
     assert body["market_code"] == "ERCOT_NORTH"
     assert body["risk_gbp"] >= 0
     assert body["scorer_provider"] in {"heuristic", "gemini"}
+
+
+def test_risk_assessment_solve_endpoint(client) -> None:
+    response = client.post(
+        "/api/risk-assessment/solve",
+        json={
+            "market_code": "ERCOT_NORTH",
+            "max_risk_gbp": 500,
+            "horizon_hours": 24,
+            "direction": "long",
+            "position_unit": "GBP",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["converged"] is True
+    assert body["risk_error_pct"] <= body["tolerance_pct"]
+    assert body["resolved_request"]["position_gbp"] > 0
+    assert body["assessment"]["risk_gbp"] >= 490
+    assert body["assessment"]["risk_gbp"] <= 510

@@ -22,8 +22,11 @@ from app.schemas.domain import (
     PricePointRead,
     RiskAssessmentRequest,
     RiskAssessmentResponse,
+    RiskSolveRequest,
+    RiskSolveResponse,
 )
 from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
+from app.services.risk_solver import RiskSolveInputs, solve_position_for_risk
 from app.services.alert_service import list_alerts, refresh_alerts_for_market
 from app.services.event_service import ingest_article, list_events
 from app.services.forecast_service import (
@@ -240,6 +243,27 @@ def post_risk_assessment(payload: RiskAssessmentRequest, db: Session = Depends(g
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return RiskAssessmentResponse(**result)
+
+
+@router.post("/risk-assessment/solve", response_model=RiskSolveResponse)
+def post_risk_assessment_solve(payload: RiskSolveRequest, db: Session = Depends(get_db)) -> RiskSolveResponse:
+    try:
+        result = solve_position_for_risk(
+            db,
+            RiskSolveInputs(
+                market_code=payload.market_code,
+                max_risk_gbp=payload.max_risk_gbp,
+                horizon_hours=payload.horizon_hours,
+                direction=payload.direction,
+                position_unit=payload.position_unit,
+                target_timestamp=payload.target_timestamp,
+            ),
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        status_code = 404 if "unknown market" in detail else 400
+        raise HTTPException(status_code=status_code, detail=detail)
+    return RiskSolveResponse(**result)
 
 
 @router.get("/dashboard/{market_code}", response_model=DashboardResponse)

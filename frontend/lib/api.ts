@@ -89,6 +89,26 @@ export type RiskAssessmentRequest = {
   scenarios?: { name: string; sigma_multiplier?: number; drift_shift?: number; spot_shock_pct?: number }[];
 };
 
+export type RiskSolveRequest = {
+  market_code: string;
+  max_risk_gbp: number;
+  horizon_hours: number;
+  direction: "long" | "short";
+  position_unit?: "GBP" | "MWh";
+  target_timestamp?: string | null;
+};
+
+export type RiskSolveResponse = {
+  max_risk_gbp: number;
+  achieved_risk_gbp: number;
+  risk_error_pct: number;
+  tolerance_pct: number;
+  iterations: number;
+  converged: boolean;
+  resolved_request: RiskAssessmentRequest;
+  assessment: RiskAssessment;
+};
+
 export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {
   const response = await fetch(`${apiBaseUrl()}/risk-assessment`, {
     method: "POST",
@@ -103,4 +123,21 @@ export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise
     throw new Error(`risk-assessment failed: ${response.status}`);
   }
   return response.json() as Promise<RiskAssessment>;
+}
+
+export async function solveRiskAssessment(payload: RiskSolveRequest): Promise<RiskSolveResponse> {
+  const response = await fetch(`${apiBaseUrl()}/risk-assessment/solve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      position_unit: payload.position_unit ?? "GBP",
+      target_timestamp: payload.target_timestamp ?? null,
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`risk-assessment solve failed: ${response.status}`);
+  }
+  return response.json() as Promise<RiskSolveResponse>;
 }

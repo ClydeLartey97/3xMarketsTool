@@ -230,7 +230,7 @@ Mobile UI. Out of scope.
 Progress log (append-only)
 Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Notes.
 
-(empty)
+2026-05-10 frontier-A.1 (pending) — Position-sizing solver endpoint and risk-first panel mode shipped. Tests: pass. Notes: backend pytest 44 passed; frontend tsc clean; ESLint hung locally with no diagnostics.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …
