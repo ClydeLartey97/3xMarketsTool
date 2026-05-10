@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  createDecision,
   getRiskCalibration,
   runRiskAssessment,
   solveRiskAssessment,
@@ -41,6 +42,7 @@ export type RiskPanelProps = {
   initialPosition?: number;
   initialHorizon?: number;
   onResult?: (result: RiskAssessment | null, loading: boolean) => void;
+  onDecisionSaved?: () => void;
 };
 
 export function RiskPanel({
@@ -51,6 +53,7 @@ export function RiskPanel({
   initialPosition = 10000,
   initialHorizon = 24,
   onResult,
+  onDecisionSaved,
 }: RiskPanelProps) {
   const [position, setPosition] = useState<number>(initialPosition);
   const [riskFirst, setRiskFirst] = useState(true);
@@ -59,6 +62,10 @@ export function RiskPanel({
   const [direction, setDirection] = useState<"long" | "short">("long");
   const [data, setData] = useState<RiskAssessment | null>(null);
   const [calibration, setCalibration] = useState<RiskCalibration | null>(null);
+  const [decisionOpen, setDecisionOpen] = useState(false);
+  const [thesisText, setThesisText] = useState("");
+  const [savingDecision, setSavingDecision] = useState(false);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -77,6 +84,31 @@ export function RiskPanel({
       cancelled = true;
     };
   }, [marketId, data?.as_of]);
+
+  async function saveDecision() {
+    if (!data || thesisText.trim().length === 0) return;
+    setSavingDecision(true);
+    setDecisionError(null);
+    try {
+      await createDecision({
+        market_code: data.market_code,
+        position_gbp: data.position_gbp,
+        direction: data.direction === "short" ? "short" : "long",
+        horizon_hours: data.horizon_hours,
+        risk_gbp: data.risk_gbp,
+        likely_gbp: data.likely_gbp,
+        upside_gbp: data.upside_gbp,
+        thesis_text: thesisText.trim(),
+      });
+      setDecisionOpen(false);
+      setThesisText("");
+      onDecisionSaved?.();
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : "decision save failed");
+    } finally {
+      setSavingDecision(false);
+    }
+  }
 
   useEffect(() => {
     if (isDegraded) {
@@ -356,6 +388,61 @@ export function RiskPanel({
           </p>
         ) : null}
       </div>
+
+      <button
+        type="button"
+        disabled={!data || loading || isDegraded}
+        onClick={() => {
+          setDecisionError(null);
+          setDecisionOpen(true);
+        }}
+        className="mt-3 w-full rounded-lg border border-seam bg-bg px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-ink/70 transition hover:border-seam-hi hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Save decision
+      </button>
+
+      {decisionOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-seam bg-surface p-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-ink">Save decision</h3>
+              <button
+                type="button"
+                onClick={() => setDecisionOpen(false)}
+                className="rounded-md px-2 py-1 text-sm text-ink/50 hover:bg-bg hover:text-ink"
+              >
+                ×
+              </button>
+            </div>
+            <textarea
+              value={thesisText}
+              onChange={(event) => setThesisText(event.target.value)}
+              rows={5}
+              maxLength={4000}
+              placeholder="Thesis"
+              className="w-full resize-none rounded-lg border border-seam bg-bg px-3 py-2 text-sm leading-relaxed text-ink outline-none focus:border-seam-hi"
+            />
+            {decisionError ? <p className="mt-2 text-xs text-price-dn">{decisionError}</p> : null}
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDecisionOpen(false)}
+                className="rounded-lg px-3 py-2 text-xs text-ink/55 hover:bg-bg hover:text-ink"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingDecision || thesisText.trim().length === 0}
+                onClick={saveDecision}
+                className="rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-bg disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingDecision ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <p className="mt-3 text-[10px] text-ink/30">
         Educational tool. Not financial advice. Numbers reflect modelled distributions, not realised outcomes.

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { ClientErrorBoundary } from "@/components/client-error-boundary";
+import { DecisionDiary } from "@/components/decision-diary";
 import { NewsBriefs } from "@/components/news-briefs";
 import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
 import { RiskPanel } from "@/components/risk-panel";
@@ -47,6 +48,7 @@ export function MarketWorkbench({
   const [cursorTs, setCursorTs] = useState<number | null>(null);
   const [risk, setRisk] = useState<RiskAssessment | null>(null);
   const [riskLoading, setRiskLoading] = useState(false);
+  const [decisionRefresh, setDecisionRefresh] = useState(0);
   const history = useMemo(() => buildHistory(dashboard), [dashboard]);
   const forecast = useMemo(() => buildForecast(dashboard), [dashboard]);
 
@@ -123,6 +125,7 @@ export function MarketWorkbench({
             setRisk(result);
             setRiskLoading(loading);
           }}
+          onDecisionSaved={() => setDecisionRefresh((value) => value + 1)}
         />
       </section>
 
@@ -135,6 +138,10 @@ export function MarketWorkbench({
 
       <section className="grid gap-4 xl:grid-cols-2">
         <NewsBriefs items={dashboard.recent_news.slice(0, 8)} />
+        <DecisionDiary marketId={dashboard.market.id} refreshKey={decisionRefresh} />
+      </section>
+
+      <section>
         <div className="rounded-2xl border border-seam bg-surface p-5">
           <p className="text-[10px] uppercase tracking-widest text-ink/40">Model rationale</p>
           <p className="mt-2 text-sm leading-relaxed text-ink/80">

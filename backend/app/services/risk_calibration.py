@@ -55,6 +55,8 @@ def log_risk_assessment(db: Session, result: dict[str, Any]) -> RiskAssessmentLo
         likely_gbp=float(result["likely_gbp"]),
         upside_gbp=float(result["upside_gbp"]),
         realized_pnl_gbp=None,
+        kind="auto",
+        thesis_text=None,
     )
     db.add(row)
     db.commit()

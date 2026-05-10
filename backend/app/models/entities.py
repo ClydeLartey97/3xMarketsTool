@@ -162,6 +162,8 @@ class RiskAssessmentLog(Base):
     likely_gbp: Mapped[float] = mapped_column(Float)
     upside_gbp: Mapped[float] = mapped_column(Float)
     realized_pnl_gbp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    kind: Mapped[str] = mapped_column(String(16), default="auto", index=True)
+    thesis_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     market: Mapped["Market"] = relationship(back_populates="risk_assessment_logs")
 

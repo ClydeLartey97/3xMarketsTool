@@ -315,6 +315,34 @@ class RiskCalibrationResponse(BaseModel):
     calibration_status: Literal["honest", "understating", "overstating"]
 
 
+class DecisionCreateRequest(BaseModel):
+    market_code: str
+    position_gbp: float = Field(gt=0)
+    direction: Literal["long", "short"]
+    horizon_hours: int = Field(ge=1, le=168)
+    risk_gbp: float
+    likely_gbp: float
+    upside_gbp: float
+    thesis_text: str = Field(min_length=1, max_length=4_000)
+
+
+class DecisionRead(BaseModel):
+    id: int
+    timestamp: datetime
+    market_id: int
+    market_code: str
+    market_name: str
+    position_gbp: float
+    direction: str
+    horizon_hours: int
+    risk_gbp: float
+    likely_gbp: float
+    upside_gbp: float
+    realized_pnl_gbp: Optional[float]
+    predicted_percentile: Optional[float]
+    thesis_text: str
+
+
 class DashboardResponse(BaseModel):
     market: MarketRead
     latest_forecast: Optional[ForecastRead]

@@ -12,6 +12,8 @@ from app.schemas.domain import (
     AlertRead,
     ArticleIngestRequest,
     DashboardResponse,
+    DecisionCreateRequest,
+    DecisionRead,
     EventRead,
     ForecastRunResponse,
     ForecastRead,
@@ -29,6 +31,7 @@ from app.schemas.domain import (
     RiskSolveResponse,
 )
 from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
+from app.services.decision_diary import create_decision, list_decisions
 from app.services.risk_calibration import log_risk_assessment, risk_calibration_for_market
 from app.services.risk_sensitivity import run_risk_sensitivity
 from app.services.risk_solver import RiskSolveInputs, solve_position_for_risk
@@ -315,6 +318,25 @@ def get_market_risk_calibration(market_id: int, db: Session = Depends(get_db)) -
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     return RiskCalibrationResponse(**risk_calibration_for_market(db, market_id))
+
+
+@router.post("/decisions", response_model=DecisionRead)
+def post_decision(payload: DecisionCreateRequest, db: Session = Depends(get_db)) -> DecisionRead:
+    try:
+        result = create_decision(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return DecisionRead(**result)
+
+
+@router.get("/decisions", response_model=list[DecisionRead])
+def get_decisions(
+    market_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[DecisionRead]:
+    if market_id is not None and not get_market_by_id(db, market_id):
+        raise HTTPException(status_code=404, detail="Market not found")
+    return [DecisionRead(**item) for item in list_decisions(db, market_id=market_id)]
 
 
 @router.get("/dashboard/{market_code}", response_model=DashboardResponse)

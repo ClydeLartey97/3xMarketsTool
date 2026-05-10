@@ -153,6 +153,34 @@ export type RiskCalibration = {
   calibration_status: "honest" | "understating" | "overstating";
 };
 
+export type DecisionCreateRequest = {
+  market_code: string;
+  position_gbp: number;
+  direction: "long" | "short";
+  horizon_hours: number;
+  risk_gbp: number;
+  likely_gbp: number;
+  upside_gbp: number;
+  thesis_text: string;
+};
+
+export type DecisionItem = {
+  id: number;
+  timestamp: string;
+  market_id: number;
+  market_code: string;
+  market_name: string;
+  position_gbp: number;
+  direction: string;
+  horizon_hours: number;
+  risk_gbp: number;
+  likely_gbp: number;
+  upside_gbp: number;
+  realized_pnl_gbp: number | null;
+  predicted_percentile: number | null;
+  thesis_text: string;
+};
+
 export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {
   const response = await fetch(`${apiBaseUrl()}/risk-assessment`, {
     method: "POST",
@@ -204,4 +232,22 @@ export async function runRiskSensitivity(payload: RiskSensitivityRequest): Promi
 
 export function getRiskCalibration(marketId: number): Promise<RiskCalibration> {
   return fetchJson<RiskCalibration>(`/markets/${marketId}/risk-calibration`);
+}
+
+export async function createDecision(payload: DecisionCreateRequest): Promise<DecisionItem> {
+  const response = await fetch(`${apiBaseUrl()}/decisions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`decision save failed: ${response.status}`);
+  }
+  return response.json() as Promise<DecisionItem>;
+}
+
+export function getDecisions(marketId?: number): Promise<DecisionItem[]> {
+  const query = marketId ? `?market_id=${marketId}` : "";
+  return fetchJson<DecisionItem[]>(`/decisions${query}`);
 }
