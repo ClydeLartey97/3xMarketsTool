@@ -388,3 +388,33 @@ export async function getRiskPaths(payload: RiskAssessmentRequest): Promise<Risk
   }
   return response.json() as Promise<RiskPathFanResponse>;
 }
+
+// E.5 — grid topology + DC-OPF flows for the topology UI.
+export type GridBus = {
+  name: string;
+  load_mw: number;
+  gen_mw: number;
+  gen_max_mw: number;
+  lmp: number;
+  is_reference: boolean;
+  market_code: string | null;
+};
+
+export type GridEdge = {
+  from_bus: string;
+  to_bus: string;
+  flow_mw: number;
+  limit_mw: number;
+  utilisation: number;
+  binding: boolean;
+};
+
+export type GridFlowsResponse = {
+  buses: GridBus[];
+  edges: GridEdge[];
+  objective_cost: number;
+};
+
+export function getGridFlows(): Promise<GridFlowsResponse> {
+  return fetchJson<GridFlowsResponse>("/grid/flows");
+}

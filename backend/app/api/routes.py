@@ -562,6 +562,65 @@ def get_latest_market_backtest(market_id: int, db: Session = Depends(get_db)) ->
     return latest_backtest_report_for_market(market.code)
 
 
+@router.get("/grid/topology", response_model=dict[str, Any])
+def get_grid_topology() -> dict[str, Any]:
+    """E.5 — return the canonical grid topology bundle for the UI graph."""
+    from app.grid.topology import load_topology_bundle
+    return load_topology_bundle()
+
+
+@router.get("/grid/flows", response_model=dict[str, Any])
+def get_grid_flows() -> dict[str, Any]:
+    """E.5 — solve DC-OPF on the seed topology with seed dispatch and return
+    flows + LMPs + binding lines for the topology UI."""
+    from app.grid.dc_opf import solve_dc_opf
+    from app.grid.topology import bundle_to_topology, load_topology_bundle
+
+    bundle = load_topology_bundle()
+    topology = bundle_to_topology(bundle)
+    # Give every bus a representative load equal to 10% of its gen_max,
+    # so the OPF has something to dispatch under the seed.
+    for bus in topology.buses:
+        if bus.load_mw == 0.0 and bus.gen_max_mw > 0:
+            bus.load_mw = round(bus.gen_max_mw * 0.10, 1)
+    result = solve_dc_opf(topology)
+    if not result.success:
+        raise HTTPException(status_code=500, detail=f"OPF infeasible: {result.message}")
+
+    edges = []
+    for line in topology.lines:
+        flow = result.flows_mw.get((line.from_bus, line.to_bus), 0.0)
+        util = abs(flow) / line.limit_mw if line.limit_mw > 0 else 0.0
+        edges.append({
+            "from_bus": line.from_bus,
+            "to_bus": line.to_bus,
+            "flow_mw": round(float(flow), 2),
+            "limit_mw": round(float(line.limit_mw), 2),
+            "utilisation": round(float(util), 4),
+            "binding": (line.from_bus, line.to_bus) in result.binding_lines,
+        })
+    return {
+        "buses": [
+            {
+                "name": b.name,
+                "load_mw": round(float(b.load_mw), 2),
+                "gen_mw": round(float(result.gen_mw.get(b.name, 0.0)), 2),
+                "gen_max_mw": round(float(b.gen_max_mw), 2),
+                "lmp": round(float(result.lmps.get(b.name, 0.0)), 4),
+                "is_reference": b.is_reference,
+                "market_code": next(
+                    (entry.get("market_code") for entry in bundle["buses"]
+                     if entry["name"] == b.name),
+                    None,
+                ),
+            }
+            for b in topology.buses
+        ],
+        "edges": edges,
+        "objective_cost": round(float(result.objective_cost), 2),
+    }
+
+
 @router.get("/dashboard/{market_code}", response_model=DashboardResponse)
 def get_dashboard(
     market_code: str,
