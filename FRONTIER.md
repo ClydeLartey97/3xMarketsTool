@@ -260,4 +260,4 @@ Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Not
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …
 
-(empty)
+2026-05-10 frontier-D.6 — Golden-set validation requires real domain LoRA adapter weights; current D.2 output is a dry-run manifest because this workspace has no 24GB-class GPU / authenticated gated-model training run. To unblock: run `PYTHONPATH=. python3 scripts/finetune_news_scorer.py --model-id meta-llama/Llama-3.1-8B-Instruct` on a suitable GPU host (or `--model-id Qwen/Qwen2.5-7B-Instruct` if Llama access is gated), commit the resulting adapter files under `backend/models/news_scorer_lora/`, then resume at D.6.
