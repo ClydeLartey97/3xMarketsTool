@@ -21,6 +21,11 @@ def test_forecaster_registry_returns_fresh_instances() -> None:
     assert naive_first is not naive_second
     assert naive_first.model_name == "naive-persistence-24h-v1"
 
+    chronos_first = create_forecaster("chronos")
+    chronos_second = create_forecaster("chronos")
+    assert chronos_first is not chronos_second
+    assert chronos_first.model_name == "chronos-bolt-tiny-v1"
+
 
 def test_switching_active_forecaster_changes_model_version(db_session, monkeypatch) -> None:
     market = db_session.scalar(select(Market).where(Market.code == "ERCOT_NORTH"))

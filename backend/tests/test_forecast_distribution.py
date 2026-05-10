@@ -97,3 +97,41 @@ def test_sigma_price_is_persisted_in_snapshot(db_session) -> None:
         assert "sigma_price" in snap, "sigma_price missing from forecast snapshot"
         assert snap.get("regime") in {"calm", "trending", "stressed"}
         assert snap["sigma_price"] > 0
+
+
+def test_chronos_forecaster_distribution_shape(monkeypatch) -> None:
+    from app.forecasting.chronos_model import ChronosForecastModel
+
+    class FakeTensor:
+        def __init__(self, values: np.ndarray) -> None:
+            self.values = values
+
+        def detach(self) -> "FakeTensor":
+            return self
+
+        def cpu(self) -> "FakeTensor":
+            return self
+
+        def numpy(self) -> np.ndarray:
+            return self.values
+
+    class FakeChronosPipeline:
+        quantiles = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
+        def predict(self, context, prediction_length: int) -> FakeTensor:
+            base = np.linspace(45.0, 52.0, prediction_length)
+            offsets = np.linspace(-6.0, 6.0, len(self.quantiles))[:, None]
+            return FakeTensor((base[None, :] + offsets)[None, :, :])
+
+    monkeypatch.setattr(ChronosForecastModel, "_load_pipeline", lambda self: FakeChronosPipeline())
+
+    frame = _make_frame()
+    model = ChronosForecastModel()
+    model.train(frame)
+
+    horizon = 6
+    dist = model.predict_distribution(frame.tail(horizon))
+
+    assert dist.shape == (horizon, 4)
+    assert list(dist.columns) == ["point_estimate", "lower_bound", "upper_bound", "sigma_price"]
+    assert (dist["sigma_price"] > 0).all()

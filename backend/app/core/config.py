@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     # Forecast cache TTL in minutes
     forecast_cache_ttl_minutes: int = Field(default=15, alias="FORECAST_CACHE_TTL_MINUTES")
     active_forecaster: str = Field(default="gbr", alias="ACTIVE_FORECASTER")
+    chronos_use_small: bool = Field(default=False, alias="CHRONOS_USE_SMALL")
+    chronos_device_map: str = Field(default="cpu", alias="CHRONOS_DEVICE_MAP")
 
     # Background refresh interval in minutes
     data_refresh_interval_minutes: int = Field(default=30, alias="DATA_REFRESH_INTERVAL_MINUTES")

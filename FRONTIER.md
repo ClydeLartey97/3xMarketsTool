@@ -239,6 +239,7 @@ Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Not
 2026-05-10 frontier-A.7 (pending) — Persisted resizable workbench layout with chart/risk top row and news/events/calibration/diary bottom row shipped. Tests: pass. Notes: backend pytest 53 passed; frontend tsc clean; local Next dev/build smoke blocked by stale hanging Next processes.
 2026-05-10 frontier-B.1 (pending) — Regime classifier extracted, per-regime residual sigma trained and persisted into forecast snapshots. Tests: pass. Notes: focused backend 10 passed; full backend pytest 56 passed; frontend tsc clean.
 2026-05-10 frontier-B.2 (pending) — Forecaster registry, active forecaster setting, cache separation, and naive 24h persistence forecaster shipped. Tests: pass. Notes: focused backend 5 passed; full backend pytest 58 passed; frontend tsc clean.
+2026-05-10 frontier-B.3 (pending) — Chronos-Bolt forecaster adapter, dependency/config docs, and mocked distribution test shipped. Tests: pass. Notes: focused backend 6 passed; full backend pytest 59 passed; frontend tsc clean.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …

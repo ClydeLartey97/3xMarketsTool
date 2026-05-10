@@ -101,6 +101,9 @@ Useful optional variables:
 - `EIA_API_KEY`: enables EIA U.S. grid demand and generation calls.
 - `GEMINI_API_KEY` or `GOOGLE_API_KEY`: enables Gemini news-context scoring for the risk engine. Without it, the app uses deterministic heuristic scoring.
 - `FORECAST_CACHE_TTL_MINUTES`: forecast cache TTL, default `15`.
+- `ACTIVE_FORECASTER`: forecast backend, default `gbr`. Supported values are `gbr`, `chronos`, and `naive_persistence_24h`.
+- `CHRONOS_DEVICE_MAP`: Chronos-Bolt inference device, default `cpu`. Use `cuda` on GPU hosts or `mps` on Apple Silicon when available.
+- `CHRONOS_USE_SMALL`: when `true`, uses `amazon/chronos-bolt-small`; otherwise Chronos uses the lighter `amazon/chronos-bolt-tiny`.
 - `DATA_REFRESH_INTERVAL_MINUTES`: background refresh interval, default `30`.
 - `DEMO_MODE`: when `true`, permits computed/synthetic fallback data without marking the market degraded. Defaults to `false`.
 
@@ -181,6 +184,8 @@ The forecast service combines:
 - weather, demand, wind, solar, and net-load features,
 - event severity and estimated event impact,
 - a gradient boosting regressor plus structural market anchors.
+
+Set `ACTIVE_FORECASTER=chronos` to use Chronos-Bolt zero-shot forecasts. CPU inference works with the tiny model for local development; GPU is optional but recommended for lower latency or when enabling `CHRONOS_USE_SMALL=true`.
 
 Responses include hourly forecasts, lower/upper bands, spike probability, model version, feature snapshots, and rationale summaries.
 
