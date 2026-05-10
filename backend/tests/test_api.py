@@ -145,6 +145,26 @@ def test_risk_assessment_paths_endpoint_caps_payload(client) -> None:
     assert body["assessment"]["market_code"] == "ERCOT_NORTH"
 
 
+def test_portfolio_risk_endpoint(client) -> None:
+    response = client.post(
+        "/api/portfolio-risk",
+        json={
+            "horizon_hours": 6,
+            "n_paths": 500,
+            "positions": [
+                {"market_code": "ERCOT_NORTH", "position_gbp": 10000, "direction": "long"},
+                {"market_code": "GB_POWER", "position_gbp": 8000, "direction": "short"},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["portfolio_risk_gbp"] >= 0
+    assert body["sum_standalone_risk_gbp"] >= 0
+    assert len(body["contributions"]) == 2
+
+
 def test_market_timeseries_endpoint_returns_aligned_fundamentals(client, db_session) -> None:
     from app.models import Market
 

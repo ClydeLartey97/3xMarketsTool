@@ -360,6 +360,42 @@ class RiskPathFanResponse(BaseModel):
     assessment: RiskAssessmentResponse
 
 
+class PortfolioPositionRequest(BaseModel):
+    market_code: str
+    position_gbp: float = Field(gt=0)
+    direction: Literal["long", "short"] = "long"
+
+
+class PortfolioRiskRequest(BaseModel):
+    positions: list[PortfolioPositionRequest] = Field(min_length=1)
+    horizon_hours: int = Field(default=24, ge=1, le=168)
+    n_paths: int = Field(default=5000, ge=500, le=20000)
+
+
+class PortfolioRiskContribution(BaseModel):
+    market_code: str
+    position_gbp: float
+    direction: str
+    standalone_risk_gbp: float
+    standalone_likely_gbp: float
+    standalone_upside_gbp: float
+    simulated_risk_gbp: float
+    risk_contribution_gbp: float
+
+
+class PortfolioRiskResponse(BaseModel):
+    portfolio_risk_gbp: float
+    portfolio_likely_gbp: float
+    portfolio_upside_gbp: float
+    var95_gbp: float
+    prob_loss: float
+    sum_standalone_risk_gbp: float
+    horizon_hours: int
+    n_paths: int
+    correlation_source: str
+    contributions: list[PortfolioRiskContribution]
+
+
 class DashboardResponse(BaseModel):
     market: MarketRead
     latest_forecast: Optional[ForecastRead]

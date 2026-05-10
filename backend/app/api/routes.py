@@ -23,6 +23,8 @@ from app.schemas.domain import (
     MarketTimeseriesPoint,
     NewsArticleRead,
     NewsSourceRead,
+    PortfolioRiskRequest,
+    PortfolioRiskResponse,
     PricePointRead,
     RiskAssessmentRequest,
     RiskAssessmentResponse,
@@ -50,6 +52,7 @@ from app.services.forecast_service import (
 )
 from app.services.market_service import get_market_by_code, get_market_by_id, list_markets
 from app.services.news_service import list_news_articles, list_news_sources
+from app.services.portfolio_risk import PortfolioPositionInput, run_portfolio_risk
 
 router = APIRouter()
 
@@ -418,6 +421,27 @@ def post_risk_assessment_paths(
         price_paths=result["price_paths"][:200],
         assessment=RiskAssessmentResponse(**result),
     )
+
+
+@router.post("/portfolio-risk", response_model=PortfolioRiskResponse)
+def post_portfolio_risk(payload: PortfolioRiskRequest, db: Session = Depends(get_db)) -> PortfolioRiskResponse:
+    try:
+        result = run_portfolio_risk(
+            db,
+            [
+                PortfolioPositionInput(
+                    market_code=position.market_code,
+                    position_gbp=position.position_gbp,
+                    direction=position.direction,
+                )
+                for position in payload.positions
+            ],
+            horizon_hours=payload.horizon_hours,
+            n_paths=payload.n_paths,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return PortfolioRiskResponse(**result)
 
 
 @router.get("/markets/{market_id}/risk-calibration", response_model=RiskCalibrationResponse)
