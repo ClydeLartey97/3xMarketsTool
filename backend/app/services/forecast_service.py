@@ -7,20 +7,22 @@ import pandas as pd
 from sqlalchemy import delete, desc, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.forecasting.feature_builder import build_feature_frame
-from app.forecasting.model import FEATURE_COLUMNS, GradientBoostingForecastModel, _Z95
+from app.forecasting.model import FEATURE_COLUMNS, _Z95
 from app.forecasting.regime import classify_regime
+from app.forecasting.registry import create_forecaster
 from app.ingestion.real_data import market_currency
 from app.models import DemandPoint, Event, Forecast, Market, PricePoint, WeatherPoint
 from app.services.event_service import events_as_feature_frame
 
 # ── In-process forecast cache (15-minute TTL) ─────────────────────────────────
-_forecast_cache: dict[str, tuple[list[Forecast], dict[str, float], datetime]] = {}
+_forecast_cache: dict[tuple[str, str], tuple[list[Forecast], dict[str, float], datetime]] = {}
 _CACHE_TTL_MINUTES = 15
 
 
-def _cache_get(market_code: str, horizon_hours: int) -> tuple[list[Forecast], dict[str, float]] | None:
-    entry = _forecast_cache.get(market_code)
+def _cache_get(market_code: str, forecaster_name: str, horizon_hours: int) -> tuple[list[Forecast], dict[str, float]] | None:
+    entry = _forecast_cache.get((market_code, forecaster_name))
     if entry:
         forecasts, metrics, cached_at = entry
         if (
@@ -31,13 +33,15 @@ def _cache_get(market_code: str, horizon_hours: int) -> tuple[list[Forecast], di
     return None
 
 
-def _cache_set(market_code: str, forecasts: list[Forecast], metrics: dict[str, float]) -> None:
-    _forecast_cache[market_code] = (forecasts, metrics, datetime.now(timezone.utc))
+def _cache_set(market_code: str, forecaster_name: str, forecasts: list[Forecast], metrics: dict[str, float]) -> None:
+    _forecast_cache[(market_code, forecaster_name)] = (forecasts, metrics, datetime.now(timezone.utc))
 
 
 def invalidate_forecast_cache(market_code: str | None = None) -> None:
     if market_code:
-        _forecast_cache.pop(market_code, None)
+        for key in list(_forecast_cache):
+            if key[0] == market_code:
+                _forecast_cache.pop(key, None)
     else:
         _forecast_cache.clear()
 
@@ -145,9 +149,10 @@ def run_forecast_for_market(
     horizon_hours: int = 24,
     use_cache: bool = True,
 ) -> tuple[list[Forecast], dict[str, float]]:
+    active_forecaster = get_settings().active_forecaster.strip().lower()
     # Return cached result if still fresh
     if use_cache:
-        cached = _cache_get(market.code, horizon_hours)
+        cached = _cache_get(market.code, active_forecaster, horizon_hours)
         if cached:
             forecasts, metrics = cached
             # Check DB still has these forecasts (could have been cleared)
@@ -182,7 +187,7 @@ def run_forecast_for_market(
         return [], {"mae": 0.0, "rmse": 0.0, "directional_accuracy": 0.0, "spike_precision": 0.0}
 
     feature_frame = build_feature_frame(price_df, weather_df, demand_df, events_df)
-    model = GradientBoostingForecastModel()
+    model = create_forecaster(active_forecaster)
     metrics = model.train(feature_frame)
     market_signature = _market_signature(feature_frame)
 
@@ -349,5 +354,5 @@ def run_forecast_for_market(
     db.commit()
     for forecast in forecasts:
         db.refresh(forecast)
-    _cache_set(market.code, forecasts, metrics)
+    _cache_set(market.code, active_forecaster, forecasts, metrics)
     return forecasts, metrics
