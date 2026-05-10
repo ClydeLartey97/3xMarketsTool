@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -39,6 +39,7 @@ from app.services.risk_calibration import log_risk_assessment, risk_calibration_
 from app.services.risk_sensitivity import run_risk_sensitivity
 from app.services.risk_solver import RiskSolveInputs, solve_position_for_risk
 from app.services.alert_service import list_alerts, refresh_alerts_for_market
+from app.services.backtest_reports import dashboard_backtest_metrics, latest_backtest_report_for_market
 from app.services.event_service import ingest_article, list_events
 from app.services.forecast_service import (
     invalidate_forecast_cache,
@@ -445,6 +446,14 @@ def get_decisions(
     return [DecisionRead(**item) for item in list_decisions(db, market_id=market_id)]
 
 
+@router.get("/markets/{market_id}/backtest/latest", response_model=dict[str, Any] | None)
+def get_latest_market_backtest(market_id: int, db: Session = Depends(get_db)) -> dict[str, Any] | None:
+    market = get_market_by_id(db, market_id)
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+    return latest_backtest_report_for_market(market.code)
+
+
 @router.get("/dashboard/{market_code}", response_model=DashboardResponse)
 def get_dashboard(
     market_code: str,
@@ -484,6 +493,7 @@ def get_dashboard(
             "model_rmse": metrics["rmse"],
             "directional_accuracy": metrics["directional_accuracy"],
             "spike_precision": metrics["spike_precision"],
+            **dashboard_backtest_metrics(market.code),
             **_price_provenance_metrics(prices),
         },
     )

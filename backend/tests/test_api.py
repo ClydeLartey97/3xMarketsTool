@@ -1,6 +1,6 @@
 from sqlalchemy import select
 
-from app.models import RiskAssessmentLog
+from app.models import Market, RiskAssessmentLog
 
 
 def test_health(client) -> None:
@@ -18,6 +18,33 @@ def test_dashboard_endpoint(client) -> None:
     assert len(body["recent_news"]) > 0
     assert len(body["tracked_sources"]) >= 20
     assert "avg_price_24h" in body["key_metrics"]
+    assert "backtest_rmse_model" in body["key_metrics"]
+
+
+def test_latest_backtest_endpoint_returns_seeded_report_fixture(client, db_session, tmp_path, monkeypatch) -> None:
+    from app.services import backtest_reports
+
+    market = db_session.scalar(select(Market).where(Market.code == "ERCOT_NORTH"))
+    assert market is not None
+    report_path = tmp_path / "backtest_ERCOT_NORTH_20260510_0100.json"
+    report_path.write_text(
+        """
+        {
+          "market_code": "ERCOT_NORTH",
+          "metrics": {"rmse": 12.3},
+          "vs_baselines": {"persistence_24h": {"rmse": 20.0}},
+          "calibration": {"well_calibrated": true, "shares": [0.1]}
+        }
+        """
+    )
+    monkeypatch.setattr(backtest_reports, "REPORTS_DIR", tmp_path)
+
+    response = client.get(f"/api/markets/{market.id}/backtest/latest")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["market_code"] == "ERCOT_NORTH"
+    assert body["metrics"]["rmse"] == 12.3
 
 
 def test_ingest_article(client) -> None:

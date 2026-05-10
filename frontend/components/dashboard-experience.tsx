@@ -80,6 +80,31 @@ function DataQualityStrip({ dashboard }: { dashboard: DashboardData }) {
   );
 }
 
+function BacktestStrip({ dashboard }: { dashboard: DashboardData }) {
+  const modelRmse = dashboard.key_metrics.backtest_rmse_model ?? 0;
+  const persistenceRmse = dashboard.key_metrics.backtest_rmse_persistence_24h ?? 0;
+  const calibrated = (dashboard.key_metrics.backtest_calibrated ?? 0) >= 0.5;
+  const breachRate = dashboard.key_metrics.backtest_breach_rate_realized ?? 0;
+  const hasReport = modelRmse > 0 || persistenceRmse > 0;
+
+  return (
+    <section className="rounded-[1.4rem] border border-slate/10 bg-white/75 px-5 py-3 text-sm text-slate shadow-panel">
+      <span className="font-semibold">Backtest:</span>{" "}
+      {hasReport ? (
+        <>
+          model RMSE {modelRmse.toFixed(2)} / persistence-24h {persistenceRmse.toFixed(2)} -{" "}
+          <span className={calibrated ? "text-[#0f766e]" : "text-[#b42318]"}>
+            {calibrated ? "calibrated" : "not calibrated"}
+          </span>{" "}
+          - realized breach {(breachRate * 100).toFixed(1)}%
+        </>
+      ) : (
+        "no report yet"
+      )}
+    </section>
+  );
+}
+
 export function DashboardExperience({
   markets,
   initialDashboard,
@@ -133,6 +158,7 @@ export function DashboardExperience({
     <main className="space-y-6">
       <MarketsTicker activeCode={selectedMarketCode} />
       <DataQualityStrip dashboard={dashboard} />
+      <BacktestStrip dashboard={dashboard} />
 
       <section className="rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-panel backdrop-blur">
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
