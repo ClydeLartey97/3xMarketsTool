@@ -44,6 +44,14 @@ export type EventItem = {
   affected_region: string;
   asset_type: string;
   capacity_impact_mw: number | null;
+  zone: string | null;
+  node: string | null;
+  magnitude_mw: number | null;
+  duration_hours_estimate: number | null;
+  duration_hours_p10: number | null;
+  duration_hours_p90: number | null;
+  analogue_event_ids: number[];
+  classifier_version: string;
   start_time: string | null;
   expected_end_time: string | null;
   severity: string;

@@ -19,6 +19,14 @@ class ExtractedEvent:
     confidence: float
     price_direction: str
     rationale: str
+    zone: str | None = None
+    node: str | None = None
+    magnitude_mw: float | None = None
+    duration_hours_estimate: float | None = None
+    duration_hours_p10: float | None = None
+    duration_hours_p90: float | None = None
+    analogue_event_ids: list[int] | None = None
+    classifier_version: str = "heuristic-v2"
 
 
 EVENT_PATTERNS: dict[str, dict[str, object]] = {
@@ -94,6 +102,17 @@ REGION_MAP = {
     "sweden": "Nordics",
 }
 
+NODE_MAP = {
+    "north hub": "North Hub",
+    "western hub": "Western Hub",
+    "zone j": "Zone J",
+    "mass hub": "Mass Hub",
+    "n2ex": "N2EX",
+    "epex de": "EPEX DE",
+    "epex fr": "EPEX FR",
+    "se3": "SE3",
+}
+
 
 def extract_primary_event(title: str, body: str, market_region: str = "ERCOT") -> ExtractedEvent | None:
     haystack = f"{title} {body}".lower()
@@ -133,6 +152,11 @@ def extract_primary_event(title: str, body: str, market_region: str = "ERCOT") -
         if key in haystack:
             region = mapped
             break
+    node = None
+    for key, mapped in NODE_MAP.items():
+        if key in haystack:
+            node = mapped
+            break
 
     direction = str(matched_pattern["price_direction"])
     if matched_type == "regulatory_policy_announcement" and "cap" in haystack:
@@ -141,8 +165,9 @@ def extract_primary_event(title: str, body: str, market_region: str = "ERCOT") -
         direction = "bearish"
 
     now = datetime.now(timezone.utc)
+    duration_hours = 8.0 if severity == "high" else 4.0
     start_time = now
-    expected_end_time = now + timedelta(hours=8 if severity == "high" else 4)
+    expected_end_time = now + timedelta(hours=duration_hours)
 
     rationale = (
         f"Tagged as {matched_type.replace('_', ' ')} for {region} based on market-specific keywords"
@@ -156,6 +181,14 @@ def extract_primary_event(title: str, body: str, market_region: str = "ERCOT") -
         affected_region=region,
         asset_type=str(matched_pattern["asset_type"]),
         capacity_impact_mw=capacity,
+        zone=region,
+        node=node,
+        magnitude_mw=capacity,
+        duration_hours_estimate=duration_hours,
+        duration_hours_p10=round(duration_hours * 0.5, 2),
+        duration_hours_p90=round(duration_hours * 1.5, 2),
+        analogue_event_ids=[],
+        classifier_version="heuristic-v2",
         start_time=start_time,
         expected_end_time=expected_end_time,
         severity=severity,

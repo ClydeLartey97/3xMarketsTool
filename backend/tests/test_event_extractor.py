@@ -12,6 +12,14 @@ def test_extract_generator_outage_event() -> None:
     assert event.event_type == "generator_outage"
     assert event.severity == "high"
     assert event.price_direction == "bullish"
+    assert event.zone == "ERCOT"
+    assert event.node == "North Hub"
+    assert event.magnitude_mw == 900
+    assert event.duration_hours_estimate == 8.0
+    assert event.duration_hours_p10 == 4.0
+    assert event.duration_hours_p90 == 12.0
+    assert event.analogue_event_ids == []
+    assert event.classifier_version == "heuristic-v2"
     assert estimate_price_impact_pct(event) and estimate_price_impact_pct(event) > 0
 
 

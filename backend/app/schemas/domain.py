@@ -118,6 +118,14 @@ class EventRead(BaseModel):
     affected_region: str
     asset_type: str
     capacity_impact_mw: Optional[float]
+    zone: Optional[str] = None
+    node: Optional[str] = None
+    magnitude_mw: Optional[float] = None
+    duration_hours_estimate: Optional[float] = None
+    duration_hours_p10: Optional[float] = None
+    duration_hours_p90: Optional[float] = None
+    analogue_event_ids: list[int] = Field(default_factory=list)
+    classifier_version: str = "heuristic-v1"
     start_time: Optional[datetime]
     expected_end_time: Optional[datetime]
     severity: str
