@@ -16,7 +16,7 @@ import { SignalStack } from "@/components/signal-stack";
 import { DashboardData, Market, RiskAssessment } from "@/types/domain";
 
 // Chart is canvas-based — render only on client
-const PriceChart = dynamic(() => import("@/components/price-chart").then((m) => m.PriceChart), {
+const KlinePriceChart = dynamic(() => import("@/components/kline-price-chart").then((m) => m.KlinePriceChart), {
   ssr: false,
   loading: () => (
     <div className="flex h-[620px] items-center justify-center rounded-2xl border border-seam bg-surface text-sm text-ink/40">
@@ -110,9 +110,11 @@ export function MarketWorkbench({
           fallbackTitle="Chart engine recovering"
           fallbackBody="The chart hit a client-side issue. Refresh once. The rest of the desk stays live."
         >
-          <PriceChart
+          <KlinePriceChart
+            marketId={dashboard.market.id}
             history={history}
             forecast={forecast}
+            events={dashboard.recent_events}
             timezoneLabel={dashboard.market.timezone}
             onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
           />

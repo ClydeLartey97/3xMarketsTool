@@ -116,3 +116,16 @@ def test_risk_assessment_paths_endpoint_caps_payload(client) -> None:
     assert len(body["price_paths"]) == 200
     assert len(body["price_paths"][0]) == 13
     assert body["assessment"]["market_code"] == "ERCOT_NORTH"
+
+
+def test_market_timeseries_endpoint_returns_aligned_fundamentals(client, db_session) -> None:
+    from app.models import Market
+
+    market = db_session.scalar(select(Market).where(Market.code == "ERCOT_NORTH"))
+    assert market is not None
+    response = client.get(f"/api/markets/{market.id}/timeseries?series=demand,wind,solar&limit=24")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) > 0
+    assert {"timestamp", "demand_mw", "wind_mw", "solar_mw", "wind_share", "solar_share"} <= set(body[0])

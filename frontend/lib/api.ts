@@ -52,6 +52,15 @@ export function getMarketHistory(marketId: number, from?: string, to?: string): 
   return fetchJson<PricePoint[]>(`/markets/${marketId}/history${query ? `?${query}` : ""}`);
 }
 
+export function getMarketTimeseries(
+  marketId: number,
+  series: string[] = ["demand", "wind", "solar"],
+): Promise<MarketTimeseriesPoint[]> {
+  return fetchJson<MarketTimeseriesPoint[]>(
+    `/markets/${marketId}/timeseries?series=${series.join(",")}`,
+  );
+}
+
 export function getForecast(marketId: number): Promise<ForecastPoint[]> {
   return fetchJson<ForecastPoint[]>(`/markets/${marketId}/forecast`);
 }
@@ -187,6 +196,15 @@ export type RiskPathFanResponse = {
   path_hours: number[];
   price_paths: number[][];
   assessment: RiskAssessment;
+};
+
+export type MarketTimeseriesPoint = {
+  timestamp: string;
+  demand_mw: number | null;
+  wind_mw: number | null;
+  solar_mw: number | null;
+  wind_share: number | null;
+  solar_share: number | null;
 };
 
 export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {

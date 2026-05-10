@@ -4,10 +4,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models import Forecast
+from app.models import DemandPoint, Forecast, WeatherPoint
 from app.schemas.domain import (
     AlertRead,
     ArticleIngestRequest,
@@ -19,6 +20,7 @@ from app.schemas.domain import (
     ForecastRead,
     HealthResponse,
     MarketRead,
+    MarketTimeseriesPoint,
     NewsArticleRead,
     NewsSourceRead,
     PricePointRead,
@@ -136,6 +138,67 @@ def get_market_history(
         raise HTTPException(status_code=400, detail="'from' must be before 'to'")
     prices = list_price_history(db, market_id, start=from_ts, end=to_ts)
     return [PricePointRead.model_validate(item) for item in prices]
+
+
+@router.get("/markets/{market_id}/timeseries", response_model=list[MarketTimeseriesPoint])
+def get_market_timeseries(
+    market_id: int,
+    series: str = Query(default="demand,wind,solar"),
+    limit: int = Query(default=720, ge=1, le=8760),
+    db: Session = Depends(get_db),
+) -> list[MarketTimeseriesPoint]:
+    if not get_market_by_id(db, market_id):
+        raise HTTPException(status_code=404, detail="Market not found")
+    requested = {item.strip().lower() for item in series.split(",") if item.strip()}
+    allowed = {"demand", "wind", "solar"}
+    if not requested <= allowed:
+        raise HTTPException(status_code=400, detail="Unsupported timeseries")
+
+    rows: dict[datetime, dict[str, float | datetime | None]] = {}
+    if "demand" in requested:
+        demand_points = list(
+            db.scalars(
+                select(DemandPoint)
+                .where(DemandPoint.market_id == market_id)
+                .order_by(DemandPoint.timestamp.desc())
+                .limit(limit)
+            ).all()
+        )
+        for point in demand_points:
+            rows.setdefault(point.timestamp, {"timestamp": point.timestamp})["demand_mw"] = point.demand_mw
+    if requested & {"wind", "solar"}:
+        weather_points = list(
+            db.scalars(
+                select(WeatherPoint)
+                .where(WeatherPoint.market_id == market_id)
+                .order_by(WeatherPoint.timestamp.desc())
+                .limit(limit)
+            ).all()
+        )
+        for point in weather_points:
+            row = rows.setdefault(point.timestamp, {"timestamp": point.timestamp})
+            if "wind" in requested:
+                row["wind_mw"] = point.wind_generation_estimate
+            if "solar" in requested:
+                row["solar_mw"] = point.solar_generation_estimate
+
+    out: list[MarketTimeseriesPoint] = []
+    for timestamp in sorted(rows):
+        row = rows[timestamp]
+        demand = float(row["demand_mw"]) if row.get("demand_mw") else None
+        wind = float(row["wind_mw"]) if row.get("wind_mw") else None
+        solar = float(row["solar_mw"]) if row.get("solar_mw") else None
+        out.append(
+            MarketTimeseriesPoint(
+                timestamp=timestamp,
+                demand_mw=demand,
+                wind_mw=wind,
+                solar_mw=solar,
+                wind_share=round(wind / demand, 4) if demand and wind is not None else None,
+                solar_share=round(solar / demand, 4) if demand and solar is not None else None,
+            )
+        )
+    return out
 
 
 @router.get("/markets/{market_id}/forecast", response_model=list[ForecastRead])

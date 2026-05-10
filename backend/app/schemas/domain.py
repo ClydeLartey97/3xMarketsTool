@@ -34,6 +34,15 @@ class PricePointRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MarketTimeseriesPoint(BaseModel):
+    timestamp: datetime
+    demand_mw: Optional[float] = None
+    wind_mw: Optional[float] = None
+    solar_mw: Optional[float] = None
+    wind_share: Optional[float] = None
+    solar_share: Optional[float] = None
+
+
 class WeatherPointRead(BaseModel):
     id: int
     market_id: int
