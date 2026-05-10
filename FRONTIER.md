@@ -245,6 +245,7 @@ Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Not
 2026-05-10 frontier-B.6 (pending) — Jinja2 single-file report renderer, inline PIT SVG, sample render test, and GB_POWER HTML artifact shipped. Tests: pass. Notes: focused backend 1 passed; full backend pytest 63 passed; frontend tsc clean.
 2026-05-10 frontier-B.7 (pending) — Latest backtest API endpoint, dashboard backtest metrics, and frontend backtest strip shipped. Tests: pass. Notes: focused backend 9 passed; full backend pytest 64 passed; frontend tsc clean.
 2026-05-10 frontier-B.acceptance (pending) — GB_POWER gbr-vs-chronos backtest and GB_POWER ablation reports generated; calibration status honest for EPEX_DE; SQLite risk-log compatibility bridge added. Tests: pass. Notes: full backend pytest 65 passed; frontend tsc clean.
+2026-05-10 frontier-C.1 (pending) — Six-hour cached cross-market hourly-return correlation matrix shipped. Tests: pass. Notes: GB_POWER vs ERCOT_NORTH finite/non-zero; full backend pytest 66 passed; frontend tsc clean.
 
 Blockers (agent appends; user resolves)
 Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …
