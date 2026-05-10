@@ -1,0 +1,190 @@
+{
+  "version": "seed-1",
+  "buses": [
+    {
+      "name": "ERCOT_NORTH",
+      "market_code": "ERCOT_NORTH",
+      "gen_min_mw": 0,
+      "gen_max_mw": 45000,
+      "gen_cost_per_mwh": 22.0,
+      "is_reference": true
+    },
+    {
+      "name": "ERCOT_HOUSTON",
+      "market_code": "ERCOT_HOUSTON",
+      "gen_min_mw": 0,
+      "gen_max_mw": 28000,
+      "gen_cost_per_mwh": 24.0
+    },
+    {
+      "name": "ERCOT_WEST",
+      "market_code": null,
+      "gen_min_mw": 0,
+      "gen_max_mw": 22000,
+      "gen_cost_per_mwh": 19.0
+    },
+    {
+      "name": "ERCOT_SOUTH",
+      "market_code": null,
+      "gen_min_mw": 0,
+      "gen_max_mw": 18000,
+      "gen_cost_per_mwh": 21.0
+    },
+    {
+      "name": "PJM_WESTERN_HUB",
+      "market_code": "PJM_WESTERN_HUB",
+      "gen_min_mw": 0,
+      "gen_max_mw": 70000,
+      "gen_cost_per_mwh": 28.0
+    },
+    {
+      "name": "PJM_AEP",
+      "market_code": null,
+      "gen_min_mw": 0,
+      "gen_max_mw": 35000,
+      "gen_cost_per_mwh": 26.0
+    },
+    {
+      "name": "NYISO_ZONE_J",
+      "market_code": "NYISO_ZONE_J",
+      "gen_min_mw": 0,
+      "gen_max_mw": 8000,
+      "gen_cost_per_mwh": 38.0
+    },
+    {
+      "name": "NYISO_ZONE_G",
+      "market_code": null,
+      "gen_min_mw": 0,
+      "gen_max_mw": 14000,
+      "gen_cost_per_mwh": 30.0
+    },
+    {
+      "name": "ISONE_MASS_HUB",
+      "market_code": "ISONE_MASS_HUB",
+      "gen_min_mw": 0,
+      "gen_max_mw": 12000,
+      "gen_cost_per_mwh": 32.0
+    },
+    {
+      "name": "GB_POWER",
+      "market_code": "GB_POWER",
+      "gen_min_mw": 0,
+      "gen_max_mw": 55000,
+      "gen_cost_per_mwh": 60.0
+    },
+    {
+      "name": "EPEX_DE",
+      "market_code": "EPEX_DE",
+      "gen_min_mw": 0,
+      "gen_max_mw": 80000,
+      "gen_cost_per_mwh": 70.0
+    },
+    {
+      "name": "EPEX_FR",
+      "market_code": "EPEX_FR",
+      "gen_min_mw": 0,
+      "gen_max_mw": 90000,
+      "gen_cost_per_mwh": 50.0
+    },
+    {
+      "name": "NORDPOOL_SE3",
+      "market_code": "NORDPOOL_SE3",
+      "gen_min_mw": 0,
+      "gen_max_mw": 25000,
+      "gen_cost_per_mwh": 30.0
+    }
+  ],
+  "lines": [
+    {
+      "from_bus": "ERCOT_NORTH",
+      "to_bus": "ERCOT_HOUSTON",
+      "susceptance": 5.0,
+      "limit_mw": 5000,
+      "source": "ERCOT GTC"
+    },
+    {
+      "from_bus": "ERCOT_NORTH",
+      "to_bus": "ERCOT_WEST",
+      "susceptance": 4.0,
+      "limit_mw": 6500,
+      "source": "ERCOT GTC"
+    },
+    {
+      "from_bus": "ERCOT_NORTH",
+      "to_bus": "ERCOT_SOUTH",
+      "susceptance": 5.0,
+      "limit_mw": 4500,
+      "source": "ERCOT GTC"
+    },
+    {
+      "from_bus": "ERCOT_HOUSTON",
+      "to_bus": "ERCOT_SOUTH",
+      "susceptance": 4.5,
+      "limit_mw": 3500,
+      "source": "ERCOT GTC"
+    },
+    {
+      "from_bus": "PJM_AEP",
+      "to_bus": "PJM_WESTERN_HUB",
+      "susceptance": 4.0,
+      "limit_mw": 7000,
+      "source": "PJM ATC"
+    },
+    {
+      "from_bus": "PJM_WESTERN_HUB",
+      "to_bus": "NYISO_ZONE_G",
+      "susceptance": 2.5,
+      "limit_mw": 1800,
+      "source": "NYISO TTC"
+    },
+    {
+      "from_bus": "NYISO_ZONE_G",
+      "to_bus": "NYISO_ZONE_J",
+      "susceptance": 3.5,
+      "limit_mw": 2300,
+      "source": "NYISO TTC"
+    },
+    {
+      "from_bus": "NYISO_ZONE_G",
+      "to_bus": "ISONE_MASS_HUB",
+      "susceptance": 2.0,
+      "limit_mw": 1400,
+      "source": "ISO-NE NESCOE"
+    },
+    {
+      "from_bus": "GB_POWER",
+      "to_bus": "EPEX_FR",
+      "susceptance": 1.8,
+      "limit_mw": 4000,
+      "source": "ENTSO-E NTC"
+    },
+    {
+      "from_bus": "GB_POWER",
+      "to_bus": "EPEX_DE",
+      "susceptance": 1.2,
+      "limit_mw": 1400,
+      "source": "ENTSO-E NTC"
+    },
+    {
+      "from_bus": "EPEX_DE",
+      "to_bus": "EPEX_FR",
+      "susceptance": 3.5,
+      "limit_mw": 5800,
+      "source": "ENTSO-E NTC"
+    },
+    {
+      "from_bus": "EPEX_DE",
+      "to_bus": "NORDPOOL_SE3",
+      "susceptance": 1.5,
+      "limit_mw": 1300,
+      "source": "ENTSO-E NTC"
+    },
+    {
+      "from_bus": "GB_POWER",
+      "to_bus": "NORDPOOL_SE3",
+      "susceptance": 1.4,
+      "limit_mw": 1400,
+      "source": "ENTSO-E NTC"
+    }
+  ]
+}
