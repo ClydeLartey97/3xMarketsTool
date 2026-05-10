@@ -21,8 +21,8 @@ import numpy as np
 import pandas as pd
 
 from app.forecasting.feature_builder import build_feature_frame
-from app.forecasting.model import FEATURE_COLUMNS, GradientBoostingForecastModel
 from app.forecasting.regime import classify_regime
+from app.forecasting.registry import create_forecaster
 
 
 # ── Result schemas ────────────────────────────────────────────────────────
@@ -39,6 +39,7 @@ class BacktestResult:
     horizon_hours: int
     train_window_hours: int
     test_window_hours: int
+    vs_forecasters: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -47,6 +48,7 @@ class BacktestResult:
             "metrics_by_regime": self.metrics_by_regime,
             "calibration": self.calibration,
             "vs_baselines": self.vs_baselines,
+            "vs_forecasters": self.vs_forecasters,
             "sample_count": self.sample_count,
             "horizon_hours": self.horizon_hours,
             "train_window_hours": self.train_window_hours,
@@ -116,6 +118,23 @@ def _pit_histogram(actual: np.ndarray, mu: np.ndarray, sigma: np.ndarray, n_bins
     }
 
 
+def _empty_result(*, train_window_hours: int, test_window_hours: int, horizon_hours: int) -> BacktestResult:
+    return BacktestResult(
+        metrics={"mae": 0.0, "rmse": 0.0, "directional_accuracy": 0.0,
+                 "spike_precision": 0.0, "spike_recall": 0.0, "spike_f1": 0.0},
+        metrics_by_hour={},
+        metrics_by_regime={},
+        calibration={"n_bins": 0, "shares": [], "expected_share_per_bin": 0.0,
+                     "max_deviation_from_uniform": 0.0, "well_calibrated": False},
+        vs_baselines={},
+        sample_count=0,
+        horizon_hours=horizon_hours,
+        train_window_hours=train_window_hours,
+        test_window_hours=test_window_hours,
+        vs_forecasters={},
+    )
+
+
 # ── Baselines ─────────────────────────────────────────────────────────────
 
 
@@ -149,31 +168,33 @@ def walk_forward_backtest(
     step_hours: int = 24,
     horizon_hours: int = 24,
     spike_k: float = 2.0,
+    forecaster_names: list[str] | None = None,
 ) -> BacktestResult:
     """Roll a (train_window, test_window) pair across the frame.
 
     The model is re-fit at every step. Baselines do not need fitting.
     """
+    requested_forecasters: list[str] = []
+    for name in forecaster_names or ["gbr"]:
+        normalized = name.strip().lower()
+        if normalized and normalized not in requested_forecasters:
+            requested_forecasters.append(normalized)
+    if not requested_forecasters:
+        requested_forecasters = ["gbr"]
+    primary_forecaster = requested_forecasters[0]
+
     if feature_frame.empty or "price_value" not in feature_frame.columns:
-        return BacktestResult(
-            metrics={"mae": 0.0, "rmse": 0.0, "directional_accuracy": 0.0,
-                     "spike_precision": 0.0, "spike_recall": 0.0, "spike_f1": 0.0},
-            metrics_by_hour={},
-            metrics_by_regime={},
-            calibration={"n_bins": 0, "shares": [], "expected_share_per_bin": 0.0,
-                         "max_deviation_from_uniform": 0.0, "well_calibrated": False},
-            vs_baselines={},
-            sample_count=0,
-            horizon_hours=horizon_hours,
+        return _empty_result(
             train_window_hours=train_window_hours,
             test_window_hours=test_window_hours,
+            horizon_hours=horizon_hours,
         )
 
     n = len(feature_frame)
     rows = feature_frame.reset_index(drop=True).copy()
     needed = train_window_hours + test_window_hours
 
-    pred_records: list[pd.DataFrame] = []
+    pred_records_by_forecaster: dict[str, list[pd.DataFrame]] = {name: [] for name in requested_forecasters}
     starts = list(range(0, max(0, n - needed) + 1, max(step_hours, 1)))
     if not starts:
         starts = [0] if n >= needed else []
@@ -183,36 +204,30 @@ def walk_forward_backtest(
         test = rows.iloc[start + train_window_hours : start + needed].copy()
         if len(train) < 48 or len(test) == 0:
             continue
-        try:
-            model = GradientBoostingForecastModel()
-            model.train(train)
-            dist = model.predict_distribution(test)
-            preds = dist["point_estimate"].to_numpy(dtype=float)
-            sigmas = dist["sigma_price"].to_numpy(dtype=float)
-        except Exception:  # noqa: BLE001 — keep walking on any single-fit failure
-            continue
-        test = test.copy()
-        test["pred"] = preds
-        test["sigma_pred"] = sigmas
-        if "regime" in dist.columns:
-            test["regime"] = dist["regime"].to_numpy()
-        else:
-            test["regime"] = test.apply(classify_regime, axis=1)
-        pred_records.append(test)
+        for forecaster_name in requested_forecasters:
+            try:
+                model = create_forecaster(forecaster_name)
+                model.train(train)
+                dist = model.predict_distribution(test)
+                preds = dist["point_estimate"].to_numpy(dtype=float)
+                sigmas = dist["sigma_price"].to_numpy(dtype=float)
+            except Exception:  # noqa: BLE001 — keep walking on any single-fit failure
+                continue
+            forecast_frame = test.copy()
+            forecast_frame["pred"] = preds
+            forecast_frame["sigma_pred"] = sigmas
+            if "regime" in dist.columns:
+                forecast_frame["regime"] = dist["regime"].to_numpy()
+            else:
+                forecast_frame["regime"] = forecast_frame.apply(classify_regime, axis=1)
+            pred_records_by_forecaster[forecaster_name].append(forecast_frame)
 
+    pred_records = pred_records_by_forecaster.get(primary_forecaster, [])
     if not pred_records:
-        return BacktestResult(
-            metrics={"mae": 0.0, "rmse": 0.0, "directional_accuracy": 0.0,
-                     "spike_precision": 0.0, "spike_recall": 0.0, "spike_f1": 0.0},
-            metrics_by_hour={},
-            metrics_by_regime={},
-            calibration={"n_bins": 0, "shares": [], "expected_share_per_bin": 0.0,
-                         "max_deviation_from_uniform": 0.0, "well_calibrated": False},
-            vs_baselines={},
-            sample_count=0,
-            horizon_hours=horizon_hours,
+        return _empty_result(
             train_window_hours=train_window_hours,
             test_window_hours=test_window_hours,
+            horizon_hours=horizon_hours,
         )
 
     combined = pd.concat(pred_records, ignore_index=True)
@@ -262,6 +277,16 @@ def walk_forward_backtest(
         "persistence_24h": _accuracy_metrics(actual, persistence_24_pred, baseline_prev),
         "climatology": _accuracy_metrics(actual, clim_pred, baseline_prev),
     }
+    vs_forecasters: dict[str, dict[str, float]] = {}
+    for forecaster_name, records in pred_records_by_forecaster.items():
+        if not records:
+            continue
+        forecaster_frame = pd.concat(records, ignore_index=True)
+        vs_forecasters[forecaster_name] = _accuracy_metrics(
+            forecaster_frame["price_value"].to_numpy(),
+            forecaster_frame["pred"].to_numpy(),
+            forecaster_frame["price_lag_1"].to_numpy(),
+        )
 
     return BacktestResult(
         metrics=metrics,
@@ -273,6 +298,7 @@ def walk_forward_backtest(
         horizon_hours=horizon_hours,
         train_window_hours=train_window_hours,
         test_window_hours=test_window_hours,
+        vs_forecasters=vs_forecasters,
     )
 
 

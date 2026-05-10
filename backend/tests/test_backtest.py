@@ -13,6 +13,7 @@ from app.forecasting.backtest import (
     _pit_histogram,
     walk_forward_backtest,
 )
+from app.forecasting.registry import forecaster_registry
 
 
 def _synth_frame(n: int = 24 * 90, seed: int = 11) -> pd.DataFrame:
@@ -82,6 +83,50 @@ def test_baselines_have_finite_rmse() -> None:
     assert pers.size == frame.shape[0]
     assert pers24.size == frame.shape[0]
     assert clim.size == 24 * 5
+
+
+def test_multi_forecaster_report_includes_gbr_and_chronos(monkeypatch) -> None:
+    class FakeChronosForecastModel:
+        model_name = "fake-chronos-v1"
+
+        def train(self, frame: pd.DataFrame) -> dict[str, float]:
+            return {"mae": 0.0, "rmse": 0.0, "directional_accuracy": 0.0, "spike_precision": 0.0}
+
+        def predict(self, frame: pd.DataFrame) -> pd.Series:
+            return frame["price_lag_24"].astype(float)
+
+        def predict_distribution(self, frame: pd.DataFrame) -> pd.DataFrame:
+            preds = self.predict(frame)
+            sigma = np.full(frame.shape[0], 5.0)
+            return pd.DataFrame(
+                {
+                    "point_estimate": preds,
+                    "lower_bound": preds - 8.0,
+                    "upper_bound": preds + 8.0,
+                    "sigma_price": sigma,
+                },
+                index=frame.index,
+            )
+
+        def explain(self, row: pd.Series) -> str:
+            return "fake chronos"
+
+    monkeypatch.setitem(forecaster_registry, "chronos", FakeChronosForecastModel)
+    frame = _synth_frame(n=24 * 14)
+
+    result = walk_forward_backtest(
+        frame,
+        train_window_hours=24 * 4,
+        test_window_hours=24 * 2,
+        step_hours=24 * 2,
+        horizon_hours=24,
+        forecaster_names=["gbr", "chronos"],
+    )
+
+    assert {"gbr", "chronos"} <= set(result.vs_forecasters)
+    assert math.isfinite(result.vs_forecasters["gbr"]["rmse"])
+    assert math.isfinite(result.vs_forecasters["chronos"]["rmse"])
+    assert {"gbr", "chronos"} <= set(result.to_dict()["vs_forecasters"])
 
 
 def test_pit_histogram_is_uniform_for_calibrated_input() -> None:

@@ -2,6 +2,7 @@
 
 Usage:
     python3 scripts/backtest.py --market GB_POWER --lookback-days 365
+    python3 scripts/backtest.py --market GB_POWER --compare gbr,chronos
     python3 scripts/backtest.py  # all markets
 """
 from __future__ import annotations
@@ -68,7 +69,13 @@ def main() -> None:
     parser.add_argument("--test-days", type=int, default=7)
     parser.add_argument("--step-hours", type=int, default=24)
     parser.add_argument("--horizon-hours", type=int, default=24)
+    parser.add_argument(
+        "--compare",
+        default="gbr",
+        help="Comma-separated forecaster names to compare, e.g. gbr,chronos.",
+    )
     args = parser.parse_args()
+    forecaster_names = [name.strip() for name in args.compare.split(",") if name.strip()]
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
@@ -93,6 +100,7 @@ def main() -> None:
                 test_window_hours=args.test_days * 24,
                 step_hours=args.step_hours,
                 horizon_hours=args.horizon_hours,
+                forecaster_names=forecaster_names,
             )
             stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
             out_path = REPORTS_DIR / f"backtest_{market.code}_{stamp}.json"
@@ -107,6 +115,7 @@ def main() -> None:
             print(
                 f"{market.code}: model RMSE={result.metrics.get('rmse')}  "
                 f"vs persistence_24h RMSE={result.vs_baselines.get('persistence_24h',{}).get('rmse')}  "
+                f"forecasters={','.join(result.vs_forecasters.keys()) or 'none'}  "
                 f"calibrated={result.calibration.get('well_calibrated')}  "
                 f"→ {out_path.name}"
             )
