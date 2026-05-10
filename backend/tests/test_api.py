@@ -145,6 +145,24 @@ def test_risk_assessment_paths_endpoint_caps_payload(client) -> None:
     assert body["assessment"]["market_code"] == "ERCOT_NORTH"
 
 
+def test_optimal_hedge_endpoint(client) -> None:
+    response = client.post(
+        "/api/risk-assessment/optimal-hedge",
+        json={
+            "market_code": "ERCOT_NORTH",
+            "position_gbp": 10000,
+            "horizon_hours": 6,
+            "direction": "long",
+            "n_paths": 500,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert 0.0 <= body["hedge_ratio"] <= 1.0
+    assert body["risk_after_gbp"] <= body["risk_before_gbp"]
+
+
 def test_portfolio_risk_endpoint(client) -> None:
     response = client.post(
         "/api/portfolio-risk",

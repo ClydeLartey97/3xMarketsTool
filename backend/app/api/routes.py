@@ -23,6 +23,7 @@ from app.schemas.domain import (
     MarketTimeseriesPoint,
     NewsArticleRead,
     NewsSourceRead,
+    OptimalHedgeResponse,
     PortfolioRiskRequest,
     PortfolioRiskResponse,
     PricePointRead,
@@ -53,6 +54,7 @@ from app.services.forecast_service import (
 from app.services.market_service import get_market_by_code, get_market_by_id, list_markets
 from app.services.news_service import list_news_articles, list_news_sources
 from app.services.portfolio_risk import PortfolioPositionInput, run_portfolio_risk
+from app.services.deep_hedger import hedge_features_from_assessment, recommend_hedge_ratio
 
 router = APIRouter()
 
@@ -420,6 +422,54 @@ def post_risk_assessment_paths(
         path_hours=list(range(int(result["horizon_hours"]) + 1)),
         price_paths=result["price_paths"][:200],
         assessment=RiskAssessmentResponse(**result),
+    )
+
+
+@router.post("/risk-assessment/optimal-hedge", response_model=OptimalHedgeResponse)
+def post_optimal_hedge(payload: RiskAssessmentRequest, db: Session = Depends(get_db)) -> OptimalHedgeResponse:
+    try:
+        current = assess_risk(
+            db,
+            RiskInputs(
+                market_code=payload.market_code,
+                position_gbp=payload.position_gbp,
+                position_unit=payload.position_unit,
+                position_mwh=payload.position_mwh,
+                hedge_ratio=payload.hedge_ratio,
+                horizon_hours=payload.horizon_hours,
+                target_timestamp=payload.target_timestamp,
+                direction=payload.direction,
+                n_paths=payload.n_paths,
+            ),
+        )
+        hedge_ratio = recommend_hedge_ratio(hedge_features_from_assessment(current))
+        unhedged_ratio = max(0.0, min(1.0, 1.0 - hedge_ratio))
+        hedged = assess_risk(
+            db,
+            RiskInputs(
+                market_code=payload.market_code,
+                position_gbp=payload.position_gbp,
+                position_unit=payload.position_unit,
+                position_mwh=payload.position_mwh,
+                hedge_ratio=unhedged_ratio,
+                horizon_hours=payload.horizon_hours,
+                target_timestamp=payload.target_timestamp,
+                direction=payload.direction,
+                n_paths=payload.n_paths,
+            ),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    return OptimalHedgeResponse(
+        market_code=payload.market_code,
+        hedge_ratio=round(float(hedge_ratio), 4),
+        unhedged_ratio=round(float(unhedged_ratio), 4),
+        risk_before_gbp=float(current["risk_gbp"]),
+        risk_after_gbp=float(hedged["risk_gbp"]),
+        likely_cost_gbp=round(float(current["likely_gbp"]) - float(hedged["likely_gbp"]), 2),
+        current_assessment=RiskAssessmentResponse(**current),
+        hedged_assessment=RiskAssessmentResponse(**hedged),
     )
 
 

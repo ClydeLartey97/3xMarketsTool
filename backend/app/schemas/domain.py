@@ -396,6 +396,17 @@ class PortfolioRiskResponse(BaseModel):
     contributions: list[PortfolioRiskContribution]
 
 
+class OptimalHedgeResponse(BaseModel):
+    market_code: str
+    hedge_ratio: float
+    unhedged_ratio: float
+    risk_before_gbp: float
+    risk_after_gbp: float
+    likely_cost_gbp: float
+    current_assessment: RiskAssessmentResponse
+    hedged_assessment: RiskAssessmentResponse
+
+
 class DashboardResponse(BaseModel):
     market: MarketRead
     latest_forecast: Optional[ForecastRead]
