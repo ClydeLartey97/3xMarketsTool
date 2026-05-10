@@ -326,6 +326,8 @@ def post_risk_assessment(payload: RiskAssessmentRequest, db: Session = Depends(g
                     )
                     for s in payload.scenarios
                 ],
+                basis_against_market_code=payload.basis_against_market_code,
+                basis_direction=payload.basis_direction,
             ),
         )
     except ValueError as exc:

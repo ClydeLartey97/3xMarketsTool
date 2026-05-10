@@ -87,6 +87,11 @@ class RiskInputs:
     random_seed: int | None = None
     coefficient_overrides: dict[str, float] | None = None
     path_sample_size: int | None = None
+    # E.3 — cross-zone basis trade. When set, the engine runs paired
+    # paths for both markets using the correlation matrix and reports
+    # P&L on the price spread.
+    basis_against_market_code: str | None = None
+    basis_direction: str = "long"
 
 
 # Canonical scenarios — keyed by name. Each one specifies a multiplicative
@@ -334,13 +339,118 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
     )
 
     base_result = simulate_price_paths(base_cfg)
-    base_pnl_native = pnl_from_paths(
-        base_result,
-        direction_sign=direction_sign,
-        position_native=position_native,
-        position_unit=inputs.position_unit,
-    )
-    base_pnl_gbp = base_pnl_native * fx
+
+    # ── E.3 cross-zone basis trade ─────────────────────────────────────────
+    # If the caller asked for a basis position, run a correlated MC for the
+    # paired market and replace the P&L vector with the spread P&L. We
+    # leave `base_result` referring to the primary leg so coefficient and
+    # path-fan reporting stays meaningful.
+    basis_meta: dict[str, Any] | None = None
+    if inputs.basis_against_market_code and inputs.basis_against_market_code != market.code:
+        from app.services.correlation import get_correlation_matrix
+
+        paired = db.scalar(select(Market).where(Market.code == inputs.basis_against_market_code))
+        if paired is None:
+            raise ValueError(f"unknown basis market {inputs.basis_against_market_code}")
+        paired_prices = list(
+            db.scalars(
+                select(PricePoint)
+                .where(PricePoint.market_id == paired.id)
+                .order_by(PricePoint.timestamp.asc())
+            ).all()
+        )
+        if not paired_prices:
+            raise ValueError(f"no prices for basis market {paired.code}")
+        paired_spot = float(paired_prices[-1].price_value)
+        if paired_spot <= 0:
+            paired_spot = max(float(paired_prices[-1].price_value), 1.0)
+        paired_returns = _recent_returns(paired_prices)
+        paired_sigma_h = _hourly_vol(paired_returns)
+        paired_currency = (getattr(paired_prices[-1], "currency", None)) or "USD"
+        paired_fx = fx_to_gbp(paired_currency)
+
+        # Correlated shocks: ρ from the cross-market matrix; same n_paths,
+        # same horizon, independent seed offset so we don't reuse base draws.
+        corr_matrix = get_correlation_matrix(db)
+        rho = float(corr_matrix.get(market.code, {}).get(paired.code, 0.0))
+        rho = float(np.clip(rho, -0.99, 0.99))
+        paired_seed = (inputs.random_seed + 1_000_003) if inputs.random_seed is not None else None
+        paired_cfg = SimConfig(
+            n_paths=int(inputs.n_paths),
+            horizon_hours=int(inputs.horizon_hours),
+            spot=float(paired_spot),
+            sigma_hourly=float(paired_sigma_h),
+            drift_hourly=0.0,  # no forecast → drift-flat is the honest baseline
+            tail_multiplier=float(context["tail_multiplier"]),
+            asymmetry=0.0,
+            seed=paired_seed,
+        )
+        paired_result = simulate_price_paths(paired_cfg)
+
+        # Apply the correlation: re-mix paired terminal returns with a
+        # rho-weighted component of the primary's terminal returns. This
+        # is a one-step correlation that preserves marginal distributions
+        # well enough for portfolio CVaR purposes — full path-level
+        # correlation lands when we have a multivariate driver in C.x.
+        primary_term_returns = base_result.returns_terminal
+        paired_term_returns = paired_result.returns_terminal
+        paired_mu = float(np.mean(paired_term_returns))
+        paired_sd = float(np.std(paired_term_returns, ddof=0) or 1e-9)
+        primary_mu = float(np.mean(primary_term_returns))
+        primary_sd = float(np.std(primary_term_returns, ddof=0) or 1e-9)
+        z_primary = (primary_term_returns - primary_mu) / primary_sd
+        z_paired = (paired_term_returns - paired_mu) / paired_sd
+        z_correlated = rho * z_primary + np.sqrt(max(0.0, 1.0 - rho * rho)) * z_paired
+        paired_term_returns_correlated = paired_mu + paired_sd * z_correlated
+        paired_terminal = paired_spot * (1.0 + paired_term_returns_correlated)
+
+        # Spread P&L: long spread = primary leg long, paired leg short.
+        # `basis_direction` flips this. Position notional is the primary
+        # leg's notional; the paired leg matches it in native MWh or
+        # GBP-converted notional.
+        if inputs.position_unit == "MWh":
+            primary_pnl_native = direction_sign * position_native * (
+                base_result.terminal_prices - base_result.paths[:, 0]
+            )
+            paired_position_native = position_native  # 1:1 MWh hedge
+            paired_pnl_native = -direction_sign * paired_position_native * (
+                paired_terminal - paired_spot
+            )
+            primary_pnl_gbp = primary_pnl_native * fx
+            paired_pnl_gbp = paired_pnl_native * paired_fx
+        else:
+            primary_pnl_native = direction_sign * position_native * (
+                base_result.terminal_prices - base_result.paths[:, 0]
+            ) / np.where(base_result.paths[:, 0] == 0, 1.0, base_result.paths[:, 0])
+            paired_position_native = (inputs.position_gbp / max(paired_fx, 1e-6)) * hedge_ratio
+            paired_pnl_native = -direction_sign * paired_position_native * (
+                paired_terminal - paired_spot
+            ) / max(paired_spot, 1e-9)
+            primary_pnl_gbp = primary_pnl_native * fx
+            paired_pnl_gbp = paired_pnl_native * paired_fx
+
+        basis_sign = 1.0 if inputs.basis_direction == "long" else -1.0
+        base_pnl_gbp = basis_sign * (primary_pnl_gbp + paired_pnl_gbp)
+        base_pnl_native = base_pnl_gbp / max(fx, 1e-9)  # for symmetry; not used downstream
+
+        basis_meta = {
+            "primary_market_code": market.code,
+            "basis_market_code": paired.code,
+            "basis_direction": inputs.basis_direction,
+            "correlation_rho": round(rho, 6),
+            "primary_spot": round(float(spot), 4),
+            "basis_spot": round(float(paired_spot), 4),
+            "primary_fx_to_gbp": round(float(fx), 6),
+            "basis_fx_to_gbp": round(float(paired_fx), 6),
+        }
+    else:
+        base_pnl_native = pnl_from_paths(
+            base_result,
+            direction_sign=direction_sign,
+            position_native=position_native,
+            position_unit=inputs.position_unit,
+        )
+        base_pnl_gbp = base_pnl_native * fx
     metrics = empirical_risk_metrics(base_pnl_gbp)
 
     risk_pnl = metrics["cvar95_gbp"]
@@ -574,4 +684,5 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
         "scenarios": scenario_outcomes,
         "coefficients": coefficients_block,
         "price_paths": sampled_paths,
+        "basis": basis_meta,
     }
