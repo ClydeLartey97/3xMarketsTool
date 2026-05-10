@@ -193,6 +193,7 @@ def ingest_rss_feeds(db: Any, max_per_feed: int = 6) -> int:
             extracted = extract_primary_event(art["title"], art["body"])
             if extracted:
                 impact_pct = estimate_price_impact_pct(extracted)
+                from app.services.event_analogues import populate_event_analogues
 
                 # Match article text to a known market
                 haystack = (art["title"] + " " + art["body"]).lower()
@@ -202,7 +203,7 @@ def ingest_rss_feeds(db: Any, max_per_feed: int = 6) -> int:
                         matched_market = mkt
                         break
 
-                db.add(Event(
+                event = Event(
                     article_id=article.id,
                     market_id=matched_market.id if matched_market else None,
                     event_type=extracted.event_type,
@@ -226,7 +227,10 @@ def ingest_rss_feeds(db: Any, max_per_feed: int = 6) -> int:
                     price_direction=extracted.price_direction,
                     estimated_price_impact_pct=impact_pct,
                     rationale=extracted.rationale,
-                ))
+                )
+                db.add(event)
+                db.flush()
+                populate_event_analogues(event, db)
                 article.processed_status = "processed"
             else:
                 article.processed_status = "no_event"

@@ -9,6 +9,7 @@ from app.events.extractor import extract_primary_event
 from app.events.impact import estimate_price_impact_pct
 from app.models import Event, Market, NewsArticle
 from app.schemas.domain import ArticleIngestRequest
+from app.services.event_analogues import populate_event_analogues
 from app.services.market_service import get_market_by_code
 
 
@@ -20,7 +21,15 @@ def list_events(db: Session, market_id: int | None = None, hours: int = 72) -> l
     stmt = select(Event).where(Event.created_at >= since).order_by(desc(Event.created_at))
     if market_id is not None:
         stmt = stmt.where(Event.market_id == market_id)
-    return list(db.scalars(stmt).all())
+    events = list(db.scalars(stmt).all())
+    changed = False
+    for event in events:
+        if not event.analogue_event_ids:
+            analogue_ids = populate_event_analogues(event, db)
+            changed = changed or bool(analogue_ids)
+    if changed:
+        db.commit()
+    return events
 
 
 def ingest_article(db: Session, payload: ArticleIngestRequest) -> Event | None:
@@ -69,6 +78,8 @@ def ingest_article(db: Session, payload: ArticleIngestRequest) -> Event | None:
         rationale=extracted.rationale,
     )
     db.add(event)
+    db.flush()
+    populate_event_analogues(event, db)
     db.commit()
     db.refresh(event)
     return event

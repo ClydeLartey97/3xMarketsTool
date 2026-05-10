@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models import DemandPoint, Forecast, WeatherPoint
+from app.models import DemandPoint, Event, Forecast, WeatherPoint
 from app.schemas.domain import (
     AlertRead,
     ArticleIngestRequest,
@@ -44,6 +44,7 @@ from app.services.risk_sensitivity import run_risk_sensitivity
 from app.services.risk_solver import RiskSolveInputs, solve_position_for_risk
 from app.services.alert_service import list_alerts, refresh_alerts_for_market
 from app.services.backtest_reports import dashboard_backtest_metrics, latest_backtest_report_for_market
+from app.services.event_analogues import find_analogues
 from app.services.event_service import ingest_article, list_events
 from app.services.forecast_service import (
     invalidate_forecast_cache,
@@ -244,6 +245,14 @@ def get_market_events(market_id: int, db: Session = Depends(get_db)) -> list[Eve
 @router.get("/events", response_model=list[EventRead])
 def get_events(db: Session = Depends(get_db)) -> list[EventRead]:
     return [EventRead.model_validate(item) for item in list_events(db)]
+
+
+@router.get("/events/{event_id}/analogues", response_model=list[EventRead])
+def get_event_analogues(event_id: int, db: Session = Depends(get_db)) -> list[EventRead]:
+    event = db.get(Event, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return [EventRead.model_validate(item) for item in find_analogues(event, db)]
 
 
 @router.get("/markets/{market_id}/news", response_model=list[NewsArticleRead])

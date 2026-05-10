@@ -128,6 +128,12 @@ export function EventFeed({
                     {event.rationale}
                   </p>
                 )}
+
+                {!compact && event.analogue_event_ids.length > 0 ? (
+                  <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-ink/32">
+                    Analogues #{event.analogue_event_ids.slice(0, 5).join(" #")}
+                  </p>
+                ) : null}
               </article>
             );
           })

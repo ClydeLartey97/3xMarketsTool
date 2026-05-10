@@ -13,6 +13,7 @@ from app.events.extractor import extract_primary_event
 from app.events.impact import estimate_price_impact_pct
 from app.ingestion.real_data import market_currency, populate_market_real_data
 from app.models import Alert, DemandPoint, Event, Forecast, Market, NewsArticle, PricePoint, User, UserWatchlist, WeatherPoint
+from app.services.event_analogues import populate_event_analogues
 
 logger = logging.getLogger(__name__)
 
@@ -828,8 +829,12 @@ def seed_database(db: Session) -> None:
             if existing_event:
                 for key, value in event_values.items():
                     setattr(existing_event, key, value)
+                populate_event_analogues(existing_event, db)
             else:
-                db.add(Event(**event_values))
+                new_event = Event(**event_values)
+                db.add(new_event)
+                db.flush()
+                populate_event_analogues(new_event, db)
 
     demo_user = User(
         email="demo@3x.local",
