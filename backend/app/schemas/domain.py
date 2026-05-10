@@ -279,6 +279,7 @@ class RiskAssessmentResponse(BaseModel):
     scenarios: list[ScenarioOutcome] = Field(default_factory=list)
     coefficients: CoefficientBlock = Field(default_factory=CoefficientBlock)
     basis: Optional[dict[str, Any]] = None
+    congestion: Optional[dict[str, Any]] = None
 
 
 class RiskSolveResponse(BaseModel):

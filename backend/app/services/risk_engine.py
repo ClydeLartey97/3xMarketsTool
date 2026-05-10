@@ -21,11 +21,15 @@ has loaded news flow and the other doesn't.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
+
+
+logger = logging.getLogger(__name__)
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -309,6 +313,36 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
         drift_hourly = drift_hourly_base + asym_drift
     if "drift_hourly" in overrides:
         drift_hourly = float(overrides["drift_hourly"])
+
+    # ── E.4 congestion-aware σ overlay ─────────────────────────────────────
+    # When the relevant export line out of this market's bus is close to
+    # its thermal limit, news/event shocks have a larger effective σ.
+    # The overlay multiplies σ_hourly by a per-market lookup keyed on the
+    # current load level (1.0 = nameplate baseline). The multiplier curve
+    # is computed offline by `app.grid.congestion` and cached.
+    congestion_multiplier = 1.0
+    congestion_meta: dict[str, Any] | None = None
+    try:
+        from app.grid.congestion import get_sensitivity
+
+        sensitivity = get_sensitivity(market.code)
+        if sensitivity is not None:
+            # Approximate the current "load level" as the ratio of the
+            # most-recent observed price to the mean of the recent
+            # history — proxy for system tightness.
+            recent_prices = [float(p.price_value) for p in prices[-24:]] if prices else []
+            recent_mean = float(np.mean(recent_prices)) if recent_prices else spot
+            tightness_ratio = float(np.clip(spot / max(recent_mean, 1e-6), 0.6, 1.4))
+            congestion_multiplier = sensitivity.multiplier_at(tightness_ratio)
+            congestion_multiplier = float(np.clip(congestion_multiplier, 1.0, 1.6))
+            congestion_meta = {
+                "bus": sensitivity.bus_name,
+                "tightness_ratio": round(tightness_ratio, 4),
+                "multiplier": round(congestion_multiplier, 4),
+            }
+            sigma_hourly *= congestion_multiplier
+    except Exception as exc:  # noqa: BLE001 — never let topology overlay crash risk
+        logger.warning("congestion overlay failed for %s: %s", market.code, exc)
 
     direction_sign = 1.0 if inputs.direction.lower() == "long" else -1.0
 
@@ -638,6 +672,22 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
         f"μ = {drift_hourly:.5f}/hr, σ = {sigma_hourly:.5f}/hr, "
         f"tail = {context['tail_multiplier']:.2f}, n_paths = {inputs.n_paths}."
     )
+    # E.4 — surface the congestion overlay alongside the LLM tail multiplier
+    # in the coefficient block so the analyst can see what the topology
+    # contributed to σ at audit time.
+    coeff_items.append({
+        "key": "congestion_multiplier",
+        "label": "Congestion σ multiplier",
+        "value": round(float(congestion_multiplier), 4),
+        "unit": "x",
+        "group": "result",
+        "description": (
+            "Topology overlay: σ inflation when the export line out of "
+            f"{(congestion_meta or {}).get('bus', '—')} is close to its thermal "
+            "limit. 1.0 = no overlay; capped at 1.6."
+        ),
+    })
+
     coefficients_block = {"items": coeff_items, "equation_summary": equation}
 
     sampled_paths: list[list[float]] = []
@@ -685,4 +735,5 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
         "coefficients": coefficients_block,
         "price_paths": sampled_paths,
         "basis": basis_meta,
+        "congestion": congestion_meta,
     }
