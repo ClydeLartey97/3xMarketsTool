@@ -11,6 +11,7 @@ import { ClientErrorBoundary } from "@/components/client-error-boundary";
 import { DecisionDiary } from "@/components/decision-diary";
 import { EventFeed } from "@/components/event-feed";
 import { NewsBriefs } from "@/components/news-briefs";
+import { PositionBlotter } from "@/components/position-blotter";
 import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
 import { RiskPanel } from "@/components/risk-panel";
 import { RiskPathFan } from "@/components/risk-path-fan";
@@ -142,6 +143,7 @@ export function MarketWorkbench({
                     }}
                     onDecisionSaved={() => setDecisionRefresh((value) => value + 1)}
                   />
+                  <PositionBlotter refreshKey={decisionRefresh} />
                   <RiskPathFan data={risk} loading={riskLoading} />
                   <RiskDecompositionPanel data={risk} loading={riskLoading} />
                   <RiskSensitivityLadder data={risk} loading={riskLoading} />

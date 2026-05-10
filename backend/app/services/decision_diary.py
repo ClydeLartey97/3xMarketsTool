@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models import Market, RiskAssessmentLog
@@ -44,6 +44,8 @@ def _decision_read(row: RiskAssessmentLog, market: Market) -> dict[str, Any]:
         "realized_pnl_gbp": row.realized_pnl_gbp,
         "predicted_percentile": _predicted_percentile(row),
         "thesis_text": row.thesis_text or "",
+        "is_open": bool(row.is_open),
+        "closed_at": row.closed_at,
     }
 
 
@@ -63,6 +65,8 @@ def create_decision(db: Session, payload: Any) -> dict[str, Any]:
         realized_pnl_gbp=None,
         kind="diary",
         thesis_text=payload.thesis_text,
+        is_open=bool(payload.is_open),
+        closed_at=None if payload.is_open else datetime.now(timezone.utc),
     )
     db.add(row)
     db.commit()
@@ -81,3 +85,41 @@ def list_decisions(db: Session, market_id: int | None = None) -> list[dict[str, 
     if market_id is not None:
         stmt = stmt.where(RiskAssessmentLog.market_id == market_id)
     return [_decision_read(row, market) for row, market in db.execute(stmt).all()]
+
+
+def update_decision(db: Session, decision_id: int, payload: Any) -> dict[str, Any]:
+    row = db.scalar(
+        select(RiskAssessmentLog).where(
+            RiskAssessmentLog.id == decision_id,
+            RiskAssessmentLog.kind == "diary",
+        )
+    )
+    if not row:
+        raise ValueError("decision not found")
+
+    if payload.thesis_text is not None:
+        row.thesis_text = payload.thesis_text
+    if payload.is_open is not None:
+        is_open = bool(payload.is_open)
+        row.is_open = is_open
+        row.closed_at = None if is_open else datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(row)
+    market = db.get(Market, row.market_id)
+    if not market:
+        raise ValueError("decision market not found")
+    return _decision_read(row, market)
+
+
+def delete_decision(db: Session, decision_id: int) -> None:
+    result = db.execute(
+        delete(RiskAssessmentLog).where(
+            RiskAssessmentLog.id == decision_id,
+            RiskAssessmentLog.kind == "diary",
+        )
+    )
+    if result.rowcount == 0:
+        db.rollback()
+        raise ValueError("decision not found")
+    db.commit()

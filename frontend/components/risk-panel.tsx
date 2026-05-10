@@ -134,6 +134,7 @@ export function RiskPanel({
         likely_gbp: data.likely_gbp,
         upside_gbp: data.upside_gbp,
         thesis_text: thesisText.trim(),
+        is_open: true,
       });
       setDecisionOpen(false);
       setThesisText("");

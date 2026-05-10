@@ -172,6 +172,12 @@ export type DecisionCreateRequest = {
   likely_gbp: number;
   upside_gbp: number;
   thesis_text: string;
+  is_open?: boolean;
+};
+
+export type DecisionUpdateRequest = {
+  thesis_text?: string;
+  is_open?: boolean;
 };
 
 export type DecisionItem = {
@@ -189,6 +195,8 @@ export type DecisionItem = {
   realized_pnl_gbp: number | null;
   predicted_percentile: number | null;
   thesis_text: string;
+  is_open: boolean;
+  closed_at: string | null;
 };
 
 export type RiskPathFanResponse = {
@@ -206,6 +214,36 @@ export type MarketTimeseriesPoint = {
   solar_mw: number | null;
   wind_share: number | null;
   solar_share: number | null;
+};
+
+export type PortfolioRiskContribution = {
+  market_code: string;
+  position_gbp: number;
+  direction: string;
+  standalone_risk_gbp: number;
+  standalone_likely_gbp: number;
+  standalone_upside_gbp: number;
+  simulated_risk_gbp: number;
+  risk_contribution_gbp: number;
+};
+
+export type PortfolioRiskRequest = {
+  positions: { market_code: string; position_gbp: number; direction: "long" | "short" }[];
+  horizon_hours?: number;
+  n_paths?: number;
+};
+
+export type PortfolioRiskResponse = {
+  portfolio_risk_gbp: number;
+  portfolio_likely_gbp: number;
+  portfolio_upside_gbp: number;
+  var95_gbp: number;
+  prob_loss: number;
+  sum_standalone_risk_gbp: number;
+  horizon_hours: number;
+  n_paths: number;
+  correlation_source: string;
+  contributions: PortfolioRiskContribution[];
 };
 
 export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {
@@ -293,6 +331,46 @@ export async function createDecision(payload: DecisionCreateRequest): Promise<De
 export function getDecisions(marketId?: number): Promise<DecisionItem[]> {
   const query = marketId ? `?market_id=${marketId}` : "";
   return fetchJson<DecisionItem[]>(`/decisions${query}`);
+}
+
+export async function updateDecision(
+  decisionId: number,
+  payload: DecisionUpdateRequest,
+): Promise<DecisionItem> {
+  const response = await fetch(`${apiBaseUrl()}/decisions/${decisionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`decision update failed: ${response.status}`);
+  }
+  return response.json() as Promise<DecisionItem>;
+}
+
+export async function deleteDecision(decisionId: number): Promise<{ deleted_id: number }> {
+  const response = await fetch(`${apiBaseUrl()}/decisions/${decisionId}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`decision delete failed: ${response.status}`);
+  }
+  return response.json() as Promise<{ deleted_id: number }>;
+}
+
+export async function runPortfolioRisk(payload: PortfolioRiskRequest): Promise<PortfolioRiskResponse> {
+  const response = await fetch(`${apiBaseUrl()}/portfolio-risk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`portfolio risk failed: ${response.status}`);
+  }
+  return response.json() as Promise<PortfolioRiskResponse>;
 }
 
 export async function getRiskPaths(payload: RiskAssessmentRequest): Promise<RiskPathFanResponse> {

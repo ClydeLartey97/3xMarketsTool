@@ -333,6 +333,12 @@ class DecisionCreateRequest(BaseModel):
     likely_gbp: float
     upside_gbp: float
     thesis_text: str = Field(min_length=1, max_length=4_000)
+    is_open: bool = True
+
+
+class DecisionUpdateRequest(BaseModel):
+    thesis_text: Optional[str] = Field(default=None, min_length=1, max_length=4_000)
+    is_open: Optional[bool] = None
 
 
 class DecisionRead(BaseModel):
@@ -350,6 +356,8 @@ class DecisionRead(BaseModel):
     realized_pnl_gbp: Optional[float]
     predicted_percentile: Optional[float]
     thesis_text: str
+    is_open: bool
+    closed_at: Optional[datetime]
 
 
 class RiskPathFanResponse(BaseModel):

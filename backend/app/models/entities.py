@@ -164,6 +164,8 @@ class RiskAssessmentLog(Base):
     realized_pnl_gbp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     kind: Mapped[str] = mapped_column(String(16), default="auto", index=True)
     thesis_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_open: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     market: Mapped["Market"] = relationship(back_populates="risk_assessment_logs")
 

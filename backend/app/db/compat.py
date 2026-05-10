@@ -19,3 +19,9 @@ def apply_sqlite_compat_migrations(engine: Engine) -> None:
             )
         if "thesis_text" not in columns:
             connection.execute(text("ALTER TABLE risk_assessment_log ADD COLUMN thesis_text TEXT"))
+        if "is_open" not in columns:
+            connection.execute(
+                text("ALTER TABLE risk_assessment_log ADD COLUMN is_open BOOLEAN NOT NULL DEFAULT 1")
+            )
+        if "closed_at" not in columns:
+            connection.execute(text("ALTER TABLE risk_assessment_log ADD COLUMN closed_at DATETIME"))

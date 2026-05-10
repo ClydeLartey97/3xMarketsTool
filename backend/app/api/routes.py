@@ -15,6 +15,7 @@ from app.schemas.domain import (
     DashboardResponse,
     DecisionCreateRequest,
     DecisionRead,
+    DecisionUpdateRequest,
     EventRead,
     ForecastRunResponse,
     ForecastRead,
@@ -37,7 +38,7 @@ from app.schemas.domain import (
     RiskSolveResponse,
 )
 from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
-from app.services.decision_diary import create_decision, list_decisions
+from app.services.decision_diary import create_decision, delete_decision, list_decisions, update_decision
 from app.services.risk_calibration import log_risk_assessment, risk_calibration_for_market
 from app.services.risk_sensitivity import run_risk_sensitivity
 from app.services.risk_solver import RiskSolveInputs, solve_position_for_risk
@@ -518,6 +519,28 @@ def get_decisions(
     if market_id is not None and not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     return [DecisionRead(**item) for item in list_decisions(db, market_id=market_id)]
+
+
+@router.patch("/decisions/{decision_id}", response_model=DecisionRead)
+def patch_decision(
+    decision_id: int,
+    payload: DecisionUpdateRequest,
+    db: Session = Depends(get_db),
+) -> DecisionRead:
+    try:
+        result = update_decision(db, decision_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return DecisionRead(**result)
+
+
+@router.delete("/decisions/{decision_id}", response_model=dict[str, int])
+def remove_decision(decision_id: int, db: Session = Depends(get_db)) -> dict[str, int]:
+    try:
+        delete_decision(db, decision_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return {"deleted_id": decision_id}
 
 
 @router.get("/markets/{market_id}/backtest/latest", response_model=dict[str, Any] | None)
