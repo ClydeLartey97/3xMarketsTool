@@ -206,6 +206,17 @@ class AuthTokenResponse(BaseModel):
     user: UserRead
 
 
+class AuditLogRead(BaseModel):
+    id: int
+    created_at: datetime
+    actor: str
+    action: str
+    target: str
+    before: Optional[dict[str, Any]] = None
+    after: Optional[dict[str, Any]] = None
+    signed_hash: str
+
+
 class ScenarioOverride(BaseModel):
     """One named what-if shock to the simulator inputs."""
     name: str

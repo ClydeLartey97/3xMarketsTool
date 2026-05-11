@@ -254,6 +254,7 @@ Format: `frontier-X.N (sha) — one-line result.`
 - frontier-E.5 (87a725e) — Grid topology UI at `/grid`; `/api/grid/topology` + `/api/grid/flows` endpoints.
 - frontier-F.1 (pending) — Postgres `DATABASE_URL` path, Alembic baseline migration, and startup/scripts moved off `Base.metadata.create_all`; backend pytest 104 passed, 1 skipped.
 - frontier-F.2 (pending) — JWT auth endpoints, protected API routes, seeded demo user, and per-user decision ownership; backend pytest 108 passed, 1 skipped.
+- frontier-F.3 (pending) — Hash-chained audit log table, mutation audit writes, and `/api/audit` export; focused backend pytest 19 passed.
 
 ## Blockers
 

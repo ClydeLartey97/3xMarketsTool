@@ -203,3 +203,16 @@ class UserWatchlist(Base):
     configuration_json: Mapped[dict] = mapped_column(JSON, default=dict)
 
     user: Mapped["User"] = relationship(back_populates="watchlists")
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    actor: Mapped[str] = mapped_column(String(256), index=True)
+    action: Mapped[str] = mapped_column(String(128), index=True)
+    target: Mapped[str] = mapped_column(String(256), index=True)
+    before_json: Mapped[Optional[dict]] = mapped_column("before", JSON, nullable=True)
+    after_json: Mapped[Optional[dict]] = mapped_column("after", JSON, nullable=True)
+    signed_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)

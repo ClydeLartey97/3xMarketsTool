@@ -6,6 +6,7 @@ from sqlalchemy.engine import Engine
 
 REQUIRED_TABLES = {
     "alerts",
+    "audit_log",
     "demand_points",
     "events",
     "forecasts",

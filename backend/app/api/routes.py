@@ -12,6 +12,7 @@ from app.models import DemandPoint, Event, Forecast, User, WeatherPoint
 from app.schemas.domain import (
     AlertRead,
     ArticleIngestRequest,
+    AuditLogRead,
     DashboardResponse,
     DecisionCreateRequest,
     DecisionRead,
@@ -39,6 +40,7 @@ from app.schemas.domain import (
 )
 from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
 from app.services.auth import current_user
+from app.services.audit import list_audit_logs, write_audit_log
 from app.services.decision_diary import create_decision, delete_decision, list_decisions, update_decision
 from app.services.risk_calibration import log_risk_assessment, risk_calibration_for_market
 from app.services.risk_sensitivity import run_risk_sensitivity
@@ -77,6 +79,23 @@ def _market_read(market) -> MarketRead:
         timezone=market.timezone,
         data_status=_market_data_status(market),
         metadata=market.metadata_json,
+    )
+
+
+def _actor(user: User) -> str:
+    return f"user:{user.id}:{user.email}"
+
+
+def _audit_read(row) -> AuditLogRead:
+    return AuditLogRead(
+        id=row.id,
+        created_at=row.created_at,
+        actor=row.actor,
+        action=row.action,
+        target=row.target,
+        before=row.before_json,
+        after=row.after_json,
+        signed_hash=row.signed_hash,
     )
 
 
@@ -224,12 +243,20 @@ def run_forecast(
     market_code: str = Query(default="ERCOT_NORTH"),
     horizon_hours: int = Query(default=48, ge=12, le=96),
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ) -> ForecastRunResponse:
     market = get_market_by_code(db, market_code)
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
     forecasts, metrics = run_forecast_for_market(db, market, horizon_hours=horizon_hours)
     refresh_alerts_for_market(db, market.id)
+    write_audit_log(
+        db,
+        actor=_actor(user),
+        action="forecast.run",
+        target=f"market:{market.code}",
+        after={"horizon_hours": horizon_hours, "forecast_count": len(forecasts), "metrics": metrics},
+    )
     return ForecastRunResponse(
         market=_market_read(market),
         forecast_points=[ForecastRead.model_validate(item) for item in forecasts],
@@ -270,8 +297,19 @@ def get_news_sources() -> list[NewsSourceRead]:
 
 
 @router.post("/articles/ingest", response_model=Optional[EventRead])
-def post_article(payload: ArticleIngestRequest, db: Session = Depends(get_db)) -> EventRead | None:
+def post_article(
+    payload: ArticleIngestRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> EventRead | None:
     event = ingest_article(db, payload)
+    write_audit_log(
+        db,
+        actor=_actor(user),
+        action="article.ingest",
+        target=f"article:{payload.source_url}",
+        after=EventRead.model_validate(event).model_dump(mode="json") if event else None,
+    )
     return EventRead.model_validate(event) if event else None
 
 
@@ -283,7 +321,11 @@ def get_market_alerts(market_id: int, db: Session = Depends(get_db)) -> list[Ale
 
 
 @router.post("/markets/{market_code}/refresh")
-def refresh_market_data(market_code: str, db: Session = Depends(get_db)) -> dict:
+def refresh_market_data(
+    market_code: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
     """Trigger immediate data refresh for a market and invalidate forecast cache."""
     from app.core.config import get_settings
     from app.ingestion.real_data import populate_market_real_data
@@ -299,7 +341,15 @@ def refresh_market_data(market_code: str, db: Session = Depends(get_db)) -> dict
         )
         invalidate_forecast_cache(market_code)
         db.commit()
-        return {"status": "refreshed", "market": market_code, "sources": sources}
+        response = {"status": "refreshed", "market": market_code, "sources": sources}
+        write_audit_log(
+            db,
+            actor=_actor(user),
+            action="market.refresh",
+            target=f"market:{market_code}",
+            after=response,
+        )
+        return response
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
@@ -338,7 +388,14 @@ def post_risk_assessment(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    log_risk_assessment(db, result, user_id=user.id)
+    row = log_risk_assessment(db, result, user_id=user.id)
+    write_audit_log(
+        db,
+        actor=_actor(user),
+        action="risk.assessment",
+        target=f"risk_assessment:{row.id if row else result['market_code']}",
+        after={key: result.get(key) for key in ("market_code", "position_gbp", "direction", "horizon_hours", "risk_gbp", "likely_gbp", "upside_gbp")},
+    )
     return RiskAssessmentResponse(**result)
 
 
@@ -364,7 +421,18 @@ def post_risk_assessment_solve(
         detail = str(exc)
         status_code = 404 if "unknown market" in detail else 400
         raise HTTPException(status_code=status_code, detail=detail)
-    log_risk_assessment(db, result["assessment"], user_id=user.id)
+    row = log_risk_assessment(db, result["assessment"], user_id=user.id)
+    write_audit_log(
+        db,
+        actor=_actor(user),
+        action="risk.solve",
+        target=f"risk_assessment:{row.id if row else result['assessment']['market_code']}",
+        after={
+            "max_risk_gbp": result["max_risk_gbp"],
+            "achieved_risk_gbp": result["achieved_risk_gbp"],
+            "resolved_request": result["resolved_request"],
+        },
+    )
     return RiskSolveResponse(**result)
 
 
@@ -533,6 +601,13 @@ def post_decision(
         result = create_decision(db, payload, user_id=user.id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    write_audit_log(
+        db,
+        actor=_actor(user),
+        action="decision.create",
+        target=f"decision:{result['id']}",
+        after=result,
+    )
     return DecisionRead(**result)
 
 
@@ -554,10 +629,19 @@ def patch_decision(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> DecisionRead:
+    before = next((item for item in list_decisions(db, user_id=user.id) if item["id"] == decision_id), None)
     try:
         result = update_decision(db, decision_id, payload, user_id=user.id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    write_audit_log(
+        db,
+        actor=_actor(user),
+        action="decision.update",
+        target=f"decision:{decision_id}",
+        before=before,
+        after=result,
+    )
     return DecisionRead(**result)
 
 
@@ -567,11 +651,31 @@ def remove_decision(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> dict[str, int]:
+    before = next((item for item in list_decisions(db, user_id=user.id) if item["id"] == decision_id), None)
     try:
         delete_decision(db, decision_id, user_id=user.id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    write_audit_log(
+        db,
+        actor=_actor(user),
+        action="decision.delete",
+        target=f"decision:{decision_id}",
+        before=before,
+        after=None,
+    )
     return {"deleted_id": decision_id}
+
+
+@router.get("/audit", response_model=list[AuditLogRead])
+def get_audit_logs(
+    from_ts: datetime | None = Query(default=None, alias="from"),
+    to_ts: datetime | None = Query(default=None, alias="to"),
+    db: Session = Depends(get_db),
+) -> list[AuditLogRead]:
+    if from_ts and to_ts and from_ts > to_ts:
+        raise HTTPException(status_code=400, detail="'from' must be before 'to'")
+    return [_audit_read(row) for row in list_audit_logs(db, from_ts=from_ts, to_ts=to_ts)]
 
 
 @router.get("/markets/{market_id}/backtest/latest", response_model=dict[str, Any] | None)
