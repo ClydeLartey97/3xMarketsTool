@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -49,6 +49,7 @@ from app.services.alert_service import list_alerts, refresh_alerts_for_market
 from app.services.backtest_reports import dashboard_backtest_metrics, latest_backtest_report_for_market
 from app.services.event_analogues import find_analogues
 from app.services.event_service import ingest_article, list_events
+from app.services.export_pack import build_risk_export
 from app.services.forecast_service import (
     invalidate_forecast_cache,
     list_forecasts,
@@ -560,6 +561,33 @@ def post_optimal_hedge(payload: RiskAssessmentRequest, db: Session = Depends(get
         likely_cost_gbp=round(float(current["likely_gbp"]) - float(hedged["likely_gbp"]), 2),
         current_assessment=RiskAssessmentResponse(**current),
         hedged_assessment=RiskAssessmentResponse(**hedged),
+    )
+
+
+@router.post("/risk-assessment/export")
+def post_risk_assessment_export(
+    payload: RiskAssessmentRequest,
+    format: str = Query(default="pdf", pattern="^(pdf|xlsx)$"),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    try:
+        content, media_type, filename, audit_payload = build_risk_export(db, payload, format)
+    except ValueError as exc:
+        detail = str(exc)
+        status_code = 404 if "unknown market" in detail else 400
+        raise HTTPException(status_code=status_code, detail=detail)
+    write_audit_log(
+        db,
+        actor=_actor(user),
+        action="risk.export",
+        target=f"market:{payload.market_code}",
+        after=audit_payload,
+    )
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   createDecision,
+  exportRiskAssessment,
   getOptimalHedge,
   getRiskCalibration,
   runRiskAssessment,
@@ -70,6 +71,7 @@ export function RiskPanel({
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [thesisText, setThesisText] = useState("");
   const [savingDecision, setSavingDecision] = useState(false);
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +145,37 @@ export function RiskPanel({
       setDecisionError(err instanceof Error ? err.message : "decision save failed");
     } finally {
       setSavingDecision(false);
+    }
+  }
+
+  async function downloadExport(format: "pdf" | "xlsx") {
+    if (!data) return;
+    setExporting(format);
+    setError(null);
+    try {
+      const blob = await exportRiskAssessment(
+        {
+          market_code: data.market_code,
+          position_gbp: data.position_gbp,
+          horizon_hours: data.horizon_hours,
+          direction: data.direction === "short" ? "short" : "long",
+          target_timestamp: data.target_timestamp,
+          n_paths: 500,
+        },
+        format,
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `risk-${data.market_code}-${new Date(data.as_of).toISOString().slice(0, 19).replace(/[:T]/g, "")}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "export failed");
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -452,6 +485,20 @@ export function RiskPanel({
       >
         Save decision
       </button>
+
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {(["pdf", "xlsx"] as const).map((format) => (
+          <button
+            key={format}
+            type="button"
+            disabled={!data || loading || isDegraded || exporting !== null}
+            onClick={() => downloadExport(format)}
+            className="rounded-lg border border-seam bg-bg px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-ink/70 transition hover:border-seam-hi hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {exporting === format ? "Exporting…" : `Export ${format}`}
+          </button>
+        ))}
+      </div>
 
       {decisionOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">

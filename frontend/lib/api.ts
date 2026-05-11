@@ -389,6 +389,25 @@ export async function getRiskPaths(payload: RiskAssessmentRequest): Promise<Risk
   return response.json() as Promise<RiskPathFanResponse>;
 }
 
+export async function exportRiskAssessment(
+  payload: RiskAssessmentRequest,
+  format: "pdf" | "xlsx",
+): Promise<Blob> {
+  const response = await fetch(`${apiBaseUrl()}/risk-assessment/export?format=${format}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      target_timestamp: payload.target_timestamp ?? null,
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`risk export failed: ${response.status}`);
+  }
+  return response.blob();
+}
+
 // E.5 — grid topology + DC-OPF flows for the topology UI.
 export type GridBus = {
   name: string;
