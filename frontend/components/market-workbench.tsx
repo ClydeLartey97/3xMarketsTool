@@ -17,6 +17,7 @@ import { RiskPanel } from "@/components/risk-panel";
 import { RiskPathFan } from "@/components/risk-path-fan";
 import { RiskSensitivityLadder } from "@/components/risk-sensitivity-ladder";
 import { SignalStack } from "@/components/signal-stack";
+import { useMarketStream } from "@/lib/use-market-stream";
 import { DashboardData, Market, RiskAssessment } from "@/types/domain";
 
 // Chart is canvas-based — render only on client
@@ -56,6 +57,10 @@ export function MarketWorkbench({
   const [decisionRefresh, setDecisionRefresh] = useState(0);
   const history = useMemo(() => buildHistory(dashboard), [dashboard]);
   const forecast = useMemo(() => buildForecast(dashboard), [dashboard]);
+  const stream = useMarketStream(dashboard.market.code);
+  const livePriceTick = stream.priceTick
+    ? { timestamp: stream.priceTick.timestamp, value: stream.priceTick.price_value }
+    : null;
 
   const lastObserved = dashboard.recent_prices[dashboard.recent_prices.length - 1];
   const latestForecast = dashboard.forecasts[0] ?? dashboard.latest_forecast;
@@ -124,6 +129,7 @@ export function MarketWorkbench({
                         marketId={dashboard.market.id}
                         history={history}
                         forecast={forecast}
+                        livePriceTick={livePriceTick}
                         events={dashboard.recent_events}
                         timezoneLabel={dashboard.market.timezone}
                         onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}

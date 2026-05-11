@@ -23,6 +23,7 @@ export type KlinePriceChartProps = {
   marketId: number;
   history: ChartHistoryPoint[];
   forecast: ChartForecastPoint[];
+  livePriceTick?: ChartHistoryPoint | null;
   events?: EventItem[];
   timezoneLabel?: string;
   onCrosshair?: (payload: CrosshairPayload | null) => void;
@@ -46,6 +47,7 @@ export function KlinePriceChart({
   marketId,
   history,
   forecast,
+  livePriceTick,
   events = [],
   timezoneLabel,
   onCrosshair,
@@ -94,6 +96,7 @@ export function KlinePriceChart({
       <PriceChart
         history={history}
         forecast={forecast}
+        livePriceTick={livePriceTick}
         timezoneLabel={timezoneLabel}
         onCrosshair={onCrosshair}
       />

@@ -84,14 +84,32 @@ function buildKlineData(
 export type PriceChartProps = {
   history: ChartHistoryPoint[];
   forecast: ChartForecastPoint[];
+  livePriceTick?: ChartHistoryPoint | null;
   timezoneLabel?: string;
   onCrosshair?: (payload: CrosshairPayload | null) => void;
 };
 
-export function PriceChart({ history, forecast, timezoneLabel, onCrosshair }: PriceChartProps) {
+function klineFromTick(point: ChartHistoryPoint, previousClose: number | null): KLineData | null {
+  const timestamp = new Date(point.timestamp).getTime();
+  if (!Number.isFinite(timestamp) || !Number.isFinite(point.value)) return null;
+  const close = point.value;
+  const open = previousClose ?? close;
+  const wick = Math.max(Math.abs(close - open) * 0.5, Math.abs(close) * 0.004, 0.5);
+  return {
+    timestamp,
+    open,
+    high: Math.max(open, close) + wick,
+    low: Math.min(open, close) - wick,
+    close,
+  };
+}
+
+export function PriceChart({ history, forecast, livePriceTick, timezoneLabel, onCrosshair }: PriceChartProps) {
   const containerId = useId().replace(/[:]/g, "_");
   const chartRef = useRef<Chart | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const lastCloseRef = useRef<number | null>(null);
+  const lastLiveTickRef = useRef<string | null>(null);
   const [chartType, setChartType] = useState<ChartType>(CandleType.Area);
   const [activeTool, setActiveTool] = useState<string>("");
   const [overlayIds, setOverlayIds] = useState<string[]>([]);
@@ -179,7 +197,21 @@ export function PriceChart({ history, forecast, timezoneLabel, onCrosshair }: Pr
     const chart = chartRef.current;
     if (!chart) return;
     chart.applyNewData(kline);
+    lastCloseRef.current = kline.length ? kline[kline.length - 1].close : null;
   }, [kline]);
+
+  // Live stream tick -> imperative KLineCharts incremental update
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !livePriceTick) return;
+    const key = `${livePriceTick.timestamp}:${livePriceTick.value}`;
+    if (lastLiveTickRef.current === key) return;
+    const next = klineFromTick(livePriceTick, lastCloseRef.current);
+    if (!next) return;
+    chart.updateData(next);
+    lastCloseRef.current = next.close;
+    lastLiveTickRef.current = key;
+  }, [livePriceTick]);
 
   // Forecast band overlay (rectangle from forecast start to chart end)
   useEffect(() => {

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.routes import public_router, router
+from app.api.ws import router as ws_router
 from app.core.config import get_settings
 from app.core.observability import configure_logging, instrument_app
 from app.core.rate_limit import configure_rate_limiting
@@ -49,4 +50,5 @@ configure_rate_limiting(app)
 app.include_router(public_router, prefix=settings.api_v1_prefix)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(router, prefix=settings.api_v1_prefix)
+app.include_router(ws_router)
 instrument_app(app, engine, settings)
