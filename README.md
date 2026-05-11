@@ -1,18 +1,21 @@
 # 3x Markets Tool
 
-3x is a power-market intelligence MVP for monitoring wholesale electricity markets, forecasting near-term price risk, and translating market news into structured trading context. The product starts with ERCOT and now includes expansion coverage for PJM, NYISO, ISO-NE, Great Britain, EPEX Germany, EPEX France, and Nord Pool SE3.
+3x is power-market intelligence software for monitoring wholesale electricity markets, forecasting near-term price risk, and translating market news into structured trading context. It covers ERCOT (North + Houston), PJM Western Hub, NYISO Zone J, ISO-NE Mass Hub, Great Britain, EPEX Germany, EPEX France, and Nord Pool SE3 — nine markets, three currencies, two years of hourly history each.
 
-The backend owns ingestion, feature engineering, forecasting, event extraction, risk scoring, alert generation, and API delivery. The Next.js frontend presents that data as an institutional market desk with market cards, charting, event intelligence, news evidence, and a position risk panel.
+The backend owns ingestion, feature engineering, forecasting, event extraction, risk scoring, alert generation, and API delivery. The Next.js frontend is a Bloomberg-style trading desk with a live multi-market ticker, range-selectable charting (KLineCharts), structured news + events, and a transparent risk-decomposition workspace.
 
 ## What It Does
 
-- Tracks configured power markets with seeded, live, and backfilled price, demand, weather, wind, and solar data — every market now carries 2 years of hourly history.
-- Builds probabilistic hourly forecasts with point estimates, confidence bands, spike probabilities, and model rationales. The forecast is **walk-forward backtested** against persistence, persistence-24h, and climatology baselines, with PIT calibration.
-- Ingests curated and RSS energy news, extracts market-relevant events, and estimates directional price impact.
-- Scores position risk via `risk`, `likely`, and `upside` outputs using Monte Carlo price paths, forecast distributions, FX conversion, and news/event context.
-- Exposes a **transparent coefficient breakdown** for every risk number — every parameter that drives `risk_gbp / likely_gbp / upside_gbp` is surfaced in the API response and rendered in a Bloomberg-style decomposition table on the dashboard.
-- Provides a Next.js dashboard with a live multi-market ticker strip, market workbench, event feed, API reference page, dark/light themes, and backend-offline states.
-- Surfaces data provenance so users can see what share of the recent chart is real versus synthetic/computed.
+- **Two years of hourly history per market** — real ELEXON spot prices for GB; real EIA demand + Open-Meteo archive weather for US markets; computed-from-fundamentals fallback elsewhere. Data provenance is surfaced on every dashboard.
+- **Probabilistic hourly forecasts** with point estimates, confidence bands, spike probabilities, and rationales. Walk-forward backtested against persistence, persistence-24h, and climatology baselines, with PIT calibration. Pluggable forecaster registry supports gradient boosting (default), Chronos-Bolt foundation model, and naive baselines.
+- **Monte Carlo risk engine** producing `risk_gbp / likely_gbp / upside_gbp` from 5,000+ simulated price paths. Native-currency pricing with FX conversion to GBP at the boundary. Tail-aware CVaR (Gaussian → Student-t(5) blend), regime-conditional residual σ, and LLM-conditioned drift/tail adjustments.
+- **Glass-box decomposition** — every parameter that drives the three numbers is surfaced in the API response (`coefficients.items`) and rendered as a Bloomberg-style grouped table in the UI. No black-box outputs.
+- **Position-sizing solver, sensitivity ladder, calibration badge, decision diary, path-fan visualisation** — five UX modes that make the three numbers the centre of the workflow rather than a readout.
+- **Portfolio risk** with joint Monte Carlo across positions using the cross-market correlation matrix. Optimal hedge ratios suggested by a trained deep-hedging policy.
+- **Cross-zone basis trades** — paired correlated MC between two markets, returns spread P&L on the combined position.
+- **DC optimal power flow** on a canonical 13-bus / 13-line grid topology covering every priced market. LMPs, line flows, and binding-line detection visible at `/grid`. Congestion-aware σ overlay tightens risk when transmission is stressed.
+- **Structured event schema** with zone, magnitude_mw, duration distributions (p10/p50/p90), and historical analogue matching.
+- **News intelligence pipeline** with RSS ingestion, heuristic / Gemini / domain-LoRA scorers (configurable), and event extraction.
 
 ## Architecture
 
@@ -21,23 +24,36 @@ backend/
   app/
     api/              FastAPI routes
     core/             settings and curated source metadata
-    db/               SQLAlchemy engine/session setup
-    events/           rule-based event extraction and impact heuristics
-    forecasting/      feature builder, model, and walk-forward backtest framework
-    ingestion/        real data, backfills, RSS, and seed population
+    db/               SQLAlchemy engine/session setup + SQLite compatibility shim
+    events/           event extraction (heuristic) and impact heuristics
+    forecasting/      feature builder, model registry, regime classifier,
+                      walk-forward backtest framework, Chronos-Bolt adapter
+    grid/             DC-OPF solver, topology loader, congestion overlay
+    ingestion/        real-data adapters, backfills, RSS, seed population
     models/           SQLAlchemy ORM models
-    schemas/          Pydantic response/request models
-    services/         market, news, forecast, risk simulator, FX, alert services
-  scripts/            local utility scripts (seed, backfill, backtest)
-  reports/            JSON output from the backtest runner
+    schemas/          Pydantic request/response models
+    services/         market, news, forecast, risk simulator, FX,
+                      correlation, deep hedger, calibration, decisions,
+                      event analogues, risk ablation
+  data/               grid topology JSON, news training corpus
+  models/             deep-hedger weights, LoRA adapter directory
+  scripts/            seed, backfill, backtest, risk ablation, topology
+                      ingest, deep-hedger training, LoRA fine-tune
+  reports/            JSON / HTML output from the backtest and ablation runners
   tests/              backend pytest suite
 frontend/
-  app/                Next.js app routes
-  components/         dashboard, charts, risk panel, shell, UI pieces
-  lib/                API client
+  app/                Next.js app routes (dashboard, market workbench,
+                      events, developer, grid)
+  components/         risk panel, decomposition, sensitivity ladder,
+                      path-fan, calibration badge, decision diary,
+                      position blotter, KLineCharts chart, grid topology view,
+                      markets ticker, news / events feeds
+  lib/                API client, market-history hook, typography tokens
   types/              frontend domain types
 infrastructure/       Docker Compose for Postgres, Redis, backend, frontend
 ```
+
+See `PLAN.md` for the original phase-by-phase upgrade specification and `FRONTIER.md` for the live 6-phase frontier roadmap (Phases A–E complete, Phase F enterprise hardening pending).
 
 ## Requirements
 
@@ -45,7 +61,7 @@ infrastructure/       Docker Compose for Postgres, Redis, backend, frontend
 - Node.js 20 or newer.
 - npm.
 - Optional: Docker and Docker Compose.
-- Optional but recommended: EIA API key for real U.S. grid demand and generation history. Without it, U.S. markets can still show computed chart continuity but are flagged as degraded.
+- Optional but recommended: EIA API key for real U.S. grid demand and generation history. Without it, U.S. markets fall back to computed prices and the market is marked degraded.
 
 ## Local Quick Start
 
@@ -99,42 +115,20 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
 Useful optional variables:
 
 - `EIA_API_KEY`: enables EIA U.S. grid demand and generation calls.
+- `ENTSOE_TOKEN`: enables live ENTSO-E Net Transfer Capacity enrichment of the grid topology. Without it, the canonical seed bundle is used.
 - `GEMINI_API_KEY` or `GOOGLE_API_KEY`: enables Gemini news-context scoring for the risk engine. Without it, the app uses deterministic heuristic scoring.
 - `LLM_SCORER_PROVIDER`: news scorer backend, default `heuristic`. Supported values are `heuristic`, `gemini`, and `domain`.
 - `DOMAIN_SCORER_MODEL_DIR`: LoRA adapter directory for `LLM_SCORER_PROVIDER=domain`, default `models/news_scorer_lora`.
-- `FORECAST_CACHE_TTL_MINUTES`: forecast cache TTL, default `15`.
 - `ACTIVE_FORECASTER`: forecast backend, default `gbr`. Supported values are `gbr`, `chronos`, and `naive_persistence_24h`.
-- `CHRONOS_DEVICE_MAP`: Chronos-Bolt inference device, default `cpu`. Use `cuda` on GPU hosts or `mps` on Apple Silicon when available.
+- `CHRONOS_DEVICE_MAP`: Chronos-Bolt inference device, default `cpu`. Use `cuda` on GPU hosts or `mps` on Apple Silicon.
 - `CHRONOS_USE_SMALL`: when `true`, uses `amazon/chronos-bolt-small`; otherwise Chronos uses the lighter `amazon/chronos-bolt-tiny`.
+- `FORECAST_CACHE_TTL_MINUTES`: forecast cache TTL, default `15`.
 - `DATA_REFRESH_INTERVAL_MINUTES`: background refresh interval, default `30`.
 - `DEMO_MODE`: when `true`, permits computed/synthetic fallback data without marking the market degraded. Defaults to `false`.
 
-## Domain News Scorer Training
-
-Phase D adds a LoRA training path for the structured news scorer. The runtime
-backend dependencies stay lean; training dependencies live in
-`backend/requirements-train.txt`.
-
-GPU expectation: use a CUDA host with roughly 24GB VRAM for
-`meta-llama/Llama-3.1-8B-Instruct`. If that model is gated for your Hugging Face
-account, use `--model-id Qwen/Qwen2.5-7B-Instruct`.
-
-```bash
-cd backend
-python -m pip install -r requirements.txt
-python -m pip install -r requirements-train.txt
-PYTHONPATH=. python3 scripts/build_news_dataset.py --target-rows 5000
-PYTHONPATH=. python3 scripts/finetune_news_scorer.py --dry-run
-PYTHONPATH=. python3 scripts/finetune_news_scorer.py --model-id meta-llama/Llama-3.1-8B-Instruct
-```
-
-The dry run validates prompt formatting and writes
-`backend/models/news_scorer_lora/training_manifest.json`. A real run writes the
-LoRA adapter files into the same directory.
-
 ## Historical Backfill
 
-Phase 3 adds a rerunnable historical backfill path. It keeps the existing hourly timestamp dedupe, so it is safe to run more than once.
+A rerunnable historical backfill path keeps the existing hourly timestamp dedupe, so it is safe to run more than once.
 
 ```bash
 cd backend
@@ -151,6 +145,65 @@ Current adapters:
 - All markets: Open-Meteo archive weather for long historical ranges.
 
 Backfilled U.S. markets without an EIA key are still chartable, but their prices are computed from fundamentals and the API marks the market `data_status="degraded"`.
+
+## Backtesting
+
+The walk-forward backtest scores the active forecaster's MAE / RMSE / directional accuracy / spike F1 against three baselines (persistence, persistence-24h, climatology), produces hour-of-day and regime breakdowns, and computes a PIT calibration histogram.
+
+```bash
+cd backend
+PYTHONPATH=. python3 scripts/backtest.py --market GB_POWER --lookback-days 365
+PYTHONPATH=. python3 scripts/backtest.py --market GB_POWER --compare gbr,chronos
+PYTHONPATH=. python3 scripts/render_report.py backend/reports/backtest_GB_POWER_<stamp>.json
+```
+
+The checked-in GB_POWER report at `backend/reports/backtest_GB_POWER_20260507_2112.json` covers a 365-day lookback with 49,896 forecasted hourly samples. It shows:
+
+- model RMSE: `21.79` £/MWh,
+- persistence-24h RMSE: `33.76` £/MWh,
+- climatology RMSE: `48.72` £/MWh,
+- 1-hour persistence RMSE: `12.69` £/MWh,
+- PIT max deviation from uniform: `0.2881`, so intervals are still too narrow.
+
+The current forecaster beats day-ahead persistence and climatology, but not the simplest 1-hour persistence baseline yet. The PIT result is a known calibration gap; the regime-conditional residual σ work (frontier-B.1) closes part of it on volatile markets.
+
+## LLM Coefficient Ablation
+
+`scripts/risk_ablation.py` re-runs the risk engine on every hour of a market's lookback window twice — once with the LLM coefficients live, once with them forced to neutral — and computes the Kupiec POF test on each. Use it to verify whether the LLM scoring layer actually improves calibration on a given market.
+
+```bash
+cd backend
+PYTHONPATH=. python3 scripts/risk_ablation.py --market GB_POWER --lookback-days 90
+```
+
+Outputs `backend/reports/ablation_<market>_<date>.json`.
+
+## Domain News Scorer Training
+
+The structured news scorer can run as a LoRA fine-tune of `meta-llama/Llama-3.1-8B-Instruct` (or `Qwen2.5-7B-Instruct` when Llama is gated). Runtime dependencies stay lean; training dependencies live in `backend/requirements-train.txt`.
+
+GPU expectation: ~24 GB VRAM.
+
+```bash
+cd backend
+python -m pip install -r requirements-train.txt
+PYTHONPATH=. python3 scripts/build_news_dataset.py --target-rows 5000
+PYTHONPATH=. python3 scripts/finetune_news_scorer.py --dry-run
+PYTHONPATH=. python3 scripts/finetune_news_scorer.py --model-id meta-llama/Llama-3.1-8B-Instruct
+```
+
+The dry run validates prompt formatting and writes `backend/models/news_scorer_lora/training_manifest.json`. A real run writes the LoRA adapter files into the same directory. Set `LLM_SCORER_PROVIDER=domain` at runtime to use them.
+
+## Grid Topology
+
+A canonical 13-bus / 13-line topology covers every priced market. Generate / regenerate the JSON artifact:
+
+```bash
+cd backend
+PYTHONPATH=. python3 scripts/ingest_grid_topology.py
+```
+
+When `ENTSOE_TOKEN` is set, ENTSO-E Net Transfer Capacities are spliced into the European interfaces. Otherwise the seed values are used.
 
 ## Docker Compose
 
@@ -170,72 +223,62 @@ The frontend uses `API_INTERNAL_BASE_URL` for server-side container calls and `N
 
 ## Key API Endpoints
 
+**Markets & data**
+
 - `GET /api/health`
 - `GET /api/markets`
 - `GET /api/markets/{market_id}`
 - `GET /api/markets/{market_id}/prices?limit=720`
-- `GET /api/markets/{market_id}/history?from=2025-04-30T00:00:00Z&to=2026-04-30T00:00:00Z`
+- `GET /api/markets/{market_id}/history?from=&to=`
+- `GET /api/markets/{market_id}/timeseries?series=demand,wind,solar`
 - `GET /api/markets/{market_id}/forecast`
 - `GET /api/markets/{market_id}/events`
 - `GET /api/markets/{market_id}/news`
 - `GET /api/markets/{market_id}/alerts`
+- `GET /api/markets/{market_id}/backtest/latest`
+- `GET /api/markets/{market_id}/risk-calibration`
+- `GET /api/dashboard/{market_code}?history_hours=720`
 - `GET /api/events`
 - `GET /api/news/sources`
-- `GET /api/dashboard/{market_code}?history_hours=720`
 - `POST /api/articles/ingest`
 - `POST /api/forecasts/run?market_code=ERCOT_NORTH`
 - `POST /api/markets/{market_code}/refresh`
-- `POST /api/risk-assessment`
 
-Example risk request:
+**Risk**
+
+- `POST /api/risk-assessment`
+- `POST /api/risk-assessment/solve` — position-sizing solver (caller specifies `max_risk_gbp`, returns the largest matching position)
+- `POST /api/risk-assessment/sensitivity` — perturbation table per coefficient
+- `POST /api/risk-assessment/paths` — sub-sample of simulated price paths for the path-fan view
+- `POST /api/risk-assessment/optimal-hedge` — hedge ratios from the trained deep-hedging policy
+- `POST /api/portfolio-risk` — joint MC across positions, returns aggregate + per-position contributions
+
+**Decisions**
+
+- `POST /api/decisions` — log a trade decision (snapshot of the three numbers + thesis text)
+- `GET /api/decisions`
+- `PATCH /api/decisions/{id}` — close or update
+- `DELETE /api/decisions/{id}`
+
+**Grid**
+
+- `GET /api/grid/topology`
+- `GET /api/grid/flows`
+
+Example risk request with a cross-zone basis trade:
 
 ```bash
 curl -fsS -X POST http://127.0.0.1:8000/api/risk-assessment \
   -H 'Content-Type: application/json' \
   -d '{
-    "market_code": "ERCOT_NORTH",
+    "market_code": "GB_POWER",
     "position_gbp": 10000,
     "horizon_hours": 24,
-    "direction": "long"
+    "direction": "long",
+    "basis_against_market_code": "EPEX_DE",
+    "basis_direction": "long"
   }'
 ```
-
-## Forecasting
-
-The forecast service combines:
-
-- lagged and rolling price features,
-- intraday and day-of-week structure,
-- weather, demand, wind, solar, and net-load features,
-- event severity and estimated event impact,
-- a gradient boosting regressor plus structural market anchors.
-
-Set `ACTIVE_FORECASTER=chronos` to use Chronos-Bolt zero-shot forecasts. CPU inference works with the tiny model for local development; GPU is optional but recommended for lower latency or when enabling `CHRONOS_USE_SMALL=true`.
-
-Responses include hourly forecasts, lower/upper bands, spike probability, model version, feature snapshots, and rationale summaries.
-
-## Data Provenance
-
-Dashboard responses include:
-
-- `key_metrics.data_freshness_minutes`: age of the newest price point in minutes.
-- `key_metrics.synthetic_share_24h`: fraction of the last 24 hours using computed or synthetic price sources.
-- `market.data_status`: `ready` or `degraded`.
-
-The dashboard displays a "Data: X% real / Y% synthetic" strip. When `data_status="degraded"`, the risk panel hides the headline risk numbers and asks the user to refresh or backfill real data instead of presenting synthetic-driven risk as if it were market-grade.
-
-## Event And News Intelligence
-
-The event pipeline stores raw `news_articles`, extracts structured `events`, and estimates price impact with explicit uncertainty. Current event types include:
-
-- generator outage,
-- transmission outage,
-- extreme weather alert,
-- renewable forecast revision,
-- demand shock,
-- regulatory or policy announcement.
-
-RSS ingestion pulls recent articles from public energy sources and avoids duplicate source URLs. Seeded articles provide demo-ready market context even without external feeds.
 
 ## Risk Engine
 
@@ -245,9 +288,9 @@ RSS ingestion pulls recent articles from public energy sources and avoids duplic
 - `likely_gbp`: expected P&L,
 - `upside_gbp`: 95th-percentile upside estimate,
 - path-dependent fields such as probability of loss and max drawdown,
-- supporting volatility, confidence, regime, catalyst severity, asymmetry, FX, and rationale fields.
+- supporting volatility, confidence, regime, catalyst severity, asymmetry, FX, congestion overlay, and rationale fields.
 
-The risk engine uses Monte Carlo simulation, forecast-implied volatility, realized price volatility, recent events, native market currencies, FX conversion to GBP, and scored article context. If no LLM API key is configured, it uses a deterministic heuristic scorer.
+The risk engine uses Monte Carlo simulation, regime-conditional residual volatility, recent events, native market currencies, FX conversion to GBP, the cross-market correlation matrix (for basis trades), the congestion overlay (when the bus's outgoing line is highly utilised), and scored article context. If no LLM API key is configured, it uses a deterministic heuristic scorer.
 
 ### Coefficient transparency
 
@@ -258,33 +301,39 @@ Every parameter that flows into the three headline numbers is exposed in the res
 - `llm`: tail multiplier, asymmetry, catalyst severity, asymmetry-driven drift, total drift, regime, LLM confidence, CVaR multiplier.
 - `fx`: native price currency and the conversion rate to GBP.
 - `position`: GBP notional, native notional, hedge ratio, direction sign, horizon, Monte Carlo path count.
-- `result`: σ used, expected return, P(loss), edge score, max drawdown.
+- `result`: σ used, expected return, P(loss), edge score, max drawdown, congestion multiplier.
 
 Each item carries a `label`, numeric `value`, `unit`, and one-line `description`. The dashboard renders the block as a Bloomberg-style grouped table, alongside the equation summary that ties them together.
 
-### Backtesting
+## Data Provenance
 
-`backend/scripts/backtest.py` runs a walk-forward backtest over real market history and writes a JSON report to `backend/reports/`. It scores the forecaster's MAE / RMSE / directional accuracy / spike F1 against three baselines (persistence, persistence-24h, climatology), produces an hour-of-day and regime breakdown, and computes a PIT calibration histogram.
+Dashboard responses include:
 
-```bash
-cd backend
-PYTHONPATH=. python3 scripts/backtest.py --market GB_POWER --lookback-days 365
-```
+- `key_metrics.data_freshness_minutes`: age of the newest price point in minutes.
+- `key_metrics.synthetic_share_24h`: fraction of the last 24 hours using computed or synthetic price sources.
+- `key_metrics.backtest_rmse_model`, `backtest_rmse_persistence_24h`, `backtest_calibrated`, `backtest_breach_rate_realized`: latest backtest summary.
+- `market.data_status`: `ready` or `degraded`.
 
-The checked-in GB_POWER report at `backend/reports/backtest_GB_POWER_20260507_2112.json` covers a 365-day lookback with 49,896 forecasted hourly samples. It shows:
+The dashboard surfaces these as a data-quality strip and a backtest strip at the top of every market view. When `data_status="degraded"`, the risk panel hides the headline risk numbers and recommends a refresh or backfill rather than presenting synthetic-driven risk as market-grade.
 
-- model RMSE: `21.79` £/MWh,
-- persistence-24h RMSE: `33.76` £/MWh,
-- climatology RMSE: `48.72` £/MWh,
-- 1-hour persistence RMSE: `12.69` £/MWh,
-- PIT max deviation from uniform: `0.2881`, so intervals are still too narrow.
+## Event And News Intelligence
 
-That means the current forecaster beats the day-ahead and climatology baselines, but not the simplest 1-hour persistence baseline yet. Treat the report as a useful Phase 4 diagnostic, not a claim that calibration is solved.
+The event pipeline stores raw `news_articles`, extracts structured `events` with zone, magnitude_mw, and duration distributions, finds historical analogues, and estimates price impact with explicit uncertainty. Current event types include:
+
+- generator outage,
+- transmission outage,
+- extreme weather alert,
+- renewable forecast revision,
+- demand shock,
+- regulatory or policy announcement.
+
+RSS ingestion pulls recent articles from public energy sources and avoids duplicate source URLs. Seeded articles provide demo-ready market context even without external feeds.
 
 ## Frontend Pages
 
-- `/`: live multi-market ticker, market cards, range-selectable history chart, latest forecast, data-quality strip, and event context.
-- `/markets/{marketCode}`: market workbench with charting, forecast band, drawing tools, signal stack, news briefs, model rationale, risk panel, and risk decomposition table.
+- `/`: live multi-market ticker, market cards, range-selectable history chart (`1D | 1W | 1M | 1Y | 2Y | Max`), latest forecast, data-quality + backtest strips, and event context.
+- `/markets/{marketCode}`: market workbench. Resizable two-row layout. Top row: KLineCharts chart with drawing tools and demand / wind / solar / event overlays, path-fan beneath, and an assessment column with risk panel + risk decomposition table + sensitivity ladder. Bottom row: signals, news, events, calibration badge, position blotter + decision diary.
+- `/grid`: DC-OPF topology view with LMP-shaded buses, utilisation-coloured edges, and binding-line highlighting.
 - `/events`: all structured market events.
 - `/developer`: API endpoint and platform notes.
 
@@ -310,32 +359,41 @@ cd frontend
 npm run lint
 npm run build
 npm audit --audit-level=moderate
+npx tsc --noEmit
 ```
 
 ## Demo Flow
 
-1. Open `/` and scan the market cards.
-2. Open `ERCOT_NORTH` or another market card.
-3. Use the dashboard history controls: `1D`, `1W`, `1M`, `1Y`, `2Y`, or `Max`.
-4. Adjust the position size, horizon, and direction in the risk panel.
-5. Review news evidence and structured event catalysts.
-6. Visit `/events` to inspect the broader event feed.
-7. Visit `/developer` for endpoint details.
+1. Open `/` and scan the multi-market ticker and market cards.
+2. Click into a market (e.g. `GB_POWER`) to open the workbench.
+3. Drag the chart range buttons: `1D`, `1W`, `1M`, `1Y`, `2Y`, or `Max`.
+4. Adjust position size, horizon, direction in the risk panel — or toggle "Risk-first sizing" and enter a max-risk number instead.
+5. Inspect the decomposition table: every coefficient that drove the three numbers, with units and descriptions.
+6. Scrub the sensitivity-ladder heatmap to see which inputs matter most.
+7. Save a thesis to the decision diary; close it later to compare realized vs predicted P&L.
+8. Open `/grid` to inspect inter-zone flows, LMPs, and binding lines.
+9. Visit `/events` and `/developer` for event feed and endpoint reference.
 
 ## Notes And Caveats
 
-- This is an MVP and educational decision-support tool, not financial advice.
-- Some market data is computed or synthetic when public APIs are unavailable or unauthenticated. The UI now labels this explicitly.
+- This is a decision-support tool, not financial advice.
+- Some market data is computed or synthetic when public APIs are unavailable or unauthenticated. The UI labels this explicitly.
 - U.S. real historical data requires `EIA_API_KEY`; otherwise U.S. markets are marked degraded outside demo mode.
+- European spot prices have no free hourly feed currently wired; prices fall back to the merit-order model using real weather inputs.
 - The local SQLite database is created under `backend/threex.db` by default and is ignored by git.
 - The frontend has both server-side and browser-side API calls, so keep `API_INTERNAL_BASE_URL` and `NEXT_PUBLIC_API_BASE_URL` distinct when running in containers.
 
 ## Roadmap
 
-- Surface the latest backtest report on the dashboard (model RMSE vs persistence-24h, PIT calibration, hour-of-day breakdown) and run the backtest nightly.
-- Regime-conditional residual σ so the predictive intervals are calibrated (current PIT histogram on GB_POWER is too narrow).
-- Migrate charting from Recharts to KLineCharts with built-in drawing tools, plus demand / wind / solar overlays and event markers.
-- Replace the rule-based event extractor with an LLM classifier and add a structured event schema (zone, magnitude, duration distribution, historical analogues).
-- Add Postgres + Alembic migrations, background workers (arq/rq) and Redis-backed caches in place of in-process state.
-- Add authentication, per-user watchlists, position blotter, and rate limiting.
-- Add CI for backend tests, frontend build, lint, and audit.
+The live roadmap lives in `FRONTIER.md`. Phases A–E are complete; Phase F (enterprise hardening) is pending:
+
+- Postgres + Alembic migrations in place of `Base.metadata.create_all`.
+- JWT auth (per-user decisions and positions) and rate limiting.
+- Append-only signed audit log for compliance export.
+- PDF + Excel exports of the full risk-assessment pack (coefficients, path fan, calibration record, FX provenance, scenarios).
+- OpenTelemetry instrumentation + structured logging.
+- Redis-backed background workers (`arq`) for refresh, backtest, and P&L-fill jobs.
+- WebSocket push (`/ws/markets/{code}`) for price ticks, forecast revisions, new events, alerts, and recomputed risk.
+- SOC2 prep documentation.
+
+One blocker remains in `FRONTIER.md`: `frontier-D.6` (golden-set validation of the domain LoRA scorer) needs a GPU host to run the real LoRA fine-tune.
