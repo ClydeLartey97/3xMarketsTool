@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = Field(default=12 * 60, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     demo_user_email: str = Field(default="demo@3x.local", alias="DEMO_USER_EMAIL")
     demo_user_password: str = Field(default="demo-password", alias="DEMO_USER_PASSWORD")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    otel_service_name: str = Field(default="3x-api", alias="OTEL_SERVICE_NAME")
+    otel_exporter_otlp_endpoint: str = Field(default="", alias="OTEL_EXPORTER_OTLP_ENDPOINT")
+    otel_excluded_urls: str = Field(default="/api/health", alias="OTEL_EXCLUDED_URLS")
 
     # Background refresh interval in minutes
     data_refresh_interval_minutes: int = Field(default=30, alias="DATA_REFRESH_INTERVAL_MINUTES")

@@ -256,6 +256,7 @@ Format: `frontier-X.N (sha) — one-line result.`
 - frontier-F.2 (pending) — JWT auth endpoints, protected API routes, seeded demo user, and per-user decision ownership; backend pytest 108 passed, 1 skipped.
 - frontier-F.3 (pending) — Hash-chained audit log table, mutation audit writes, and `/api/audit` export; focused backend pytest 19 passed.
 - frontier-F.4 (pending) — Risk export endpoint returns audited PDF/XLSX packs; risk panel exposes export buttons. Tests: export + audit focused pass; tsc pass.
+- frontier-F.5 (pending) — OpenTelemetry tracing for FastAPI/SQLAlchemy/httpx with console-or-OTLP export; structlog JSON logging. Tests: observability focused pass.
 
 ## Blockers
 
