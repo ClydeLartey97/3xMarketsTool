@@ -246,6 +246,7 @@ Format: `frontier-X.N (sha) — one-line result.`
 - frontier-D.3 (b224add) — Configurable domain / gemini / heuristic scorer provider with lazy LoRA loading.
 - frontier-D.4 (1b2e678) — Structured event schema fields; extractor population; SQLite compatibility migration.
 - frontier-D.5 (a6b0cbf) — Historical analogue matcher, analogue API endpoint, ingest/read population, event-feed surfacing.
+- frontier-D.6-wip (pending) — 50-row golden set, validation harness, and CLI are in place; real adapter comparison skips until LoRA weights exist.
 - frontier-E.2 (3523d41) — DC-OPF solver (scipy HiGHS LP, nodal-susceptance B_bus formulation, dual-based LMPs, binding-line detection).
 - frontier-E.1 (f9a703d) — Topology loader + canonical 13-bus / 13-line seed bundle covering all 9 priced markets; `ingest_grid_topology.py` runner; ENTSO-E NTC enrichment stubbed behind `ENTSOE_TOKEN`.
 - frontier-E.3 (4f2705a) — Cross-zone basis trade type; engine runs paired correlated MC; spread P&L on combined position.
@@ -256,4 +257,4 @@ Format: `frontier-X.N (sha) — one-line result.`
 
 Format: `frontier-X.N — short description. To unblock: …`
 
-- frontier-D.6 — Golden-set validation requires real domain LoRA adapter weights; current D.2 output is a dry-run manifest because the local environment lacks a 24 GB-class GPU and authenticated gated-model access. **To unblock:** run `PYTHONPATH=. python3 scripts/finetune_news_scorer.py --model-id meta-llama/Llama-3.1-8B-Instruct` on a suitable GPU host (or `--model-id Qwen/Qwen2.5-7B-Instruct` if Llama access is gated), commit the resulting adapter files under `backend/models/news_scorer_lora/`, then resume at D.6.
+- frontier-D.6 — Golden-set validation harness now exists, but the required real domain LoRA adapter weights are still missing; current D.2 output is a dry-run manifest because the local environment lacks a 24 GB-class GPU and authenticated gated-model access. **To unblock:** run `PYTHONPATH=. python3 scripts/finetune_news_scorer.py --model-id meta-llama/Llama-3.1-8B-Instruct` on a suitable GPU host (or `--model-id Qwen/Qwen2.5-7B-Instruct` if Llama access is gated), commit `adapter_config.json`, `adapter_model.safetensors`, and tokenizer files under `backend/models/news_scorer_lora/`, then run `PYTHONPATH=. python3 scripts/validate_news_scorer.py`.
