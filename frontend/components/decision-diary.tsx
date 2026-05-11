@@ -49,7 +49,7 @@ export function DecisionDiary({
           <p className="text-[10px] uppercase tracking-widest text-ink/40">Decision diary</p>
           <h3 className="mt-1 text-base font-semibold text-ink">Saved theses</h3>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-ink/40">{items.length} reads</span>
+        <span className="font-mono text-[10px] tracking-wider text-ink/50">{items.length} reads</span>
       </div>
 
       {loading ? <p className="text-sm text-ink/45">Loading decisions...</p> : null}
@@ -64,11 +64,11 @@ export function DecisionDiary({
           return (
             <article key={item.id} className="rounded-xl border border-seam bg-bg p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-mono text-[11px] uppercase tracking-wider text-ink/50">
+                <span className="font-mono text-[11px] text-ink/55">
                   {new Date(item.timestamp).toLocaleString()}
                 </span>
-                <span className="font-mono text-[11px] uppercase tracking-wider text-ink/50">
-                  {item.direction} · {item.horizon_hours}h · {formatGbp(item.position_gbp)}
+                <span className="font-mono text-[11px] text-ink/55">
+                  {item.direction.charAt(0).toUpperCase() + item.direction.slice(1)} · {item.horizon_hours}h · {formatGbp(item.position_gbp)}
                 </span>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-ink/80">{item.thesis_text}</p>

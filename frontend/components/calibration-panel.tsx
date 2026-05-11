@@ -36,7 +36,9 @@ export function CalibrationPanel({ marketId }: { marketId: number }) {
   return (
     <section className="rounded-2xl border border-seam bg-surface p-5">
       <p className="text-[10px] uppercase tracking-widest text-ink/40">Calibration</p>
-      <h3 className={`mt-2 text-lg font-semibold ${tone}`}>{status}</h3>
+      <h3 className={`mt-2 text-lg font-semibold ${tone}`}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </h3>
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
         <div className="rounded-lg bg-bg p-3">
           <p className="text-[9px] uppercase tracking-widest text-ink/35">Actual breach</p>

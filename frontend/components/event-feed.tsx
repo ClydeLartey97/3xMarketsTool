@@ -1,3 +1,4 @@
+import { prettyEventType } from "@/lib/typography";
 import { EventItem } from "@/types/domain";
 
 const SEVERITY_STYLES: Record<string, { badge: string; bar: string }> = {
@@ -61,10 +62,10 @@ export function EventFeed({
                   <span className={`rounded px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest ${style.badge}`}>
                     {event.severity}
                   </span>
-                  <span className="rounded bg-ink/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-ink/35">
-                    {event.event_type.replaceAll("_", " ")}
+                  <span className="rounded bg-ink/5 px-2 py-0.5 text-[10px] text-ink/55">
+                    {prettyEventType(event.event_type)}
                   </span>
-                  <span className="ml-auto font-mono text-[9px] text-ink/25">{formatTime(event.created_at)}</span>
+                  <span className="ml-auto text-[10px] text-ink/45">{formatTime(event.created_at)}</span>
                 </div>
 
                 {/* Title */}

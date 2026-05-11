@@ -1,3 +1,4 @@
+import { prettyEventType, prettyRegion } from "@/lib/typography";
 import { NewsArticle } from "@/types/domain";
 
 function credibilityColor(rating: number): string {
@@ -79,19 +80,19 @@ export function NewsBriefs({ items }: { items: NewsArticle[] }) {
               {/* Summary */}
               <p className="line-clamp-2 text-xs leading-5 text-ink/56">{item.display_summary}</p>
 
-              {/* Footer */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono uppercase tracking-widest text-ink/28">
+              {/* Footer — Sentence case metadata so headlines breathe. */}
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-ink/45">
                 <span>{formatPublishedTime(item.published_at)}</span>
-                {item.affected_region && <span>{item.affected_region}</span>}
+                {item.affected_region && <span>· {prettyRegion(item.affected_region)}</span>}
                 {item.event_type && (
-                  <span>{item.event_type.replaceAll("_", " ")}</span>
+                  <span>· {prettyEventType(item.event_type)}</span>
                 )}
                 {item.price_direction && (
-                  <span className={DIRECTION_STYLE[item.price_direction] ?? "text-ink/28"}>
-                    {item.price_direction}
+                  <span className={DIRECTION_STYLE[item.price_direction] ?? "text-ink/45"}>
+                    · {item.price_direction.charAt(0).toUpperCase() + item.price_direction.slice(1)}
                   </span>
                 )}
-                <span className="ml-auto text-ink/24 transition-colors group-hover:text-ink/42">
+                <span className="ml-auto text-ink/35 transition-colors group-hover:text-ink/60">
                   Open →
                 </span>
               </div>

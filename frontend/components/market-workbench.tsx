@@ -109,29 +109,35 @@ export function MarketWorkbench({
       </section>
 
       <section className="h-[calc(100vh-220px)] min-h-[980px]">
-        <PanelGroup autoSaveId="frontier-workbench-rows" direction="vertical" className="h-full">
-          <Panel defaultSize={62} minSize={44}>
-            <PanelGroup autoSaveId="frontier-workbench-top" direction="horizontal" className="h-full">
-              <Panel defaultSize={60} minSize={36}>
-                <div className="h-full overflow-y-auto pr-2">
+        <PanelGroup autoSaveId="frontier-workbench-rows-v2" direction="vertical" className="h-full">
+          {/* TOP ROW — assessment-focused: chart (with path-fan below) + 3 right-column panels */}
+          <Panel defaultSize={64} minSize={44}>
+            <PanelGroup autoSaveId="frontier-workbench-top-v2" direction="horizontal" className="h-full">
+              <Panel defaultSize={58} minSize={36}>
+                <div className="flex h-full flex-col gap-2 pr-2">
                   <ClientErrorBoundary
                     fallbackTitle="Chart engine recovering"
                     fallbackBody="The chart hit a client-side issue. Refresh once. The rest of the desk stays live."
                   >
-                    <KlinePriceChart
-                      marketId={dashboard.market.id}
-                      history={history}
-                      forecast={forecast}
-                      events={dashboard.recent_events}
-                      timezoneLabel={dashboard.market.timezone}
-                      onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
-                    />
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                      <KlinePriceChart
+                        marketId={dashboard.market.id}
+                        history={history}
+                        forecast={forecast}
+                        events={dashboard.recent_events}
+                        timezoneLabel={dashboard.market.timezone}
+                        onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
+                      />
+                    </div>
                   </ClientErrorBoundary>
+                  <div className="shrink-0">
+                    <RiskPathFan data={risk} loading={riskLoading} />
+                  </div>
                 </div>
               </Panel>
               <ResizeHandle direction="horizontal" />
-              <Panel defaultSize={40} minSize={28}>
-                <div className="h-full space-y-4 overflow-y-auto pl-2">
+              <Panel defaultSize={42} minSize={30}>
+                <div className="grid h-full grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-3 overflow-hidden pl-2">
                   <RiskPanel
                     marketId={dashboard.market.id}
                     marketCode={dashboard.market.code}
@@ -143,25 +149,33 @@ export function MarketWorkbench({
                     }}
                     onDecisionSaved={() => setDecisionRefresh((value) => value + 1)}
                   />
-                  <PositionBlotter refreshKey={decisionRefresh} />
-                  <RiskPathFan data={risk} loading={riskLoading} />
-                  <RiskDecompositionPanel data={risk} loading={riskLoading} />
-                  <RiskSensitivityLadder data={risk} loading={riskLoading} />
-                  <SignalStack dashboard={dashboard} />
+                  <div className="min-h-0 overflow-y-auto">
+                    <RiskDecompositionPanel data={risk} loading={riskLoading} />
+                  </div>
+                  <div className="min-h-0 overflow-y-auto">
+                    <RiskSensitivityLadder data={risk} loading={riskLoading} />
+                  </div>
                 </div>
               </Panel>
             </PanelGroup>
           </Panel>
           <ResizeHandle direction="vertical" />
-          <Panel defaultSize={38} minSize={24}>
-            <PanelGroup autoSaveId="frontier-workbench-bottom" direction="horizontal" className="h-full">
-              <Panel defaultSize={25} minSize={16}>
+          {/* BOTTOM ROW — market context + portfolio state. 5 columns. */}
+          <Panel defaultSize={36} minSize={24}>
+            <PanelGroup autoSaveId="frontier-workbench-bottom-v2" direction="horizontal" className="h-full">
+              <Panel defaultSize={22} minSize={14}>
                 <div className="h-full overflow-y-auto pr-2">
+                  <SignalStack dashboard={dashboard} />
+                </div>
+              </Panel>
+              <ResizeHandle direction="horizontal" />
+              <Panel defaultSize={20} minSize={14}>
+                <div className="h-full overflow-y-auto px-2">
                   <NewsBriefs items={dashboard.recent_news.slice(0, 8)} />
                 </div>
               </Panel>
               <ResizeHandle direction="horizontal" />
-              <Panel defaultSize={25} minSize={16}>
+              <Panel defaultSize={20} minSize={14}>
                 <div className="h-full overflow-y-auto px-2">
                   <EventFeed
                     events={dashboard.recent_events.slice(0, 8)}
@@ -172,15 +186,20 @@ export function MarketWorkbench({
                 </div>
               </Panel>
               <ResizeHandle direction="horizontal" />
-              <Panel defaultSize={20} minSize={14}>
+              <Panel defaultSize={16} minSize={12}>
                 <div className="h-full overflow-y-auto px-2">
                   <CalibrationPanel marketId={dashboard.market.id} />
                 </div>
               </Panel>
               <ResizeHandle direction="horizontal" />
-              <Panel defaultSize={30} minSize={18}>
-                <div className="h-full overflow-y-auto pl-2">
-                  <DecisionDiary marketId={dashboard.market.id} refreshKey={decisionRefresh} />
+              <Panel defaultSize={22} minSize={16}>
+                <div className="flex h-full flex-col gap-3 overflow-hidden pl-2">
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    <PositionBlotter refreshKey={decisionRefresh} />
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    <DecisionDiary marketId={dashboard.market.id} refreshKey={decisionRefresh} />
+                  </div>
                 </div>
               </Panel>
             </PanelGroup>
