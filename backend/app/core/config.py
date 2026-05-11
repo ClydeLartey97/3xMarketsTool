@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = Field(default=12 * 60, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
     demo_user_email: str = Field(default="demo@3x.local", alias="DEMO_USER_EMAIL")
     demo_user_password: str = Field(default="demo-password", alias="DEMO_USER_PASSWORD")
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     otel_service_name: str = Field(default="3x-api", alias="OTEL_SERVICE_NAME")
     otel_exporter_otlp_endpoint: str = Field(default="", alias="OTEL_EXPORTER_OTLP_ENDPOINT")

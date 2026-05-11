@@ -1,3 +1,16 @@
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://threex:threex@postgres:5432/threex
+  REDIS_URL: redis://redis:6379/0
+  CORS_ORIGINS: '["http://localhost:3000"]'
+  JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+  DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-demo@3x.local}
+  DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-demo-password}
+  LLM_SCORER_PROVIDER: ${LLM_SCORER_PROVIDER:-heuristic}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  OTEL_SERVICE_NAME: 3x-api
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -38,20 +51,11 @@ services:
       - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yml:ro
 
   backend:
+    image: market-speculation-backend
     build:
       context: ..
       dockerfile: backend/Dockerfile
-    environment:
-      DATABASE_URL: postgresql+psycopg://threex:threex@postgres:5432/threex
-      CORS_ORIGINS: '["http://localhost:3000"]'
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-demo@3x.local}
-      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-demo-password}
-      LLM_SCORER_PROVIDER: ${LLM_SCORER_PROVIDER:-heuristic}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      OTEL_SERVICE_NAME: 3x-api
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+    environment: *backend-env
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,6 +76,21 @@ services:
       retries: 30
     ports:
       - "8000:8000"
+
+  worker:
+    image: market-speculation-backend
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    command: ["arq", "app.workers.worker.WorkerSettings"]
+    environment: *backend-env
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
 
   frontend:
     build:

@@ -61,6 +61,64 @@ def _load_for_market(db, market: Market, since: datetime):
     return prices, weather, demand, events
 
 
+def run_backtest_reports(
+    *,
+    markets: list[str] | None = None,
+    lookback_days: int = 365,
+    train_days: int = 60,
+    test_days: int = 7,
+    step_hours: int = 24,
+    horizon_hours: int = 24,
+    compare: str | list[str] = "gbr",
+) -> list[Path]:
+    forecaster_names = [name.strip() for name in compare.split(",") if name.strip()] if isinstance(compare, str) else compare
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    require_database_schema(engine)
+    since = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+    written: list[Path] = []
+
+    with SessionLocal() as db:
+        market_rows = list(db.scalars(select(Market).order_by(Market.code.asc())).all())
+        if markets:
+            market_rows = [m for m in market_rows if m.code in set(markets)]
+        for market in market_rows:
+            prices, weather, demand, events = _load_for_market(db, market, since)
+            if len(prices) < 24 * (train_days + test_days):
+                print(f"{market.code}: not enough history ({len(prices)}h); skipping")
+                continue
+            events_frame = pd.DataFrame(events_as_feature_frame(events))
+            feature_frame = build_feature_frame_from_db(
+                prices=prices, weather=weather, demand=demand, events_frame=events_frame,
+            )
+            result = walk_forward_backtest(
+                feature_frame,
+                train_window_hours=train_days * 24,
+                test_window_hours=test_days * 24,
+                step_hours=step_hours,
+                horizon_hours=horizon_hours,
+                forecaster_names=forecaster_names,
+            )
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
+            out_path = REPORTS_DIR / f"backtest_{market.code}_{stamp}.json"
+            payload = {
+                "market_code": market.code,
+                "market_name": market.name,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "lookback_days": lookback_days,
+                **result.to_dict(),
+            }
+            out_path.write_text(json.dumps(payload, indent=2))
+            written.append(out_path)
+            print(
+                f"{market.code}: model RMSE={result.metrics.get('rmse')}  "
+                f"vs persistence_24h RMSE={result.vs_baselines.get('persistence_24h',{}).get('rmse')}  "
+                f"forecasters={','.join(result.vs_forecasters.keys()) or 'none'}  "
+                f"calibrated={result.calibration.get('well_calibrated')}  "
+                f"→ {out_path.name}"
+            )
+    return written
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Walk-forward backtest runner")
     parser.add_argument("--market", action="append", dest="markets", help="Market code; repeatable.")
@@ -75,50 +133,15 @@ def main() -> None:
         help="Comma-separated forecaster names to compare, e.g. gbr,chronos.",
     )
     args = parser.parse_args()
-    forecaster_names = [name.strip() for name in args.compare.split(",") if name.strip()]
-
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    require_database_schema(engine)
-    since = datetime.now(timezone.utc) - timedelta(days=args.lookback_days)
-
-    with SessionLocal() as db:
-        markets = list(db.scalars(select(Market).order_by(Market.code.asc())).all())
-        if args.markets:
-            markets = [m for m in markets if m.code in set(args.markets)]
-        for market in markets:
-            prices, weather, demand, events = _load_for_market(db, market, since)
-            if len(prices) < 24 * (args.train_days + args.test_days):
-                print(f"{market.code}: not enough history ({len(prices)}h); skipping")
-                continue
-            events_frame = pd.DataFrame(events_as_feature_frame(events))
-            feature_frame = build_feature_frame_from_db(
-                prices=prices, weather=weather, demand=demand, events_frame=events_frame,
-            )
-            result = walk_forward_backtest(
-                feature_frame,
-                train_window_hours=args.train_days * 24,
-                test_window_hours=args.test_days * 24,
-                step_hours=args.step_hours,
-                horizon_hours=args.horizon_hours,
-                forecaster_names=forecaster_names,
-            )
-            stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
-            out_path = REPORTS_DIR / f"backtest_{market.code}_{stamp}.json"
-            payload = {
-                "market_code": market.code,
-                "market_name": market.name,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "lookback_days": args.lookback_days,
-                **result.to_dict(),
-            }
-            out_path.write_text(json.dumps(payload, indent=2))
-            print(
-                f"{market.code}: model RMSE={result.metrics.get('rmse')}  "
-                f"vs persistence_24h RMSE={result.vs_baselines.get('persistence_24h',{}).get('rmse')}  "
-                f"forecasters={','.join(result.vs_forecasters.keys()) or 'none'}  "
-                f"calibrated={result.calibration.get('well_calibrated')}  "
-                f"→ {out_path.name}"
-            )
+    run_backtest_reports(
+        markets=args.markets,
+        lookback_days=args.lookback_days,
+        train_days=args.train_days,
+        test_days=args.test_days,
+        step_hours=args.step_hours,
+        horizon_hours=args.horizon_hours,
+        compare=args.compare,
+    )
 
 
 if __name__ == "__main__":

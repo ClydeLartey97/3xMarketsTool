@@ -78,7 +78,7 @@ def configure_logging(settings: Settings) -> None:
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
     root_logger.setLevel(level)
-    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access", "apscheduler"):
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         logging.getLogger(logger_name).setLevel(level)
 
     _LOGGING_CONFIGURED = True
