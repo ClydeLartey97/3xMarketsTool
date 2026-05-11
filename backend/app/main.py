@@ -12,6 +12,7 @@ from app.api.auth import router as auth_router
 from app.api.routes import public_router, router
 from app.core.config import get_settings
 from app.core.observability import configure_logging, instrument_app
+from app.core.rate_limit import configure_rate_limiting
 from app.db.compat import apply_sqlite_compat_migrations
 from app.db.schema import database_has_schema
 from app.db.session import SessionLocal, engine
@@ -127,6 +128,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+configure_rate_limiting(app)
 app.include_router(public_router, prefix=settings.api_v1_prefix)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(router, prefix=settings.api_v1_prefix)

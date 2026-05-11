@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     otel_service_name: str = Field(default="3x-api", alias="OTEL_SERVICE_NAME")
     otel_exporter_otlp_endpoint: str = Field(default="", alias="OTEL_EXPORTER_OTLP_ENDPOINT")
     otel_excluded_urls: str = Field(default="/api/health", alias="OTEL_EXCLUDED_URLS")
+    rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
+    rate_limit_data_per_minute: int = Field(default=60, alias="RATE_LIMIT_DATA_PER_MINUTE")
+    rate_limit_risk_assessment_per_minute: int = Field(default=10, alias="RATE_LIMIT_RISK_ASSESSMENT_PER_MINUTE")
+    rate_limit_sensitivity_per_minute: int = Field(default=5, alias="RATE_LIMIT_SENSITIVITY_PER_MINUTE")
 
     # Background refresh interval in minutes
     data_refresh_interval_minutes: int = Field(default=30, alias="DATA_REFRESH_INTERVAL_MINUTES")

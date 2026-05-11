@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.core.rate_limit import RISK_ASSESSMENT_LIMIT, SENSITIVITY_LIMIT, limiter
 from app.models import DemandPoint, Event, Forecast, User, WeatherPoint
 from app.schemas.domain import (
     AlertRead,
@@ -130,6 +131,7 @@ def _price_provenance_metrics(prices: list) -> dict[str, float]:
 
 
 @public_router.get("/health", response_model=HealthResponse)
+@limiter.exempt
 def health() -> HealthResponse:
     return HealthResponse(status="ok", timestamp=datetime.now(timezone.utc), database="configured")
 
@@ -356,11 +358,16 @@ def refresh_market_data(
 
 
 @router.post("/risk-assessment", response_model=RiskAssessmentResponse)
+@limiter.limit(RISK_ASSESSMENT_LIMIT)
 def post_risk_assessment(
+    request: Request,
+    response: Response,
     payload: RiskAssessmentRequest,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> RiskAssessmentResponse:
+    del request
+    del response
     try:
         result = assess_risk(
             db,
@@ -438,10 +445,15 @@ def post_risk_assessment_solve(
 
 
 @router.post("/risk-assessment/sensitivity", response_model=RiskSensitivityResponse)
+@limiter.limit(SENSITIVITY_LIMIT)
 def post_risk_assessment_sensitivity(
+    request: Request,
+    response: Response,
     payload: RiskSensitivityRequest,
     db: Session = Depends(get_db),
 ) -> RiskSensitivityResponse:
+    del request
+    del response
     try:
         result = run_risk_sensitivity(
             db,

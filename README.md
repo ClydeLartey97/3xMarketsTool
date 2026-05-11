@@ -402,6 +402,7 @@ npx tsc --noEmit
 - Local SQLite databases such as `backend/threex.db` are ignored by git; production-style runs should use Postgres via `DATABASE_URL`.
 - The frontend has both server-side and browser-side API calls, so keep `API_INTERNAL_BASE_URL` and `NEXT_PUBLIC_API_BASE_URL` distinct when running in containers.
 - Backend logs are emitted as JSON via structlog. OpenTelemetry traces use the console exporter by default; set `OTEL_EXPORTER_OTLP_ENDPOINT` to send spans to an OTLP collector.
+- SlowAPI rate limiting is enabled by default: authenticated data endpoints use a 60 req/min per-user default, `/risk-assessment` uses 10 req/min, and `/risk-assessment/sensitivity` uses 5 req/min.
 
 ## Roadmap
 

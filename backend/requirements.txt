@@ -24,4 +24,5 @@ opentelemetry-instrumentation-fastapi==0.60b1
 opentelemetry-instrumentation-sqlalchemy==0.60b1
 opentelemetry-instrumentation-httpx==0.60b1
 structlog==25.5.0
+slowapi==0.1.9
 pytest==8.4.1

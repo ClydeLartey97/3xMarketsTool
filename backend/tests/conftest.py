@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.base import Base
+from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.ingestion.seeds import seed_database
 from app.main import app
@@ -26,6 +27,7 @@ TEST_USER_PASSWORD = "test-password"
 
 @pytest.fixture(autouse=True)
 def setup_db() -> Generator[None, None, None]:
+    limiter.limiter.storage.reset()
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     with TestingSessionLocal() as db:
