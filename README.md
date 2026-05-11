@@ -1,18 +1,12 @@
-<p align="center">
-  <img src="assets/logo.svg" alt="3x Intelligent Markets" width="540"/>
-</p>
+<div align="center">
 
-<p align="center">
-  <em>Glass-box power-market risk analytics. Nine markets, three currencies, two years of hourly history.</em>
-</p>
+<img src="assets/logo.svg" alt="3x Intelligent Markets" width="540"/>
 
-<p align="center">
-  <a href="#what-it-does">Features</a> ·
-  <a href="#local-quick-start">Quick start</a> ·
-  <a href="#risk-engine">Risk engine</a> ·
-  <a href="#key-api-endpoints">API</a> ·
-  <a href="FRONTIER.md">Roadmap</a>
-</p>
+*Glass-box power-market risk analytics. Nine markets, three currencies, two years of hourly history.*
+
+[Features](#what-it-does) · [Quick start](#local-quick-start) · [Risk engine](#risk-engine) · [API](#key-api-endpoints) · [Roadmap](FRONTIER.md)
+
+</div>
 
 ---
 
