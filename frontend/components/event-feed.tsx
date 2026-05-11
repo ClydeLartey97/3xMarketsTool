@@ -39,8 +39,8 @@ export function EventFeed({
 }) {
   return (
     <section className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
-      <div className="mb-4">
-        <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-ink/35">{subtitle}</p>
+      <div className="sticky-panel-header -mx-5 -mt-5 mb-4 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
+        <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-ink/45">{subtitle}</p>
         <h2 className="text-lg font-semibold text-ink">{title}</h2>
       </div>
 

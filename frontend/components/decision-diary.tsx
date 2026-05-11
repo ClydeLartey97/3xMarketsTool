@@ -44,7 +44,7 @@ export function DecisionDiary({
 
   return (
     <section className="rounded-2xl border border-seam bg-surface p-5">
-      <div className="mb-3 flex items-baseline justify-between gap-2">
+      <div className="sticky-panel-header -mx-5 -mt-5 mb-3 flex items-baseline justify-between gap-2 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-ink/40">Decision diary</p>
           <h3 className="mt-1 text-base font-semibold text-ink">Saved theses</h3>

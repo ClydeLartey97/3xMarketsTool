@@ -119,12 +119,12 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
 
   return (
     <section className="rounded-2xl border border-seam bg-surface p-5">
-      <div className="mb-3 flex items-baseline justify-between gap-2">
+      <div className="sticky-panel-header -mx-5 -mt-5 mb-3 flex items-baseline justify-between gap-2 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-ink/40">Position blotter</p>
+          <p className="text-[10px] uppercase tracking-widest text-ink/45">Position blotter</p>
           <h3 className="mt-1 text-base font-semibold text-ink">Open risk book</h3>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-ink/40">
+        <span className="font-mono text-[10px] tracking-wider text-ink/50">
           {openPositions.length} open
         </span>
       </div>

@@ -72,7 +72,7 @@ export function RiskDecompositionPanel({ data, loading = false }: RiskDecomposit
       className="rounded-xl border border-white/10 bg-zinc-950/60 p-4"
       aria-label="Risk coefficient decomposition"
     >
-      <header className="mb-3 flex items-baseline justify-between gap-2">
+      <header className="sticky-panel-header -mx-4 -mt-4 mb-3 flex items-baseline justify-between gap-2 rounded-t-xl bg-zinc-950 px-4 pb-3 pt-4">
         <div>
           <h3 className="text-sm font-semibold text-zinc-100">Risk decomposition</h3>
           <p className="text-[11px] text-zinc-500">

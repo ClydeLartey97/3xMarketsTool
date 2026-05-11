@@ -149,10 +149,10 @@ export function MarketWorkbench({
                     }}
                     onDecisionSaved={() => setDecisionRefresh((value) => value + 1)}
                   />
-                  <div className="min-h-0 overflow-y-auto">
+                  <div className="min-h-0 scroll-pane">
                     <RiskDecompositionPanel data={risk} loading={riskLoading} />
                   </div>
-                  <div className="min-h-0 overflow-y-auto">
+                  <div className="min-h-0 scroll-pane">
                     <RiskSensitivityLadder data={risk} loading={riskLoading} />
                   </div>
                 </div>
@@ -164,19 +164,19 @@ export function MarketWorkbench({
           <Panel defaultSize={36} minSize={24}>
             <PanelGroup autoSaveId="frontier-workbench-bottom-v2" direction="horizontal" className="h-full">
               <Panel defaultSize={22} minSize={14}>
-                <div className="h-full overflow-y-auto pr-2">
+                <div className="h-full scroll-pane pr-2">
                   <SignalStack dashboard={dashboard} />
                 </div>
               </Panel>
               <ResizeHandle direction="horizontal" />
               <Panel defaultSize={20} minSize={14}>
-                <div className="h-full overflow-y-auto px-2">
+                <div className="h-full scroll-pane px-2">
                   <NewsBriefs items={dashboard.recent_news.slice(0, 8)} />
                 </div>
               </Panel>
               <ResizeHandle direction="horizontal" />
               <Panel defaultSize={20} minSize={14}>
-                <div className="h-full overflow-y-auto px-2">
+                <div className="h-full scroll-pane px-2">
                   <EventFeed
                     events={dashboard.recent_events.slice(0, 8)}
                     compact
@@ -187,17 +187,17 @@ export function MarketWorkbench({
               </Panel>
               <ResizeHandle direction="horizontal" />
               <Panel defaultSize={16} minSize={12}>
-                <div className="h-full overflow-y-auto px-2">
+                <div className="h-full scroll-pane px-2">
                   <CalibrationPanel marketId={dashboard.market.id} />
                 </div>
               </Panel>
               <ResizeHandle direction="horizontal" />
               <Panel defaultSize={22} minSize={16}>
                 <div className="flex h-full flex-col gap-3 overflow-hidden pl-2">
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="min-h-0 flex-1 scroll-pane">
                     <PositionBlotter refreshKey={decisionRefresh} />
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="min-h-0 flex-1 scroll-pane">
                     <DecisionDiary marketId={dashboard.market.id} refreshKey={decisionRefresh} />
                   </div>
                 </div>

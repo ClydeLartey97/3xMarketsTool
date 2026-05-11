@@ -29,14 +29,14 @@ const DIRECTION_STYLE: Record<string, string> = {
 export function NewsBriefs({ items }: { items: NewsArticle[] }) {
   return (
     <section className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
-      <div className="mb-4 flex items-center justify-between gap-4">
+      <div className="sticky-panel-header -mx-5 -mt-5 mb-4 flex items-center justify-between gap-4 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
         <div>
-          <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-ink/35">
-            Market Intelligence
+          <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-ink/45">
+            Market intelligence
           </p>
           <h2 className="text-lg font-semibold text-ink">Article-backed evidence</h2>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/25">
+        <span className="font-mono text-[10px] tracking-wider text-ink/50">
           {items.length} articles
         </span>
       </div>
