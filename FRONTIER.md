@@ -261,6 +261,7 @@ Format: `frontier-X.N (sha) — one-line result.`
 - frontier-F.6 (pending) — Deployment Compose stack for Postgres, Redis, backend, frontend, and OTel collector; `make deploy` target. Tests: YAML structure pass; Docker unavailable locally.
 - frontier-F.6.1 (pending) — BackgroundScheduler removed; arq worker owns market refresh, hourly P&L fill, and nightly backtests with retry backoff. Tests: worker focused pass.
 - frontier-F.7 (pending) — Redis pub/sub market stream, `/ws/markets/{code}` bridge, worker-published events, and KLineCharts live-tick hook. Tests: stream focused pass; tsc pass.
+- frontier-F.8 (pending) — SOC2 prep doc covering audit log, encryption, secrets, access control, change management, incident response, and vendors.
 
 ## Blockers
 
