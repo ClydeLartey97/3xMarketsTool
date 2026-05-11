@@ -180,6 +180,32 @@ class HealthResponse(BaseModel):
     database: str
 
 
+class UserRead(BaseModel):
+    id: int
+    email: str
+    organisation: str
+    role: str
+    created_at: datetime
+
+
+class AuthLoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=256)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class AuthRegisterRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=256)
+    password: str = Field(min_length=8, max_length=256)
+    organisation: str = Field(default="3x", min_length=1, max_length=128)
+    role: str = Field(default="analyst", min_length=1, max_length=64)
+
+
+class AuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    user: UserRead
+
+
 class ScenarioOverride(BaseModel):
     """One named what-if shock to the simulator inputs."""
     name: str
@@ -362,6 +388,7 @@ class DecisionRead(BaseModel):
     market_id: int
     market_code: str
     market_name: str
+    user_id: Optional[int] = None
     position_gbp: float
     direction: str
     horizon_hours: int

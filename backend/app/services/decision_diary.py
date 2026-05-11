@@ -35,6 +35,7 @@ def _decision_read(row: RiskAssessmentLog, market: Market) -> dict[str, Any]:
         "market_id": market.id,
         "market_code": market.code,
         "market_name": market.name,
+        "user_id": row.user_id,
         "position_gbp": row.position_gbp,
         "direction": row.direction,
         "horizon_hours": row.horizon_hours,
@@ -49,13 +50,14 @@ def _decision_read(row: RiskAssessmentLog, market: Market) -> dict[str, Any]:
     }
 
 
-def create_decision(db: Session, payload: Any) -> dict[str, Any]:
+def create_decision(db: Session, payload: Any, user_id: int) -> dict[str, Any]:
     market = db.scalar(select(Market).where(Market.code == payload.market_code))
     if not market:
         raise ValueError(f"unknown market {payload.market_code}")
     row = RiskAssessmentLog(
         timestamp=datetime.now(timezone.utc),
         market_id=market.id,
+        user_id=user_id,
         position_gbp=float(payload.position_gbp),
         direction=payload.direction,
         horizon_hours=int(payload.horizon_hours),
@@ -74,7 +76,7 @@ def create_decision(db: Session, payload: Any) -> dict[str, Any]:
     return _decision_read(row, market)
 
 
-def list_decisions(db: Session, market_id: int | None = None) -> list[dict[str, Any]]:
+def list_decisions(db: Session, market_id: int | None = None, user_id: int | None = None) -> list[dict[str, Any]]:
     fill_matured_risk_assessment_logs(db)
     stmt = (
         select(RiskAssessmentLog, Market)
@@ -84,14 +86,17 @@ def list_decisions(db: Session, market_id: int | None = None) -> list[dict[str, 
     )
     if market_id is not None:
         stmt = stmt.where(RiskAssessmentLog.market_id == market_id)
+    if user_id is not None:
+        stmt = stmt.where(RiskAssessmentLog.user_id == user_id)
     return [_decision_read(row, market) for row, market in db.execute(stmt).all()]
 
 
-def update_decision(db: Session, decision_id: int, payload: Any) -> dict[str, Any]:
+def update_decision(db: Session, decision_id: int, payload: Any, user_id: int) -> dict[str, Any]:
     row = db.scalar(
         select(RiskAssessmentLog).where(
             RiskAssessmentLog.id == decision_id,
             RiskAssessmentLog.kind == "diary",
+            RiskAssessmentLog.user_id == user_id,
         )
     )
     if not row:
@@ -112,11 +117,12 @@ def update_decision(db: Session, decision_id: int, payload: Any) -> dict[str, An
     return _decision_read(row, market)
 
 
-def delete_decision(db: Session, decision_id: int) -> None:
+def delete_decision(db: Session, decision_id: int, user_id: int) -> None:
     result = db.execute(
         delete(RiskAssessmentLog).where(
             RiskAssessmentLog.id == decision_id,
             RiskAssessmentLog.kind == "diary",
+            RiskAssessmentLog.user_id == user_id,
         )
     )
     if result.rowcount == 0:

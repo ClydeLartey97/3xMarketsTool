@@ -163,6 +163,7 @@ class RiskAssessmentLog(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
     market_id: Mapped[int] = mapped_column(ForeignKey("markets.id"), index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     position_gbp: Mapped[float] = mapped_column(Float)
     direction: Mapped[str] = mapped_column(String(16))
     horizon_hours: Mapped[int] = mapped_column(Integer)
@@ -176,6 +177,7 @@ class RiskAssessmentLog(Base):
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     market: Mapped["Market"] = relationship(back_populates="risk_assessment_logs")
+    user: Mapped[Optional["User"]] = relationship(back_populates="risk_assessment_logs")
 
 
 class User(Base):
@@ -189,6 +191,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     watchlists: Mapped[list["UserWatchlist"]] = relationship(back_populates="user")
+    risk_assessment_logs: Mapped[list["RiskAssessmentLog"]] = relationship(back_populates="user")
 
 
 class UserWatchlist(Base):

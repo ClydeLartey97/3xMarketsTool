@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,6 +36,11 @@ class Settings(BaseSettings):
         alias="DOMAIN_SCORER_BASE_MODEL",
     )
     domain_scorer_device_map: str = Field(default="auto", alias="DOMAIN_SCORER_DEVICE_MAP")
+    jwt_secret: SecretStr = Field(default=SecretStr("dev-change-me"), alias="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    jwt_access_token_expire_minutes: int = Field(default=12 * 60, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+    demo_user_email: str = Field(default="demo@3x.local", alias="DEMO_USER_EMAIL")
+    demo_user_password: str = Field(default="demo-password", alias="DEMO_USER_PASSWORD")
 
     # Background refresh interval in minutes
     data_refresh_interval_minutes: int = Field(default=30, alias="DATA_REFRESH_INTERVAL_MINUTES")

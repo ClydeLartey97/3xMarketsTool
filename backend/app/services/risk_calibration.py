@@ -41,13 +41,14 @@ def _kupiec_pof_p_value(breaches: int, sample_count: int, claimed_rate: float = 
     return float(math.erfc(math.sqrt(max(0.0, lr_uc) / 2.0)))
 
 
-def log_risk_assessment(db: Session, result: dict[str, Any]) -> RiskAssessmentLog | None:
+def log_risk_assessment(db: Session, result: dict[str, Any], user_id: int | None = None) -> RiskAssessmentLog | None:
     market = db.scalar(select(Market).where(Market.code == result["market_code"]))
     if not market:
         return None
     row = RiskAssessmentLog(
         timestamp=_as_utc(result.get("as_of") or datetime.now(timezone.utc)),
         market_id=market.id,
+        user_id=user_id,
         position_gbp=float(result["position_gbp"]),
         direction=str(result["direction"]),
         horizon_hours=int(result["horizon_hours"]),

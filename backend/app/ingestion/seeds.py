@@ -836,13 +836,20 @@ def seed_database(db: Session) -> None:
                 db.flush()
                 populate_event_analogues(new_event, db)
 
-    demo_user = User(
-        email="demo@3x.local",
-        password_hash="demo-only",
-        organisation="3x Demo",
-        role="analyst",
-    )
-    if not db.scalar(select(User.id).where(User.email == demo_user.email)):
+    from app.services.auth import hash_password
+
+    demo_email = settings.demo_user_email.lower()
+    demo_user = db.scalar(select(User).where(User.email == demo_email))
+    if demo_user:
+        if demo_user.password_hash == "demo-only":
+            demo_user.password_hash = hash_password(settings.demo_user_password)
+    else:
+        demo_user = User(
+            email=demo_email,
+            password_hash=hash_password(settings.demo_user_password),
+            organisation="3x Demo",
+            role="analyst",
+        )
         db.add(demo_user)
         db.flush()
         db.add(

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models import DemandPoint, Event, Forecast, WeatherPoint
+from app.models import DemandPoint, Event, Forecast, User, WeatherPoint
 from app.schemas.domain import (
     AlertRead,
     ArticleIngestRequest,
@@ -38,6 +38,7 @@ from app.schemas.domain import (
     RiskSolveResponse,
 )
 from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
+from app.services.auth import current_user
 from app.services.decision_diary import create_decision, delete_decision, list_decisions, update_decision
 from app.services.risk_calibration import log_risk_assessment, risk_calibration_for_market
 from app.services.risk_sensitivity import run_risk_sensitivity
@@ -58,7 +59,8 @@ from app.services.news_service import list_news_articles, list_news_sources
 from app.services.portfolio_risk import PortfolioPositionInput, run_portfolio_risk
 from app.services.deep_hedger import hedge_features_from_assessment, recommend_hedge_ratio
 
-router = APIRouter()
+public_router = APIRouter()
+router = APIRouter(dependencies=[Depends(current_user)])
 
 
 def _market_data_status(market) -> str:
@@ -107,7 +109,7 @@ def _price_provenance_metrics(prices: list) -> dict[str, float]:
     }
 
 
-@router.get("/health", response_model=HealthResponse)
+@public_router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok", timestamp=datetime.now(timezone.utc), database="configured")
 
@@ -303,7 +305,11 @@ def refresh_market_data(market_code: str, db: Session = Depends(get_db)) -> dict
 
 
 @router.post("/risk-assessment", response_model=RiskAssessmentResponse)
-def post_risk_assessment(payload: RiskAssessmentRequest, db: Session = Depends(get_db)) -> RiskAssessmentResponse:
+def post_risk_assessment(
+    payload: RiskAssessmentRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> RiskAssessmentResponse:
     try:
         result = assess_risk(
             db,
@@ -332,12 +338,16 @@ def post_risk_assessment(payload: RiskAssessmentRequest, db: Session = Depends(g
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    log_risk_assessment(db, result)
+    log_risk_assessment(db, result, user_id=user.id)
     return RiskAssessmentResponse(**result)
 
 
 @router.post("/risk-assessment/solve", response_model=RiskSolveResponse)
-def post_risk_assessment_solve(payload: RiskSolveRequest, db: Session = Depends(get_db)) -> RiskSolveResponse:
+def post_risk_assessment_solve(
+    payload: RiskSolveRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> RiskSolveResponse:
     try:
         result = solve_position_for_risk(
             db,
@@ -354,7 +364,7 @@ def post_risk_assessment_solve(payload: RiskSolveRequest, db: Session = Depends(
         detail = str(exc)
         status_code = 404 if "unknown market" in detail else 400
         raise HTTPException(status_code=status_code, detail=detail)
-    log_risk_assessment(db, result["assessment"])
+    log_risk_assessment(db, result["assessment"], user_id=user.id)
     return RiskSolveResponse(**result)
 
 
@@ -514,9 +524,13 @@ def get_market_risk_calibration(market_id: int, db: Session = Depends(get_db)) -
 
 
 @router.post("/decisions", response_model=DecisionRead)
-def post_decision(payload: DecisionCreateRequest, db: Session = Depends(get_db)) -> DecisionRead:
+def post_decision(
+    payload: DecisionCreateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> DecisionRead:
     try:
-        result = create_decision(db, payload)
+        result = create_decision(db, payload, user_id=user.id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return DecisionRead(**result)
@@ -526,10 +540,11 @@ def post_decision(payload: DecisionCreateRequest, db: Session = Depends(get_db))
 def get_decisions(
     market_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ) -> list[DecisionRead]:
     if market_id is not None and not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
-    return [DecisionRead(**item) for item in list_decisions(db, market_id=market_id)]
+    return [DecisionRead(**item) for item in list_decisions(db, market_id=market_id, user_id=user.id)]
 
 
 @router.patch("/decisions/{decision_id}", response_model=DecisionRead)
@@ -537,18 +552,23 @@ def patch_decision(
     decision_id: int,
     payload: DecisionUpdateRequest,
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ) -> DecisionRead:
     try:
-        result = update_decision(db, decision_id, payload)
+        result = update_decision(db, decision_id, payload, user_id=user.id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return DecisionRead(**result)
 
 
 @router.delete("/decisions/{decision_id}", response_model=dict[str, int])
-def remove_decision(decision_id: int, db: Session = Depends(get_db)) -> dict[str, int]:
+def remove_decision(
+    decision_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict[str, int]:
     try:
-        delete_decision(db, decision_id)
+        delete_decision(db, decision_id, user_id=user.id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return {"deleted_id": decision_id}

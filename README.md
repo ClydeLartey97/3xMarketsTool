@@ -136,11 +136,14 @@ Useful optional variables:
 - `ACTIVE_FORECASTER`: forecast backend, default `gbr`. Supported values are `gbr`, `chronos`, and `naive_persistence_24h`.
 - `CHRONOS_DEVICE_MAP`: Chronos-Bolt inference device, default `cpu`. Use `cuda` on GPU hosts or `mps` on Apple Silicon.
 - `CHRONOS_USE_SMALL`: when `true`, uses `amazon/chronos-bolt-small`; otherwise Chronos uses the lighter `amazon/chronos-bolt-tiny`.
+- `JWT_SECRET`: HS256 signing secret for API bearer tokens. Change this outside local development.
+- `DEMO_USER_EMAIL` / `DEMO_USER_PASSWORD`: seeded analyst account used for local login after migrations.
 - `FORECAST_CACHE_TTL_MINUTES`: forecast cache TTL, default `15`.
 - `DATA_REFRESH_INTERVAL_MINUTES`: background refresh interval, default `30`.
 - `DEMO_MODE`: when `true`, permits computed/synthetic fallback data without marking the market degraded. Defaults to `false`.
 
 For a lightweight local SQLite database, set `DATABASE_URL=sqlite:///./threex.db` and still run `alembic -c alembic.ini upgrade head` before starting the backend.
+Except for `/api/health` and `/api/auth/*`, API routes require `Authorization: Bearer <token>` from `POST /api/auth/login`.
 
 ## Historical Backfill
 
