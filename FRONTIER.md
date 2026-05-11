@@ -258,6 +258,7 @@ Format: `frontier-X.N (sha) — one-line result.`
 - frontier-F.4 (pending) — Risk export endpoint returns audited PDF/XLSX packs; risk panel exposes export buttons. Tests: export + audit focused pass; tsc pass.
 - frontier-F.5 (pending) — OpenTelemetry tracing for FastAPI/SQLAlchemy/httpx with console-or-OTLP export; structlog JSON logging. Tests: observability focused pass.
 - frontier-F.5.1 (pending) — SlowAPI per-user data limits plus stricter risk-assessment and sensitivity throttles. Tests: rate-limit focused pass.
+- frontier-F.6 (pending) — Deployment Compose stack for Postgres, Redis, backend, frontend, and OTel collector; `make deploy` target. Tests: YAML structure pass; Docker unavailable locally.
 
 ## Blockers
 

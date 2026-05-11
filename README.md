@@ -227,8 +227,7 @@ When `ENTSOE_TOKEN` is set, ENTSO-E Net Transfer Capacities are spliced into the
 ## Docker Compose
 
 ```bash
-cd infrastructure
-docker compose up --build
+make deploy
 ```
 
 This starts:
@@ -237,8 +236,9 @@ This starts:
 - Backend API: `http://localhost:8000/api`
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
+- OpenTelemetry collector: OTLP gRPC `localhost:4317`, OTLP HTTP `localhost:4318`
 
-The frontend uses `API_INTERNAL_BASE_URL` for server-side container calls and `NEXT_PUBLIC_API_BASE_URL` for browser-side requests, so the browser should call `localhost` while the Next.js server can call the backend container hostname.
+The backend container runs Alembic migrations before starting Uvicorn. The frontend uses `API_INTERNAL_BASE_URL` for server-side container calls and `NEXT_PUBLIC_API_BASE_URL` for browser-side requests, so the browser should call `localhost` while the Next.js server can call the backend container hostname.
 
 ## Key API Endpoints
 

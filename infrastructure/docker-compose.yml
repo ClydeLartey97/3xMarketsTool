@@ -5,6 +5,11 @@ services:
       POSTGRES_DB: threex
       POSTGRES_USER: threex
       POSTGRES_PASSWORD: threex
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U threex -d threex"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     ports:
       - "5432:5432"
     volumes:
@@ -12,36 +17,77 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otelcol-contrib/config.yml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yml:ro
 
   backend:
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://threex:threex@postgres:5432/threex
       CORS_ORIGINS: '["http://localhost:3000"]'
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-demo@3x.local}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-demo-password}
+      LLM_SCORER_PROVIDER: ${LLM_SCORER_PROVIDER:-heuristic}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      OTEL_SERVICE_NAME: 3x-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
     ports:
       - "8000:8000"
-    volumes:
-      - ../backend:/app
 
   frontend:
     build:
-      context: ../frontend
+      context: ..
+      dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
     environment:
       API_INTERNAL_BASE_URL: http://backend:8000/api
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "3000:3000"
-    volumes:
-      - ../frontend:/app
-      - /app/node_modules
 
 volumes:
   postgres_data:
+  redis_data:

@@ -15,3 +15,12 @@ seed:
 
 test:
 	cd backend && PYTHONPATH=. pytest
+
+deploy:
+	docker compose -f infrastructure/docker-compose.yml up --build -d
+
+deploy-logs:
+	docker compose -f infrastructure/docker-compose.yml logs -f
+
+deploy-down:
+	docker compose -f infrastructure/docker-compose.yml down

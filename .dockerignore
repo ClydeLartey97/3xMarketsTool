@@ -1,0 +1,13 @@
+.git
+.DS_Store
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+backend/*.db
+backend/*.db-*
+backend/reports/*.html
+frontend/.next/
+frontend/node_modules/
+frontend/tsconfig.tsbuildinfo
+node_modules/

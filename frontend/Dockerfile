@@ -1,12 +1,16 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
-WORKDIR /app
+WORKDIR /app/frontend
 
-COPY package.json ./
-RUN npm install
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 
-COPY . .
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY frontend ./
+RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "start"]
