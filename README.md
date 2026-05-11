@@ -1,8 +1,24 @@
-# 3x Markets Tool
+<p align="center">
+  <img src="assets/logo.svg" alt="3x Intelligent Markets" width="540"/>
+</p>
 
-3x is power-market intelligence software for monitoring wholesale electricity markets, forecasting near-term price risk, and translating market news into structured trading context. It covers ERCOT (North + Houston), PJM Western Hub, NYISO Zone J, ISO-NE Mass Hub, Great Britain, EPEX Germany, EPEX France, and Nord Pool SE3 — nine markets, three currencies, two years of hourly history each.
+<p align="center">
+  <em>Glass-box power-market risk analytics. Nine markets, three currencies, two years of hourly history.</em>
+</p>
 
-The backend owns ingestion, feature engineering, forecasting, event extraction, risk scoring, alert generation, and API delivery. The Next.js frontend is a Bloomberg-style trading desk with a live multi-market ticker, range-selectable charting (KLineCharts), structured news + events, and a transparent risk-decomposition workspace.
+<p align="center">
+  <a href="#what-it-does">Features</a> ·
+  <a href="#local-quick-start">Quick start</a> ·
+  <a href="#risk-engine">Risk engine</a> ·
+  <a href="#key-api-endpoints">API</a> ·
+  <a href="FRONTIER.md">Roadmap</a>
+</p>
+
+---
+
+3x is power-market intelligence software for monitoring wholesale electricity markets, forecasting near-term price risk, and translating market news into structured trading context. It covers ERCOT (North + Houston), PJM Western Hub, NYISO Zone J, ISO-NE Mass Hub, Great Britain, EPEX Germany, EPEX France, and Nord Pool SE3.
+
+The backend owns ingestion, feature engineering, forecasting, event extraction, risk scoring, alert generation, and API delivery. The Next.js frontend is a Bloomberg-style trading desk with a live multi-market ticker, range-selectable charting, structured news + events, and a transparent risk-decomposition workspace.
 
 ## What It Does
 
