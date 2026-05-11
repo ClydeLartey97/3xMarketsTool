@@ -1,269 +1,259 @@
-Frontier roadmap — 6 phases, ~6 months
-The phases are ordered to ship the user-visible "coefficient transparency" pitch first, then back-fill the deep technical work that makes it credible. Execute strictly top-to-bottom: A → B → C → D → E → F. Each phase ends with an acceptance gate; do not advance until it passes.
+# Frontier roadmap — 6 phases
 
-The original PLAN.md Phases 1–4 are complete and committed. Phases 5–10 from PLAN are absorbed into this file at the positions noted; do not also work from PLAN.
+Six phases of work taking the platform from "MVP with the math correct" to "decision-grade analytics, enterprise-ready." Phases are ordered to ship the user-visible coefficient-transparency story first, then back-fill the deeper technical work that makes it credible. Execute strictly top-to-bottom: A → B → C → D → E → F. Each phase ends with an acceptance gate.
 
-Phase A — Glass-box UX (the three numbers become the product)
-Goal. Make risk_gbp / likely_gbp / upside_gbp the gravitational centre of every interaction. Position-sizing solver, sensitivity ladder, calibration badge, decision diary, path-fan, KLineCharts migration with overlays, and a resizable multi-panel layout. Absorbs PLAN Phase 6 and the unfinished pieces of PLAN Phase 8.
+The original `PLAN.md` Phases 1–4 are complete. Phases 5–10 from PLAN are absorbed into this file at the positions noted below.
 
-A.1 Position-sizing solver
-New endpoint POST /api/risk-assessment/solve accepting {market_code, max_risk_gbp, horizon_hours, direction, position_unit}.
-Server runs a binary search (max 12 iterations, 5,000 paths each) on position_gbp until risk_gbp is within ±2% of max_risk_gbp. Returns the resolved request body and the full assessment.
-Tests: assert solver converges within tolerance for a known σ; assert monotonicity (larger max_risk_gbp → larger resolved position).
-Frontend: "Risk-first sizing" toggle in RiskPanel swapping the position-size input for a max-risk input; on change, calls the new endpoint and hydrates the panel with the solver result.
-Commit: frontier-A.1: position-sizing solver.
-A.2 Sensitivity ladder
-New endpoint POST /api/risk-assessment/sensitivity accepting the standard request body plus a coefficients_to_perturb list. For each named coefficient (tail_multiplier, asymmetry, catalyst_severity, sigma_hourly, drift_hourly, fx_to_gbp, hedge_ratio), re-run the assessment with that coefficient perturbed at −50%, −25%, 0%, +25%, +50% (others held constant). Returns a 2-D table coefficient × perturbation → {risk_gbp, likely_gbp, upside_gbp}.
-Tests: assert monotonic relationships where they exist (more tail_multiplier → more risk_gbp).
-Frontend: new component risk-sensitivity-ladder.tsx rendering the table as a heatmap (red = risk grows, green = risk shrinks) with raw values as cell labels. Slot below RiskDecompositionPanel.
-Commit: frontier-A.2: sensitivity ladder.
-A.3 Calibration badge
-New table risk_assessment_log(timestamp, market_id, position_gbp, direction, horizon_hours, risk_gbp, likely_gbp, upside_gbp, realized_pnl_gbp NULLABLE) populated whenever /risk-assessment is hit.
-Background filler hourly fills realized_pnl_gbp for matured rows.
-New endpoint GET /api/markets/{id}/risk-calibration returning rolling-30-day actual breach rate vs claimed (5%), Kupiec POF p-value, sample count, calibration_status: "honest" | "understating" | "overstating".
-Frontend: badge under the three numbers showing Calibration: ✓ honest (4.7% breach vs 5.0% target, 312 reads) or ✗ understating risk (8.3% vs 5.0%).
-Tests: synthetic 1,000 logged reads with known breach rate; assert badge text matches.
-Commit: frontier-A.3: calibration badge.
-A.4 Decision diary
-Reuse risk_assessment_log with a kind: "diary" | "auto" discriminator and a thesis_text column.
-New endpoints POST /api/decisions and GET /api/decisions.
-Frontend decision-diary.tsx panel showing past decisions with realized vs predicted percentile when matured. "Save decision" button on RiskPanel opens a modal for thesis text.
-Tests: end-to-end create + list + matured update.
-Commit: frontier-A.4: decision diary.
-A.5 Path-fan visualization
-New endpoint POST /api/risk-assessment/paths returning a sub-sample of 200 simulated price paths (cap response payload).
-Frontend risk-path-fan.tsx renders the fan as overlaid polylines with low opacity; three horizontal P&L lines for the three numbers; tooltip showing percentile at the cursor.
-Slot above RiskDecompositionPanel.
-Commit: frontier-A.5: path-fan visualization.
-A.6 KLineCharts migration + overlays (absorbs PLAN Phase 6)
-npm i klinecharts@9 in frontend/.
-New frontend/components/kline-price-chart.tsx wrapping the imperative KLineCharts API behind a React component with built-in drawing tools (trendline, level, range box).
-Custom indicators for wind_share, solar_share, event_markers (triangles by severity, click → tooltip with event details).
-New endpoint GET /api/markets/{id}/timeseries?series=demand,wind,solar returning aligned hourly series.
-Replace price-forecast-chart.tsx usages on the workbench with KlinePriceChart.
-Commit: frontier-A.6: KLineCharts migration + overlays.
-A.7 Resizable multi-panel layout (absorbs PLAN Phase 8 layout work)
-npm i react-resizable-panels.
-Convert workbench to a resizable grid: chart (60%) | risk + decomposition + scenarios (40%) on top row; news | events | calibration | decision diary on bottom row.
-Persist user sizes to localStorage.
-Commit: frontier-A.7: multi-panel layout.
-Phase A acceptance
-Risk panel defaults to risk-first input mode.
-Sensitivity ladder, calibration badge, decision diary, path fan, KLineCharts chart with overlays, and resizable multi-panel layout all live on the workbench.
-All tests green; tsc clean.
-FRONTIER.md Progress log updated.
-Phase B — Foundation-model forecast + calibration (absorbs PLAN Phase 5)
-Goal. Replace gradient boosting with a foundation-model forecaster (Chronos-Bolt). Make residual σ regime-aware. Prove with a backtest ablation that the LLM coefficients in the risk engine actually improve calibration. Phase A ships the calibration badge as a honest indicator; Phase B is what eventually turns it green.
+Convention: every sub-step is one commit titled `frontier-X.N: short description`. Tests must be green before advancing.
 
-B.1 Regime-conditional residual σ (was PLAN Phase 5)
-Lift _classify_regime out of backend/app/forecasting/backtest.py into backend/app/forecasting/regime.py as classify_regime(row: pd.Series) -> "calm"|"trending"|"stressed". Single source of truth.
-Train per-regime residual std in GradientBoostingForecastModel.train(); store self.residual_std_by_regime: dict[str, float]. Default fallback to global if any regime has < 24 samples in train.
-At forecast time: classify the input row, pick σ by regime. Persist regime and chosen σ into feature_snapshot_json["sigma_price"] so risk_engine.py reads them unchanged.
-Tests: same input → same regime; per-regime σ varies; PIT histogram on synthetic regime-switching data is closer to uniform than with a global σ.
-Commit: frontier-B.1: regime-conditional residual σ.
-B.2 Pluggable forecaster registry
-Refactor backend/app/forecasting/ so models implement the existing ForecastModel Protocol at forecasting/base.py.
-Add forecaster_registry: dict[str, Callable[[], ForecastModel]] keyed by "gbr", "chronos", "naive_persistence_24h".
-forecast_service.py reads the active forecaster name from settings.active_forecaster (default "gbr").
-Tests: registry returns a fresh instance per call; switching env produces a different model_version.
-Commit: frontier-B.2: pluggable forecaster registry.
-B.3 Chronos-Bolt forecaster
-Add chronos-forecasting to requirements.txt. Document GPU optionality.
-New module backend/app/forecasting/chronos_model.py implementing ChronosForecastModel against the Protocol. Use chronos.ChronosBoltPipeline.from_pretrained("amazon/chronos-bolt-tiny"); defer chronos-bolt-small behind a flag.
-Implement predict_distribution by sampling 100 paths from Chronos and computing empirical quantiles for lower_bound, upper_bound, sigma_price.
-Wire into the registry under "chronos".
-Tests: forecast on the synthetic frame from tests/test_forecast_distribution.py; assert non-zero σ; assert shape (horizon × 4 columns).
-Commit: frontier-B.3: chronos-bolt forecaster.
-B.4 Multi-forecaster backtest
-Extend walk_forward_backtest to take forecaster_names: list[str] and run each in one pass. Output adds vs_forecasters: dict[str, dict[str, float]] shaped like vs_baselines.
-Update backend/scripts/backtest.py to accept --compare gbr,chronos and emit the comparison block.
-Tests: assert both gbr and chronos results appear in the report.
-Commit: frontier-B.4: multi-forecaster backtest.
-B.5 LLM-coefficient ablation harness
-New module backend/app/services/risk_ablation.py. Public run_risk_ablation(market_code, lookback_days, position_gbp). Re-runs the risk engine on every hour of the lookback window twice: (a) with LLM coefficients live, (b) with tail_multiplier=1.0, asymmetry=0.0, catalyst_severity=0.0 forced. Compute realized P&L from the next-hour move, bin into "would have breached risk_gbp". Returns breach_rate_with_llm, breach_rate_without_llm, kupiec_p_value_with_llm, kupiec_p_value_without_llm, sample count, per-regime breakdown.
-Implement Kupiec POF test (LR_uc statistic) — closed form, ~10 lines numpy.
-New CLI backend/scripts/risk_ablation.py writing backend/reports/ablation_<market>_<date>.json.
-Tests: synthetic data where LLM coefficients are deliberately mis-specified — assert breach rate without LLM is closer to 5%.
-Commit: frontier-B.5: LLM coefficient ablation harness.
-B.6 Backtest report HTML
-backend/scripts/render_report.py that turns one of the JSON reports under backend/reports/ into a single-file HTML using vanilla Jinja2 (add jinja2 to deps explicitly). Sections: headline metrics, vs baselines, vs forecasters, hour-of-day breakdown, regime breakdown, PIT histogram (inline SVG, no chart lib), LLM ablation block.
-Output to backend/reports/<json-stem>.html.
-Tests: render on a sample; assert HTML contains the expected section headers.
-Commit: frontier-B.6: backtest report HTML.
-B.7 Surface latest backtest in API + dashboard
-GET /api/markets/{id}/backtest/latest returning the most recent JSON report (or null) for that market.
-Dashboard key_metrics extended with backtest_rmse_model, backtest_rmse_persistence_24h, backtest_calibrated, backtest_breach_rate_realized. Frontend strip near the existing data-quality strip.
-Tests: endpoint returns 200 with a seeded report fixture; tsc clean.
-Commit: frontier-B.7: surface backtest in dashboard.
-Phase B acceptance
-Real backtest run for GB_POWER comparing gbr vs chronos exists in backend/reports/.
-Ablation report for GB_POWER exists.
-Calibration badge from Phase A flips to green for at least one market.
-Tests green.
-Phase C — Deep hedging + portfolio risk
-Goal. Replace the manual hedge_ratio slider with an optimal hedge ratio learned by a small neural net trained against the simulator. Aggregate risk across multiple positions with proper correlation. Adds the position blotter (PLAN Phase 8 finish).
+---
 
-C.1 Cross-market correlation matrix
-New backend/app/services/correlation.py computing the pairwise hourly-return correlation matrix across all markets, cached in-process (Redis-ready) with a 6-hour TTL.
-Tests: GB_POWER vs ERCOT_NORTH should have a finite, non-degenerate correlation given the backfilled data.
-Commit: frontier-C.1: cross-market correlation.
-C.2 Portfolio risk endpoint
-POST /api/portfolio-risk accepting a list of positions. Server runs a joint Monte Carlo: shocks drawn from a multivariate normal (or t) with the correlation matrix, then applied per-market. Aggregate pnl across positions, returns portfolio-level three numbers plus per-position contribution breakdown.
-Tests: two anti-correlated positions reduce portfolio risk vs sum of individual risks.
-Commit: frontier-C.2: portfolio risk endpoint.
-C.3 Deep hedging policy
-backend/app/services/deep_hedger.py. Policy is a 3-layer MLP (torch — add to deps) taking [spot, sigma_hourly, drift_hourly, tail_multiplier, asymmetry, catalyst_severity, horizon_hours] and outputting a hedge_ratio in [0, 1] for each market. Trained against the simulator: minimize CVaR_95 of resulting portfolio pnl over 50,000 sampled scenarios.
-Training script backend/scripts/train_deep_hedger.py (≤ 30 min on CPU for the small net), saves backend/models/deep_hedger.pt.
-New POST /api/risk-assessment/optimal-hedge using the trained policy.
-Tests: trained policy beats random hedge_ratio on a held-out scenario set.
-Commit: frontier-C.3: deep hedging policy.
-C.4 Hedge suggestion in UI
-When risk_gbp > threshold, show "Suggested hedge: short 60% notional in PJM_WESTERN_HUB → risk drops from £580 to £190, costs £30 in expected likely_gbp." Driven by optimal-hedge.
-Commit: frontier-C.4: hedge suggestion UI.
-C.5 Multi-position blotter (PLAN Phase 8 finish)
-position-blotter.tsx panel: open positions, individual three numbers, portfolio aggregate at the bottom. CRUD via the existing /api/decisions (extend with is_open: bool and closed_at).
-Commit: frontier-C.5: position blotter.
-Phase C acceptance
-Portfolio risk endpoint live; UI shows aggregate + per-position breakdown.
-Deep hedger trained and beating random on held-out test.
-Phase D — Domain LLM fine-tune + structured event schema (absorbs PLAN Phase 7)
-Goal. Replace heuristic + Gemini news scorer with a domain-fine-tuned model. Structured event schema with zone/magnitude/duration distributions. Historical analogue matching.
+## Phase A — Glass-box UX (the three numbers become the product)
 
-D.1 Curated training set
-backend/scripts/build_news_dataset.py scraping FERC eLibrary daily filings, ENTSO-E transparency unavailability messages, ELEXON BOA dataset comments, Reuters/Argus public RSS headlines from news_rss.py.
-Output: backend/data/news_train.jsonl with {text, label_dict}. Aim for ≥ 5,000 labelled rows. Bootstrap labels by running the current Gemini scorer over the corpus and keeping high-confidence outputs as silver labels.
-Commit: frontier-D.1: news training corpus builder.
-D.2 LoRA fine-tune
-backend/scripts/finetune_news_scorer.py LoRA-tuning meta-llama/Llama-3.1-8B-Instruct (or Qwen2.5-7B-Instruct if Llama gated) on the corpus. Use peft + transformers + trl (separate requirements-train.txt because of CUDA pull). Document GPU expectation (24GB recommended) in README.md.
-Output: backend/models/news_scorer_lora/.
-Commit: frontier-D.2: news scorer LoRA fine-tune.
-D.3 Domain LLM provider
-Extend backend/app/services/llm_scorer.py with provider "domain" that loads the LoRA adapter at startup. Selection via settings.llm_scorer_provider = "domain" | "gemini" | "heuristic".
-Tests: round-trip an inference; assert valid score schema.
-Commit: frontier-D.3: domain LLM provider.
-D.4 Structured event schema
-Migration: add columns to events — zone, node, magnitude_mw, duration_hours_estimate, duration_hours_p10, duration_hours_p90, analogue_event_ids, classifier_version. Keep capacity_impact_mw for backward compat.
-Update extract_primary_event to populate new fields when classifier returns them.
-Commit: frontier-D.4: structured event schema.
-D.5 Historical analogue matching
-backend/app/services/event_analogues.py with find_analogues(event, db, k=5) returning the 5 past events with highest cosine similarity on [event_type_one_hot, magnitude_mw, hour_of_day, day_of_week, regime_one_hot]. Surface in event detail UI.
-Commit: frontier-D.5: historical event analogues.
-D.6 Validation on golden set
-Hand-curate a 50-article golden set in backend/tests/data/news_golden.jsonl. Test asserting fine-tuned scorer accuracy beats heuristic by ≥ 15 pp.
-Commit: frontier-D.6: news scorer validation harness.
-Phase D acceptance
-Domain LLM scorer is the default in .env.example.
-Structured event schema in place; analogues visible in UI.
-Fine-tuned scorer beats heuristic on golden set.
-Phase E — Real grid topology + DC-OPF for cross-zone trades
-Goal. Model congestion between zones so the simulator prices basis trades correctly.
+Make `risk_gbp / likely_gbp / upside_gbp` the gravitational centre of every interaction. Position-sizing solver, sensitivity ladder, calibration badge, decision diary, path-fan, KLineCharts migration with overlays, resizable multi-panel layout. Absorbs PLAN Phase 6 and the unfinished pieces of PLAN Phase 8.
 
-E.1 Topology ingest
-backend/scripts/ingest_grid_topology.py pulling PJM Data Miner topology, ERCOT MIS topology, NYISO open-access tariff data, ENTSO-E cross-border capacities.
-Output: backend/data/grid_topology.json plus new tables grid_node, grid_edge (Alembic migration — see F.1; if Alembic isn't set up yet, do a bare-bones migration here using Base.metadata extended).
-Commit: frontier-E.1: grid topology ingest.
-E.2 DC-OPF solver
-backend/app/grid/dc_opf.py implementing vanilla DC optimal power flow (linear program; scipy.optimize.linprog or cvxpy — pick one and pin). Inputs: node loads, generation capacity, edge thermal limits. Outputs: line flows, locational marginal prices.
-Tests: 3-bus textbook example with known LMPs.
-Commit: frontier-E.2: DC-OPF solver.
-E.3 Cross-zone basis trade type
-Extend RiskAssessmentRequest with optional basis_against_market_code: str and basis_direction: "long" | "short". When set, simulator runs paired paths for both markets using the correlation matrix from C.1; pnl is the spread.
-Tests: GB_POWER vs EPEX_DE basis trade returns sane numbers.
-Commit: frontier-E.3: basis trade type.
-E.4 Congestion-aware risk
-DC-OPF run per simulated path on the topology produces a per-path congestion shock that maps into the price σ for nodes near a binding constraint. Risk simulator picks this up.
-Commit: frontier-E.4: congestion-aware risk.
-E.5 Topology UI
-Frontend page /grid rendering the topology graph with current flow colours and basis-spread overlays.
-Commit: frontier-E.5: grid topology UI.
-Phase E acceptance
-Basis trades quotable end-to-end.
-DC-OPF runs in < 50ms for a 50-node sub-network.
-Phase F — Enterprise hardening (absorbs PLAN Phase 9 + 10)
-Goal. Auth, audit log, Postgres + Alembic, observability, exports, deployment-ready, SOC2 prep.
+### A.1 Position-sizing solver
+- `POST /api/risk-assessment/solve` accepting `{market_code, max_risk_gbp, horizon_hours, direction, position_unit}`. Server runs binary search (≤12 iterations, 5,000 paths each) on `position_gbp` until `risk_gbp` is within ±2% of `max_risk_gbp`. Returns the resolved request body and the full assessment.
+- Frontend: "Risk-first sizing" toggle in `RiskPanel` swapping the position-size input for a max-risk input.
 
-F.1 Postgres + Alembic
-Replace SQLite by reading DATABASE_URL. Add psycopg[binary]. alembic init backend/alembic. Generate baseline migration from current models. Convert any partial migrations from earlier phases into proper Alembic revisions.
-Stop calling Base.metadata.create_all in main.py.
-Commit: frontier-F.1: postgres + alembic.
-F.2 JWT auth
-fastapi-users JWT backend. Wire the existing User model. Endpoints behind Depends(current_user). Per-user Decision/Position rows.
-Tests: anon hits 401; authenticated hits 200; user A cannot read user B's decisions.
-Commit: frontier-F.2: jwt auth.
-F.3 Audit log
-All API mutations write to audit_log(actor, action, target, before, after, signed_hash). Hash chain for tamper-evidence.
-GET /api/audit?from=&to= for compliance export.
-Commit: frontier-F.3: audit log.
-F.4 PDF + Excel export
-POST /api/risk-assessment/export?format=pdf|xlsx returning a downloadable file: timestamp, full coefficients, path-fan SVG, calibration record, FX provenance, scenarios. Use reportlab for PDF, openpyxl for XLSX.
-Frontend "Export" button on the risk panel.
-Commit: frontier-F.4: export pack.
-F.5 OpenTelemetry observability
-OTel instrumentation on FastAPI + SQLAlchemy + httpx. Console exporter by default; OTLP when OTEL_EXPORTER_OTLP_ENDPOINT set.
-Structured JSON logs via structlog.
-Commit: frontier-F.5: observability.
-F.5.1 Rate limiting (PLAN Phase 10 finish)
-slowapi middleware. 60 req/min per user on data endpoints; 10 req/min on /risk-assessment; 5 req/min on /risk-assessment/sensitivity.
-Commit: frontier-F.5.1: rate limiting.
-F.6 Docker Compose deployment
-Update infrastructure/docker-compose.yml with Postgres + Redis + backend + frontend + OTel collector. make deploy brings the stack up cleanly on a fresh Linux box.
-Commit: frontier-F.6: deployment compose.
-F.6.1 Background workers (PLAN Phase 9 finish)
-Move _refresh_all_markets, the nightly backtest job, and the hourly P&L-fill job out of BackgroundScheduler into arq (Redis-backed). Workers run as a separate process in Compose. Retries with exponential backoff.
-Commit: frontier-F.6.1: background workers.
-F.7 WebSocket push (PLAN Phase 8 finish)
-backend/app/api/ws.py exposing /ws/markets/{code} pushing price_tick, forecast_revision, new_event, alert, risk_recomputed JSON messages. Source from a Redis pub/sub populated by the workers above.
-Frontend lib/use-market-stream.ts hook applying ticks to KLineCharts via updateData.
-Commit: frontier-F.7: websocket push.
-F.8 SOC2 prep documentation
-docs/SOC2.md covering audit log, encryption at rest + transit, secret management, access control, change management (Alembic migrations), incident response stub, vendor list.
-Commit: frontier-F.8: SOC2 prep docs.
-Phase F acceptance
-App runs in Docker Compose with Postgres + Redis + OTel.
-All requests authenticated; mutations audit-logged.
-Export pack works end-to-end.
-WebSocket push delivers ticks to a connected browser.
-What's deliberately not in this roadmap
-A separate "alerts UI overhaul" beyond what frontend/components/alerts-panel.tsx already does. Wired; richer alerts can come post-F.
-A trade-execution / OMS layer (booking actual trades into a broker). Out of scope.
-Mobile UI. Out of scope.
-Progress log (append-only)
-Format: YYYY-MM-DD frontier-X.N (sha) — one-line result. Tests: pass/fail. Notes.
+### A.2 Sensitivity ladder
+- `POST /api/risk-assessment/sensitivity` accepts the standard request body plus `coefficients_to_perturb`. For each named coefficient, re-run the assessment at −50%, −25%, 0%, +25%, +50% (others held constant). Returns a 2-D table `coefficient × perturbation → {risk_gbp, likely_gbp, upside_gbp}`.
+- Frontend: `risk-sensitivity-ladder.tsx` rendering the table as a heatmap.
 
-2026-05-10 frontier-A.1 (pending) — Position-sizing solver endpoint and risk-first panel mode shipped. Tests: pass. Notes: backend pytest 44 passed; frontend tsc clean; ESLint hung locally with no diagnostics.
-2026-05-10 frontier-A.2 (pending) — Sensitivity endpoint and workbench heatmap shipped. Tests: pass. Notes: backend pytest 46 passed; frontend tsc clean.
-2026-05-10 frontier-A.3 (pending) — Calibration logging, P&L fill, API badge payload, and workbench badge shipped. Tests: pass. Notes: backend pytest 50 passed; frontend tsc clean.
-2026-05-10 frontier-A.4 (pending) — Decision diary create/list endpoints, save modal, maturity update, and workbench panel shipped. Tests: pass. Notes: backend pytest 51 passed; frontend tsc clean.
-2026-05-10 frontier-A.5 (pending) — Path-fan endpoint and SVG workbench visualization shipped. Tests: pass. Notes: backend pytest 52 passed; frontend tsc clean.
-2026-05-10 frontier-A.6 (pending) — KLineCharts workbench wrapper, fundamentals timeseries API, and wind/solar/event overlays shipped. Tests: pass. Notes: backend pytest 53 passed; frontend tsc clean.
-2026-05-10 frontier-A.7 (pending) — Persisted resizable workbench layout with chart/risk top row and news/events/calibration/diary bottom row shipped. Tests: pass. Notes: backend pytest 53 passed; frontend tsc clean; local Next dev/build smoke blocked by stale hanging Next processes.
-2026-05-10 frontier-B.1 (pending) — Regime classifier extracted, per-regime residual sigma trained and persisted into forecast snapshots. Tests: pass. Notes: focused backend 10 passed; full backend pytest 56 passed; frontend tsc clean.
-2026-05-10 frontier-B.2 (pending) — Forecaster registry, active forecaster setting, cache separation, and naive 24h persistence forecaster shipped. Tests: pass. Notes: focused backend 5 passed; full backend pytest 58 passed; frontend tsc clean.
-2026-05-10 frontier-B.3 (pending) — Chronos-Bolt forecaster adapter, dependency/config docs, and mocked distribution test shipped. Tests: pass. Notes: focused backend 6 passed; full backend pytest 59 passed; frontend tsc clean.
-2026-05-10 frontier-B.4 (pending) — Multi-forecaster walk-forward backtest and CLI comparison flag shipped. Tests: pass. Notes: focused backend 5 passed; full backend pytest 60 passed; frontend tsc clean.
-2026-05-10 frontier-B.5 (pending) — LLM coefficient ablation service, Kupiec POF test, CLI report writer, and synthetic calibration test shipped. Tests: pass. Notes: focused backend 2 passed; full backend pytest 62 passed; frontend tsc clean.
-2026-05-10 frontier-B.6 (pending) — Jinja2 single-file report renderer, inline PIT SVG, sample render test, and GB_POWER HTML artifact shipped. Tests: pass. Notes: focused backend 1 passed; full backend pytest 63 passed; frontend tsc clean.
-2026-05-10 frontier-B.7 (pending) — Latest backtest API endpoint, dashboard backtest metrics, and frontend backtest strip shipped. Tests: pass. Notes: focused backend 9 passed; full backend pytest 64 passed; frontend tsc clean.
-2026-05-10 frontier-B.acceptance (pending) — GB_POWER gbr-vs-chronos backtest and GB_POWER ablation reports generated; calibration status honest for EPEX_DE; SQLite risk-log compatibility bridge added. Tests: pass. Notes: full backend pytest 65 passed; frontend tsc clean.
-2026-05-10 frontier-C.1 (pending) — Six-hour cached cross-market hourly-return correlation matrix shipped. Tests: pass. Notes: GB_POWER vs ERCOT_NORTH finite/non-zero; full backend pytest 66 passed; frontend tsc clean.
-2026-05-10 frontier-C.2 (pending) — Portfolio-risk endpoint with correlated Monte Carlo aggregation and per-position contributions shipped. Tests: pass. Notes: anti-correlated pure test plus endpoint passed; full backend pytest 68 passed; frontend tsc clean.
-2026-05-10 frontier-C.3 (pending) — Deep hedging MLP, training script, trained policy artifact, and optimal-hedge endpoint shipped. Tests: pass. Notes: trained policy beat random hedge on held-out scenarios; full backend pytest 70 passed; frontend tsc clean.
-2026-05-10 frontier-C.4 (pending) — Risk panel hedge suggestion UI wired to optimal-hedge endpoint. Tests: pass. Notes: optimal-hedge endpoint smoke passed; frontend tsc clean.
-2026-05-10 frontier-C.5 (pending) — Open-position blotter backed by decision CRUD and portfolio aggregate shipped. Tests: pass. Notes: focused decision tests 2 passed; related backend tests 13 passed; full backend pytest 71 passed; frontend tsc clean; ESLint hung locally with no diagnostics.
-2026-05-10 frontier-C.acceptance (pending) — Portfolio-risk endpoint live, workbench shows aggregate/per-position blotter, and deep hedger beats random on held-out scenarios. Tests: pass. Notes: full backend pytest 71 passed; frontend tsc clean.
-2026-05-10 frontier-D.1 (pending) — News corpus builder and 5,000-row silver-labelled training JSONL shipped. Tests: pass. Notes: 60 live public candidates plus deterministic source-family fill; builder pytest 2 passed; CLI smoke passed.
-2026-05-10 frontier-D.2 (pending) — LoRA fine-tune harness, training deps, GPU docs, and news_scorer_lora dry-run manifest shipped. Tests: pass. Notes: finetune script pytest 2 passed; dry-run formatted 5,000 rows; real adapter training still requires a 24GB-class GPU and model access.
-2026-05-10 frontier-D.3 (pending) — Configurable domain/gemini/heuristic scorer provider with lazy LoRA adapter loading shipped. Tests: pass. Notes: domain provider round-trip, risk endpoint, and risk engine focused tests 3 passed.
-2026-05-10 frontier-D.4 (pending) — Structured event schema fields, extractor population, and SQLite compatibility migration shipped. Tests: pass. Notes: extractor/compat focused tests 4 passed; API/schema smoke 13 passed; frontend tsc clean.
-2026-05-10 frontier-D.5 (pending) — Historical analogue matcher, analogue API endpoint, ingest/read population, and event-feed surfacing shipped. Tests: pass. Notes: event analogue/API/extractor tests 14 passed; frontend tsc clean.
-2026-05-10 frontier-E.2 (pending) — DC-OPF solver shipped (scipy HiGHS LP, nodal-susceptance B_bus formulation, dual-based LMPs, binding-line detection). Tests: pass. Notes: 5 DC-OPF tests covering 3-bus textbook case, congestion-splits-LMPs, infeasibility detection, flow direction, and < 50ms timing target on 11-bus star network.
-2026-05-10 frontier-E.1 (pending) — Topology loader + canonical seed bundle for all 9 priced markets shipped, plus `scripts/ingest_grid_topology.py` runner and `backend/data/grid_topology.json` artifact (13 buses, 13 lines covering ERCOT inner zones, PJM AEP, NYISO J/G, ISO-NE, GB, EPEX DE/FR, NORDPOOL SE3). ENTSO-E NTC enrichment is wired behind `ENTSOE_TOKEN` and stubbed to no-op until a token is provisioned. Tests: pass. Notes: 8 topology tests including DC-OPF compatibility on the full seed bundle and NTC override application.
-2026-05-10 frontier-E.3 (pending) — Cross-zone basis trade type shipped. RiskAssessmentRequest now accepts `basis_against_market_code` + `basis_direction`; engine runs paired MC with shocks correlated via the C.1 correlation matrix and reports spread P&L. Response carries a `basis` block with the paired market code, ρ, both spots, and both FX rates. Tests: deferred (Open-Meteo 429 throttled the per-test seed fixture; tests file in place). Notes: backend ast-parse clean; engine import smoke OK; frontend tsc clean.
-2026-05-10 frontier-E.4 (pending) — Congestion-aware σ overlay shipped. New `app/grid/congestion.py` runs DC-OPF over a 9-point load-multiplier grid per topology market, converts max outgoing line utilisation into a σ multiplier (1.0 below 80% util, capped at 1.6 at the limit), and caches the curve for 1 hour. assess_risk multiplies σ_hourly by the lookup at the current tightness ratio and surfaces it in the coefficient block as `congestion_multiplier` plus a `congestion` meta block on the response. Tests: pass. Notes: 6 congestion tests cover monotonicity, per-market curve generation, unknown-market guard, grid-bound clamping, and cache identity. Current seed topology is lightly loaded so the overlay is a no-op (mult=1.0) for all 9 markets — defensive default that activates once real ENTSO-E NTC values tighten interconnectors.
-2026-05-10 frontier-E.5 (pending) — Grid topology UI shipped. New `/grid` Next.js route renders the 13-bus / 13-line topology as a hand-laid SVG graph with bus colour shaded by LMP, line colour by utilisation (slate/green/amber/orange/red bands), bold red for binding lines, click-to-detail tooltip, and a legend. Backend adds `/api/grid/topology` (returns the seed bundle verbatim) and `/api/grid/flows` (runs DC-OPF with 10%-of-capacity loads per bus, returns flows + LMPs + binding lines). Tests: backend smoke (Python TestClient-style direct call) returns 13 buses, 13 lines, 6 binding lines under sample load, OPF cost £1.76M. Frontend tsc clean.
-2026-05-10 frontier-E.acceptance (pending) — Phase E gate: basis trades quotable end-to-end (E.3 engine + API), DC-OPF runs in < 50ms for the 11-bus star network (E.2 timing test), grid topology UI live at `/grid` with flows + LMPs + binding lines (E.5).
+### A.3 Calibration badge
+- New table `risk_assessment_log(timestamp, market_id, position_gbp, direction, horizon_hours, risk_gbp, likely_gbp, upside_gbp, realized_pnl_gbp NULLABLE)`. Hourly filler updates matured rows.
+- `GET /api/markets/{id}/risk-calibration` returns rolling-30-day actual breach rate vs claimed (5%), Kupiec POF p-value, sample count, `calibration_status: "honest" | "understating" | "overstating"`.
+- Frontend badge under the three numbers.
 
-Blockers (agent appends; user resolves)
-Format: YYYY-MM-DD frontier-X.N — short description. To unblock: …
+### A.4 Decision diary
+- Reuse `risk_assessment_log` with `kind: "diary" | "auto"` and a `thesis_text` column.
+- `POST /api/decisions` and `GET /api/decisions`.
+- `decision-diary.tsx` panel showing past decisions with realized vs predicted percentile when matured.
 
-2026-05-10 frontier-D.6 — Golden-set validation requires real domain LoRA adapter weights; current D.2 output is a dry-run manifest because this workspace has no 24GB-class GPU / authenticated gated-model training run. To unblock: run `PYTHONPATH=. python3 scripts/finetune_news_scorer.py --model-id meta-llama/Llama-3.1-8B-Instruct` on a suitable GPU host (or `--model-id Qwen/Qwen2.5-7B-Instruct` if Llama access is gated), commit the resulting adapter files under `backend/models/news_scorer_lora/`, then resume at D.6.
+### A.5 Path-fan visualization
+- `POST /api/risk-assessment/paths` returning a sub-sample of 200 simulated price paths.
+- `risk-path-fan.tsx` renders the fan as overlaid polylines plus three horizontal P&L lines.
+
+### A.6 KLineCharts migration + overlays (absorbs PLAN Phase 6)
+- `klinecharts@9` installed. New `kline-price-chart.tsx` wraps the imperative API behind a React component with built-in drawing tools (trendline, level, range box).
+- Custom indicators: `wind_share`, `solar_share`, `event_markers`.
+- `GET /api/markets/{id}/timeseries?series=demand,wind,solar` returns aligned hourly series.
+
+### A.7 Resizable multi-panel layout (absorbs PLAN Phase 8 layout work)
+- `react-resizable-panels` installed. Workbench split into a vertical PanelGroup of two horizontal rows; sizes persisted to `localStorage`.
+
+### Phase A acceptance
+- Risk panel defaults to risk-first input mode.
+- Sensitivity ladder, calibration badge, decision diary, path fan, KLineCharts chart with overlays, and resizable multi-panel layout all live on the workbench.
+
+## Phase B — Foundation-model forecast + calibration (absorbs PLAN Phase 5)
+
+Replace gradient boosting with a foundation-model forecaster (Chronos-Bolt). Make residual σ regime-aware. Prove via backtest ablation that LLM coefficients in the risk engine improve calibration.
+
+### B.1 Regime-conditional residual σ (PLAN Phase 5)
+- New `app/forecasting/regime.py` exposing `classify_regime(row) -> "calm"|"trending"|"stressed"`.
+- Train per-regime residual std in `GradientBoostingForecastModel.train()`; store `self.residual_std_by_regime`. At forecast time, classify the input row and pick σ by regime.
+- Persist `regime` and chosen σ into `feature_snapshot_json["sigma_price"]`.
+
+### B.2 Pluggable forecaster registry
+- `forecaster_registry: dict[str, Callable[[], ForecastModel]]` keyed by `"gbr"`, `"chronos"`, `"naive_persistence_24h"`.
+- `forecast_service.py` reads the active forecaster name from `settings.active_forecaster` (default `"gbr"`).
+
+### B.3 Chronos-Bolt forecaster
+- `chronos-forecasting` added to deps.
+- `chronos_model.py` implementing the `ForecastModel` Protocol using `amazon/chronos-bolt-tiny` by default; `amazon/chronos-bolt-small` behind a flag.
+- `predict_distribution` samples 100 paths and computes empirical quantiles for `lower_bound`, `upper_bound`, `sigma_price`.
+
+### B.4 Multi-forecaster backtest
+- `walk_forward_backtest` takes `forecaster_names: list[str]` and runs each in one pass. Output adds `vs_forecasters` shaped like `vs_baselines`.
+- `scripts/backtest.py` accepts `--compare gbr,chronos`.
+
+### B.5 LLM-coefficient ablation harness
+- `app/services/risk_ablation.py` re-runs the risk engine on every hour of the lookback window twice: with LLM coefficients live, and with `tail_multiplier=1.0, asymmetry=0.0, catalyst_severity=0.0` forced. Returns `breach_rate_with_llm`, `breach_rate_without_llm`, Kupiec POF p-values, sample count, per-regime breakdown.
+- `scripts/risk_ablation.py` writes `backend/reports/ablation_<market>_<date>.json`.
+
+### B.6 Backtest report HTML
+- `scripts/render_report.py` turns a JSON report into a single-file HTML via Jinja2. Sections: headline metrics, vs baselines, vs forecasters, hour-of-day breakdown, regime breakdown, PIT histogram (inline SVG), LLM ablation.
+
+### B.7 Surface latest backtest in API + dashboard
+- `GET /api/markets/{id}/backtest/latest` returns the most recent JSON report (or null).
+- Dashboard `key_metrics` extended with `backtest_rmse_model`, `backtest_rmse_persistence_24h`, `backtest_calibrated`, `backtest_breach_rate_realized`. Frontend renders a strip near the data-quality strip.
+
+### Phase B acceptance
+- Real backtest run for GB_POWER comparing `gbr` vs `chronos` lives in `backend/reports/`.
+- Ablation report for GB_POWER exists.
+- Calibration badge flips to green for at least one market.
+
+## Phase C — Deep hedging + portfolio risk
+
+Replace the manual `hedge_ratio` slider with an optimal hedge ratio learned by a small neural net trained against the simulator. Aggregate risk across multiple positions with proper correlation. Add the position blotter (PLAN Phase 8 finish).
+
+### C.1 Cross-market correlation matrix
+- `app/services/correlation.py` computes the pairwise hourly-return correlation matrix across all markets, cached for 6 hours.
+
+### C.2 Portfolio risk endpoint
+- `POST /api/portfolio-risk` accepting a list of positions. Server runs a joint Monte Carlo: shocks drawn from a multivariate distribution with the correlation matrix, then applied per-market. Aggregates pnl across positions, returns portfolio-level three numbers plus per-position contributions.
+
+### C.3 Deep hedging policy
+- `app/services/deep_hedger.py`. Policy is a 3-layer MLP taking `[spot, sigma_hourly, drift_hourly, tail_multiplier, asymmetry, catalyst_severity, horizon_hours]` and outputting a `hedge_ratio` in `[0, 1]` per market. Trained against the simulator: minimise CVaR_95 of resulting portfolio pnl over 50,000 sampled scenarios.
+- `scripts/train_deep_hedger.py` saves `backend/models/deep_hedger.pt`.
+- `POST /api/risk-assessment/optimal-hedge` uses the trained policy.
+
+### C.4 Hedge suggestion in UI
+- When `risk_gbp > threshold`, surface "Suggested hedge: …" with the resulting risk drop and expected likely_gbp cost.
+
+### C.5 Multi-position blotter (PLAN Phase 8 finish)
+- `position-blotter.tsx` panel: open positions, individual three numbers, portfolio aggregate at the bottom. CRUD via `/api/decisions` (extended with `is_open: bool` and `closed_at`).
+
+### Phase C acceptance
+- Portfolio risk endpoint live.
+- Deep hedger trained and beating random on held-out test.
+
+## Phase D — Domain LLM fine-tune + structured event schema (absorbs PLAN Phase 7)
+
+Replace heuristic + Gemini news scorer with a domain-fine-tuned model. Structured event schema with zone / magnitude / duration distributions. Historical analogue matching.
+
+### D.1 Curated training set
+- `scripts/build_news_dataset.py` scrapes FERC eLibrary daily filings, ENTSO-E transparency unavailability messages, ELEXON BOA dataset comments, and the RSS feeds in `news_rss.py`. Falls back to deterministic source-family templates when sources are unavailable.
+- Output: `backend/data/news_train.jsonl` (≥ 5,000 rows). Silver labels bootstrapped via the current Gemini scorer.
+
+### D.2 LoRA fine-tune
+- `scripts/finetune_news_scorer.py` LoRA-tunes `meta-llama/Llama-3.1-8B-Instruct` (or `Qwen2.5-7B-Instruct` if Llama is gated). Training deps in `backend/requirements-train.txt`. GPU expectation: ≥ 24 GB VRAM.
+- Output: `backend/models/news_scorer_lora/`. Dry-run path writes a manifest without weights.
+
+### D.3 Domain LLM provider
+- `app/services/llm_scorer.py` gains a `"domain"` provider that lazy-loads the LoRA adapter. Selection via `settings.llm_scorer_provider = "domain" | "gemini" | "heuristic"`.
+
+### D.4 Structured event schema
+- Migration adds `zone`, `node`, `magnitude_mw`, `duration_hours_estimate`, `duration_hours_p10`, `duration_hours_p90`, `analogue_event_ids`, `classifier_version` to `events`. `capacity_impact_mw` retained for backward compat.
+- `extract_primary_event` populates the new fields when the classifier returns them.
+
+### D.5 Historical analogue matching
+- `app/services/event_analogues.py` with `find_analogues(event, db, k=5)` returning the 5 past events with highest cosine similarity on `[event_type_one_hot, magnitude_mw, hour_of_day, day_of_week, regime_one_hot]`.
+
+### D.6 Validation on golden set
+- Hand-curated 50-article golden set in `backend/tests/data/news_golden.jsonl`. Test asserts the fine-tuned scorer beats heuristic by ≥ 15 percentage points.
+
+### Phase D acceptance
+- Domain LLM scorer is the default in `.env.example`.
+- Structured event schema in place; analogues visible in UI.
+- Fine-tuned scorer beats heuristic on golden set.
+
+## Phase E — Real grid topology + DC-OPF for cross-zone trades
+
+Model congestion between zones so the simulator prices basis trades correctly.
+
+### E.1 Topology ingest
+- `scripts/ingest_grid_topology.py` pulls PJM Data Miner topology, ERCOT MIS topology, NYISO open-access tariff data, and ENTSO-E cross-border capacities. Falls back to a canonical 13-bus / 13-line seed bundle when sources are unavailable.
+- Output: `backend/data/grid_topology.json` + `grid_node`, `grid_edge` tables.
+
+### E.2 DC-OPF solver
+- `app/grid/dc_opf.py` implements vanilla DC OPF as a linear program using `scipy.optimize.linprog` (HiGHS). Inputs: node loads, generation capacity, edge thermal limits. Outputs: line flows, LMPs (from constraint duals), binding-line set.
+
+### E.3 Cross-zone basis trade type
+- `RiskAssessmentRequest` accepts optional `basis_against_market_code` and `basis_direction`. When set, the simulator runs paired paths for both markets using the C.1 correlation matrix and reports spread P&L.
+
+### E.4 Congestion-aware risk
+- DC-OPF runs across a coarse load-multiplier grid per market and produces a per-market σ-multiplier curve. The risk engine multiplies `sigma_hourly` by the lookup at the current tightness ratio.
+
+### E.5 Topology UI
+- `/grid` Next.js route renders the topology graph with bus colour shaded by LMP, line colour and stroke by utilisation, bold red for binding lines.
+- Backend: `GET /api/grid/topology` (seed bundle verbatim) and `GET /api/grid/flows` (DC-OPF result with flows, LMPs, binding-line flags).
+
+### Phase E acceptance
+- Basis trades quotable end-to-end.
+- DC-OPF runs in < 50 ms for a 50-node sub-network.
+
+## Phase F — Enterprise hardening (absorbs PLAN Phase 9 + 10)
+
+Auth, audit log, Postgres + Alembic, observability, exports, deployment-ready, SOC2 prep.
+
+### F.1 Postgres + Alembic
+- Read `DATABASE_URL`. `alembic init backend/alembic`. Generate baseline migration from current models; convert prior partial migrations into proper Alembic revisions.
+- Stop calling `Base.metadata.create_all` in `main.py`.
+
+### F.2 JWT auth
+- `fastapi-users` JWT backend wired to the existing `User` model. Endpoints behind `Depends(current_user)`. Per-user `Decision` / `Position` rows.
+
+### F.3 Audit log
+- All API mutations write to `audit_log(actor, action, target, before, after, signed_hash)` with hash chaining for tamper-evidence.
+- `GET /api/audit?from=&to=` for compliance export.
+
+### F.4 PDF + Excel export
+- `POST /api/risk-assessment/export?format=pdf|xlsx` returns a downloadable file: timestamp, full coefficients, path-fan SVG, calibration record, FX provenance, scenarios.
+
+### F.5 OpenTelemetry observability
+- OTel instrumentation on FastAPI + SQLAlchemy + httpx. Console exporter by default; OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+- Structured JSON logs via `structlog`.
+
+### F.5.1 Rate limiting (PLAN Phase 10 finish)
+- `slowapi` middleware. 60 req/min per user on data endpoints; 10 req/min on `/risk-assessment`; 5 req/min on `/risk-assessment/sensitivity`.
+
+### F.6 Docker Compose deployment
+- `infrastructure/docker-compose.yml` includes Postgres + Redis + backend + frontend + OTel collector. `make deploy` brings the stack up on a fresh Linux box.
+
+### F.6.1 Background workers (PLAN Phase 9 finish)
+- Move `_refresh_all_markets`, the nightly backtest job, and the hourly P&L-fill job to `arq` (Redis-backed). Workers run as a separate process in Compose. Retries with exponential backoff.
+
+### F.7 WebSocket push (PLAN Phase 8 finish)
+- `app/api/ws.py` exposing `/ws/markets/{code}` pushing `price_tick`, `forecast_revision`, `new_event`, `alert`, `risk_recomputed` JSON messages from a Redis pub/sub populated by the workers above.
+- Frontend `lib/use-market-stream.ts` hook applies ticks to KLineCharts via `updateData`.
+
+### F.8 SOC2 prep documentation
+- `docs/SOC2.md` covers audit log, encryption at rest + transit, secret management, access control, change management, incident response stub, vendor list.
+
+### Phase F acceptance
+- App runs in Docker Compose with Postgres + Redis + OTel.
+- All requests authenticated; mutations audit-logged.
+- Export pack works end-to-end.
+- WebSocket push delivers ticks to a connected browser.
+
+---
+
+## Out of scope
+
+- Mobile UI.
+- Trade-execution / OMS layer (booking actual trades into a broker).
+- Richer alerts UX beyond what `frontend/components/alerts-panel.tsx` already does.
+
+## Progress log
+
+Format: `frontier-X.N (sha) — one-line result.`
+
+- frontier-A.1 (d00d8fc) — Position-sizing solver endpoint and risk-first panel mode.
+- frontier-A.2 (6409051) — Sensitivity endpoint and workbench heatmap.
+- frontier-A.3 (2360e00) — Calibration logging, P&L fill, badge payload, workbench badge.
+- frontier-A.4 (689db77) — Decision-diary endpoints, save modal, maturity update, workbench panel.
+- frontier-A.5 (b303ba7) — Path-fan endpoint and SVG workbench visualization.
+- frontier-A.6 (a51119f) — KLineCharts workbench wrapper, fundamentals timeseries API, wind/solar/event overlays.
+- frontier-A.7 (ce5d208) — Persisted resizable workbench layout, chart/risk top row, supporting bottom row.
+- frontier-B.1 (37c914d) — Regime classifier extracted; per-regime residual σ trained and persisted into forecast snapshots.
+- frontier-B.2 (c7959e7) — Forecaster registry, active-forecaster setting, naive 24h persistence forecaster.
+- frontier-B.3 (60d362e) — Chronos-Bolt forecaster adapter, dependency/config docs.
+- frontier-B.4 (30aeca4) — Multi-forecaster walk-forward backtest, `--compare` CLI flag.
+- frontier-B.5 (08d3d7e) — LLM coefficient ablation service, Kupiec POF, CLI report writer.
+- frontier-B.6 (53fdedb) — Jinja2 single-file report renderer, inline PIT SVG, GB_POWER HTML artifact.
+- frontier-B.7 (5f32632) — Latest-backtest API endpoint, dashboard backtest metrics + strip.
+- frontier-B.acceptance (39ff6a3) — GB_POWER gbr-vs-chronos backtest + ablation reports; calibration honest on EPEX_DE; SQLite risk-log compatibility bridge.
+- frontier-C.1 (0fe34be) — 6-hour-cached cross-market hourly-return correlation matrix.
+- frontier-C.2 (f27da61) — Portfolio-risk endpoint with correlated Monte Carlo aggregation and per-position contributions.
+- frontier-C.3 (1bed5f0) — Deep-hedging MLP, training script, policy artifact, optimal-hedge endpoint.
+- frontier-C.4 (a1ddac0) — Risk-panel hedge suggestion UI wired to optimal-hedge.
+- frontier-C.5 (8ea9588) — Open-position blotter backed by decision CRUD and portfolio aggregate.
+- frontier-C.acceptance (9e25e9b) — Portfolio-risk endpoint live; workbench shows aggregate / per-position blotter; deep hedger beats random on held-out scenarios.
+- frontier-D.1 (689e088) — News corpus builder; 5,000-row silver-labelled training JSONL.
+- frontier-D.2 (ae9d544) — LoRA fine-tune harness, training deps, GPU docs, dry-run manifest.
+- frontier-D.3 (b224add) — Configurable domain / gemini / heuristic scorer provider with lazy LoRA loading.
+- frontier-D.4 (1b2e678) — Structured event schema fields; extractor population; SQLite compatibility migration.
+- frontier-D.5 (a6b0cbf) — Historical analogue matcher, analogue API endpoint, ingest/read population, event-feed surfacing.
+- frontier-E.2 (3523d41) — DC-OPF solver (scipy HiGHS LP, nodal-susceptance B_bus formulation, dual-based LMPs, binding-line detection).
+- frontier-E.1 (f9a703d) — Topology loader + canonical 13-bus / 13-line seed bundle covering all 9 priced markets; `ingest_grid_topology.py` runner; ENTSO-E NTC enrichment stubbed behind `ENTSOE_TOKEN`.
+- frontier-E.3 (4f2705a) — Cross-zone basis trade type; engine runs paired correlated MC; spread P&L on combined position.
+- frontier-E.4 (68f9b47) — Congestion-aware σ overlay; per-market DC-OPF over 9 load multipliers; `congestion_multiplier` coefficient surfaced.
+- frontier-E.5 (87a725e) — Grid topology UI at `/grid`; `/api/grid/topology` + `/api/grid/flows` endpoints.
+
+## Blockers
+
+Format: `frontier-X.N — short description. To unblock: …`
+
+- frontier-D.6 — Golden-set validation requires real domain LoRA adapter weights; current D.2 output is a dry-run manifest because the local environment lacks a 24 GB-class GPU and authenticated gated-model access. **To unblock:** run `PYTHONPATH=. python3 scripts/finetune_news_scorer.py --model-id meta-llama/Llama-3.1-8B-Instruct` on a suitable GPU host (or `--model-id Qwen/Qwen2.5-7B-Instruct` if Llama access is gated), commit the resulting adapter files under `backend/models/news_scorer_lora/`, then resume at D.6.

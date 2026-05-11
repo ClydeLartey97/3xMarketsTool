@@ -1,23 +1,16 @@
 # 3xMarketsTool — Upgrade Plan (MVP → Decision-grade)
 
-This document is the **single source of truth** for upgrading this repo from
-MVP to a defensible trading tool. It is written so that Codex (or any other
-agent) can pick up at any phase and execute without needing the conversation
-that produced it.
+Original 10-phase upgrade plan taking the platform from MVP to a defensible trading tool. Each phase names exact files, exact line ranges, the bug being fixed, the new behaviour required, and the acceptance test that proves it.
 
-Every phase below names exact files, exact line ranges, the bug being fixed,
-the new behaviour required, and the acceptance test that proves it.
+**Status:** Phases 1–4 are complete. Phases 5–10 are absorbed into `FRONTIER.md` (the canonical living roadmap). This file is retained as the audit record and historical specification.
 
-> **Convention.** When a phase says "do X then Y," do them in order. When it
-> says "in parallel," they are independent. When it says "STOP — confirm with
-> the user," literally do not start the next phase until the user signs off.
+Convention: when a phase says "do X then Y," do them in order; when it says "in parallel," they are independent. Every phase ends with an explicit acceptance gate that must pass before the next phase begins.
 
 ---
 
 ## 0. Audit findings (verified against the code at `551dfb5`)
 
-These are concrete bugs and weaknesses I found by reading the code, not
-generic advice. Every Phase below points back to one or more of these.
+Concrete bugs and weaknesses identified by reading the code. Every Phase below points back to one or more of these.
 
 ### 0.1 Risk engine
 
@@ -231,10 +224,9 @@ Create `backend/tests/test_risk_engine.py` with these cases:
 4. **Band → σ round-trip.** Mock a forecast with point=100, lower=90,
    upper=110: assert the implied σ_price is `10/1.6449 ≈ 6.08`.
 
-### 1.6 STOP
+### 1.6 Acceptance gate
 
-After Phase 1 lands, **stop and ask the user to spot-check** a known market
-(e.g., GB_POWER) before proceeding to Phase 2.
+After Phase 1 lands, spot-check a known market (e.g., GB_POWER) before proceeding to Phase 2.
 
 ---
 
@@ -279,7 +271,7 @@ likely_pnl_gbp = simulated_pnl_native * fx_to_gbp
 
 Implement `_fx_rate` using `yfinance` (`USDGBP=X`, `EURGBP=X`) with a 1-hour
 in-process cache and a hard-coded fallback. **Log the fallback every time it
-fires** so the user knows.
+fires** so it's visible.
 
 ### 2.2 Position units
 
@@ -390,17 +382,16 @@ scenario — that's Phase 5.
 4. FX path: USD market, position_gbp=10000 long, simulated USD P&L=+1000,
    FX USD/GBP=0.8 → likely_gbp=800.
 
-### 2.7 STOP
+### 2.7 Acceptance gate
 
-Spot-check 3 markets (GB, ERCOT, EPEX_DE) with realistic positions and have
-the user confirm the magnitudes look right.
+Spot-check 3 markets (GB, ERCOT, EPEX_DE) with realistic positions and confirm the magnitudes look right.
 
 ---
 
 ## Phase 3 — Data layer: extend history + freshness
 
 **Goal.** Backfill **months** of real history per market. Surface data
-provenance to the frontend so the user can see what's real and what's
+provenance to the frontend so callers can see what's real and what's
 synthetic.
 
 ### 3.1 Backfill historical data
@@ -439,7 +430,7 @@ strip at the top of the dashboard. Red border if `synthetic_share_24h > 0.5`.
 ### 3.3 Remove the merit-order fallback from core paths (defect Q)
 
 `compute_power_price` is fine for the seed/demo dataset, but it should never
-be the source for a market the user is actively trading. Concrete change:
+be the source for a market that is being actively traded. Concrete change:
 
 1. Add `settings.demo_mode: bool` (default False).
 2. When `demo_mode=False` and a market has no real price source after
@@ -454,10 +445,9 @@ be the source for a market the user is actively trading. Concrete change:
 de-dup. `backend/tests/test_data_freshness.py` for the `synthetic_share_24h`
 metric.
 
-### 3.5 STOP
+### 3.5 Acceptance gate
 
-Run backfill against a real EIA key, confirm DB has ≥ 1 year of GB_POWER
-hourly prices and at least 90 days for one US market. User confirms.
+Run backfill against a real EIA key. Confirm the DB has ≥ 1 year of GB_POWER hourly prices and at least 90 days for one US market.
 
 ---
 
@@ -529,11 +519,9 @@ short summary printed to stdout.
 walk-forward MAE is finite, persistence baseline matches the analytical
 expected MAE within 10%.
 
-### 4.7 STOP
+### 4.7 Acceptance gate
 
-Run backtest on GB_POWER (now that it has 1y of history). User reads the
-report. If the model loses to persistence_24h on a market, do **not**
-proceed — go back and fix Phase 5 first for that market.
+Run the backtest on GB_POWER (now that it has 1y of history). If the model loses to `persistence_24h` on a market, do **not** proceed — fix Phase 5 first for that market.
 
 ---
 
@@ -579,7 +567,7 @@ Update `tests/test_forecast_service.py` with: regime classification
 stability (same input → same regime), ensemble combine produces median
 between sub-models.
 
-### 5.6 STOP — confirm.
+### 5.6 Acceptance gate.
 
 ---
 
@@ -643,7 +631,7 @@ data and that drawing a trendline persists across re-render.
 
 Backend: `tests/test_history_endpoint.py` for the date-range filter.
 
-### 6.7 STOP.
+### 6.7 Acceptance gate.
 
 ---
 
@@ -687,7 +675,7 @@ Surface them in the event detail UI.
 Negation, capacity-mention-but-not-outage, non-event news, full extraction
 on a curated 50-article golden set.
 
-### 7.5 STOP.
+### 7.5 Acceptance gate.
 
 ---
 
@@ -728,7 +716,7 @@ Background job (or API hit on each WS tick) recomputes
 
 UI: `<TradeBlotter>` with realised vs expected scatter.
 
-### 8.5 STOP.
+### 8.5 Acceptance gate.
 
 ---
 
@@ -758,7 +746,7 @@ exponential backoff.
 
 Move `_forecast_cache` and `_score_cache` to Redis. Same TTLs.
 
-### 9.5 STOP.
+### 9.5 Acceptance gate.
 
 ---
 
@@ -783,22 +771,17 @@ them. Health endpoint extended with `db_ok`, `redis_ok`, `last_refresh`.
 `X-Data-As-Of: 2026-04-29T12:30:00Z` header on all market endpoints. Pulled
 from the latest `PricePoint.timestamp` for that market.
 
-### 10.5 STOP. Ship.
+### 10.5 Acceptance gate. Ship.
 
 ---
 
-## How Codex should pick this up
+## Resumption protocol
 
-If a Codex session starts cold:
-
-1. Read this file (`PLAN.md`) end to end.
-2. Read the audit section (§0). Confirm each cited file:line still matches.
-   If anything has moved, **stop** and re-read the file before editing.
-3. Find the most recent commit message starting with `phase-N:` to figure
-   out where work left off. Continue at the next sub-step of that phase.
-4. Each sub-step ends with an acceptance test. Codex must run the test
-   and have it pass before opening a PR for that sub-step.
-5. Phase boundaries are STOP gates. Do not cross them without user signoff.
+1. Read this file end to end.
+2. Read the audit section (§0). Confirm each cited file:line still matches; if anything has moved, re-read the file before editing.
+3. Find the most recent commit titled `phase-N.M:` to locate where work left off; continue at the next sub-step of that phase.
+4. Each sub-step ends with an acceptance test. The test must be green before the sub-step is considered done.
+5. Phase boundaries are acceptance gates. Do not cross them without confirming the gate criteria are met.
 
 ## Commit message convention
 
@@ -806,8 +789,6 @@ If a Codex session starts cold:
 phase-1.2: wire realised vol back into risk engine
 phase-2.3: monte-carlo simulator with t(5) tails
 ```
-
-This makes resumption from any session trivial.
 
 ---
 
