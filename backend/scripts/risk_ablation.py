@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.db.base import Base
+from app.db.schema import require_database_schema
 from app.db.session import engine
 from app.services.risk_ablation import run_risk_ablation
 
@@ -25,7 +25,7 @@ def main() -> None:
     args = parser.parse_args()
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(bind=engine)
+    require_database_schema(engine)
     result = run_risk_ablation(
         args.market,
         args.lookback_days,

@@ -5,7 +5,7 @@ import argparse
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.db.base import Base
+from app.db.schema import require_database_schema
 from app.db.session import SessionLocal, engine
 from app.ingestion.real_data import backfill_market
 from app.models import Market
@@ -18,7 +18,7 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = get_settings()
-    Base.metadata.create_all(bind=engine)
+    require_database_schema(engine)
     with SessionLocal() as db:
         if args.markets:
             market_codes = args.markets

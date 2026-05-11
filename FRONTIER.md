@@ -252,6 +252,7 @@ Format: `frontier-X.N (sha) — one-line result.`
 - frontier-E.3 (4f2705a) — Cross-zone basis trade type; engine runs paired correlated MC; spread P&L on combined position.
 - frontier-E.4 (68f9b47) — Congestion-aware σ overlay; per-market DC-OPF over 9 load multipliers; `congestion_multiplier` coefficient surfaced.
 - frontier-E.5 (87a725e) — Grid topology UI at `/grid`; `/api/grid/topology` + `/api/grid/flows` endpoints.
+- frontier-F.1 (pending) — Postgres `DATABASE_URL` path, Alembic baseline migration, and startup/scripts moved off `Base.metadata.create_all`; backend pytest 104 passed, 1 skipped.
 
 ## Blockers
 

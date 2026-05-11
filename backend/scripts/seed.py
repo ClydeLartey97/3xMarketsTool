@@ -1,10 +1,10 @@
-from app.db.base import Base
+from app.db.schema import require_database_schema
 from app.db.session import SessionLocal, engine
 from app.ingestion.seeds import seed_database
 
 
 def main() -> None:
-    Base.metadata.create_all(bind=engine)
+    require_database_schema(engine)
     with SessionLocal() as db:
         seed_database(db)
 

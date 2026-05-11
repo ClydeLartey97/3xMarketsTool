@@ -16,7 +16,7 @@ from pathlib import Path
 import pandas as pd
 from sqlalchemy import select
 
-from app.db.base import Base
+from app.db.schema import require_database_schema
 from app.db.session import SessionLocal, engine
 from app.forecasting.backtest import (
     build_feature_frame_from_db,
@@ -78,7 +78,7 @@ def main() -> None:
     forecaster_names = [name.strip() for name in args.compare.split(",") if name.strip()]
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(bind=engine)
+    require_database_schema(engine)
     since = datetime.now(timezone.utc) - timedelta(days=args.lookback_days)
 
     with SessionLocal() as db:

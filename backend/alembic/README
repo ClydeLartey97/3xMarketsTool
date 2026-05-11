@@ -1,0 +1,5 @@
+Single-database Alembic migration environment for 3x.
+
+Run from the repository root:
+
+    alembic -c alembic.ini upgrade head

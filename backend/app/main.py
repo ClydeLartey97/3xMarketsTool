@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
 from app.core.config import get_settings
-from app.db.base import Base
 from app.db.compat import apply_sqlite_compat_migrations
+from app.db.schema import database_has_schema
 from app.db.session import SessionLocal, engine
 from app.ingestion.seeds import seed_database
 
@@ -73,34 +73,41 @@ def _fill_risk_assessment_pnl() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global _scheduler
-    Base.metadata.create_all(bind=engine)
-    apply_sqlite_compat_migrations(engine)
-    with SessionLocal() as db:
-        seed_database(db)
+    schema_ready = database_has_schema(engine)
+    if schema_ready:
+        apply_sqlite_compat_migrations(engine)
+        with SessionLocal() as db:
+            seed_database(db)
+    else:
+        logger.warning(
+            "Database schema is not initialized. Run `alembic -c alembic.ini upgrade head`; "
+            "startup seeding and scheduled jobs are disabled."
+        )
 
     # Start background scheduler
-    _scheduler = BackgroundScheduler(timezone="UTC")
-    _scheduler.add_job(
-        _refresh_all_markets,
-        "interval",
-        minutes=settings.data_refresh_interval_minutes,
-        id="market_refresh",
-        max_instances=1,
-        coalesce=True,
-    )
-    _scheduler.add_job(
-        _fill_risk_assessment_pnl,
-        "interval",
-        hours=1,
-        id="risk_assessment_pnl_fill",
-        max_instances=1,
-        coalesce=True,
-    )
-    _scheduler.start()
-    logger.info(
-        "Scheduler started. Market refresh every %d minutes.",
-        settings.data_refresh_interval_minutes,
-    )
+    if schema_ready:
+        _scheduler = BackgroundScheduler(timezone="UTC")
+        _scheduler.add_job(
+            _refresh_all_markets,
+            "interval",
+            minutes=settings.data_refresh_interval_minutes,
+            id="market_refresh",
+            max_instances=1,
+            coalesce=True,
+        )
+        _scheduler.add_job(
+            _fill_risk_assessment_pnl,
+            "interval",
+            hours=1,
+            id="risk_assessment_pnl_fill",
+            max_instances=1,
+            coalesce=True,
+        )
+        _scheduler.start()
+        logger.info(
+            "Scheduler started. Market refresh every %d minutes.",
+            settings.data_refresh_interval_minutes,
+        )
 
     yield
 

@@ -84,6 +84,9 @@ cd backend
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
+cd ..
+alembic -c alembic.ini upgrade head
+cd backend
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -93,11 +96,12 @@ If you do not have Python 3.12 installed, `uv` is a convenient option:
 python3 -m pip install --user uv
 python3 -m uv venv /tmp/market-speculation-py312 --python 3.12
 python3 -m uv pip install --python /tmp/market-speculation-py312/bin/python -r backend/requirements.txt
+/tmp/market-speculation-py312/bin/python -m alembic -c alembic.ini upgrade head
 cd backend
 /tmp/market-speculation-py312/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-The first backend startup may take a little longer because it creates the database, seeds configured markets, tries public data sources, and falls back where needed.
+Run the Alembic upgrade whenever the schema changes. Backend startup seeds configured markets, tries public data sources, and falls back where needed, but it no longer creates tables implicitly.
 
 ### 2. Frontend
 
@@ -116,7 +120,7 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 Copy `.env.example` to `.env` if you want to override defaults.
 
 ```env
-DATABASE_URL=sqlite:///./threex.db
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/threex
 CORS_ORIGINS=["http://localhost:3000"]
 API_INTERNAL_BASE_URL=http://localhost:8000/api
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
@@ -135,6 +139,8 @@ Useful optional variables:
 - `FORECAST_CACHE_TTL_MINUTES`: forecast cache TTL, default `15`.
 - `DATA_REFRESH_INTERVAL_MINUTES`: background refresh interval, default `30`.
 - `DEMO_MODE`: when `true`, permits computed/synthetic fallback data without marking the market degraded. Defaults to `false`.
+
+For a lightweight local SQLite database, set `DATABASE_URL=sqlite:///./threex.db` and still run `alembic -c alembic.ini upgrade head` before starting the backend.
 
 ## Historical Backfill
 
@@ -390,12 +396,12 @@ npx tsc --noEmit
 - Some market data is computed or synthetic when public APIs are unavailable or unauthenticated. The UI labels this explicitly.
 - U.S. real historical data requires `EIA_API_KEY`; otherwise U.S. markets are marked degraded outside demo mode.
 - European spot prices have no free hourly feed currently wired; prices fall back to the merit-order model using real weather inputs.
-- The local SQLite database is created under `backend/threex.db` by default and is ignored by git.
+- Local SQLite databases such as `backend/threex.db` are ignored by git; production-style runs should use Postgres via `DATABASE_URL`.
 - The frontend has both server-side and browser-side API calls, so keep `API_INTERNAL_BASE_URL` and `NEXT_PUBLIC_API_BASE_URL` distinct when running in containers.
 
 ## Roadmap
 
-The live roadmap lives in `FRONTIER.md`. Phases A–E are complete; Phase F (enterprise hardening) is pending:
+The live roadmap lives in `FRONTIER.md`. Phases A–E are complete; Phase F (enterprise hardening) is underway:
 
 - Postgres + Alembic migrations in place of `Base.metadata.create_all`.
 - JWT auth (per-user decisions and positions) and rate limiting.

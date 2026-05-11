@@ -1,4 +1,7 @@
 from collections.abc import Generator
+import os
+
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_threex.db")
 
 import pytest
 from fastapi.testclient import TestClient
