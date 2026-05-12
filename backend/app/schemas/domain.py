@@ -280,6 +280,14 @@ class CoefficientBlock(BaseModel):
     equation_summary: str = ""
 
 
+class DecisionGate(BaseModel):
+    action: Literal["clear", "watch", "block"]
+    score: float
+    label: str
+    reasons: list[str] = Field(default_factory=list)
+    checks: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class RiskAssessmentResponse(BaseModel):
     market_code: str
     market_name: str
@@ -315,6 +323,7 @@ class RiskAssessmentResponse(BaseModel):
     rationale: str
     scenarios: list[ScenarioOutcome] = Field(default_factory=list)
     coefficients: CoefficientBlock = Field(default_factory=CoefficientBlock)
+    decision_gate: DecisionGate
     basis: Optional[dict[str, Any]] = None
     congestion: Optional[dict[str, Any]] = None
 

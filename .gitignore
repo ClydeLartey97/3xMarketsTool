@@ -7,6 +7,8 @@ node_modules/
 *.pyc
 *.pyo
 *.tsbuildinfo
+*.db
+*.db-journal
 .env
 backend/test_gridsense.db
 backend/gridsense.db

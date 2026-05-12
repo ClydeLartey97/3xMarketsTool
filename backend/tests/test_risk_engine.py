@@ -54,6 +54,9 @@ def test_assess_risk_returns_three_headline_numbers(db_session) -> None:
     assert "likely_gbp" in result
     assert "upside_gbp" in result
     assert result["risk_metric"] in {"cvar_95_normal", "cvar_95_t5"}
+    assert result["decision_gate"]["action"] in {"clear", "watch", "block"}
+    assert 0 <= result["decision_gate"]["score"] <= 100
+    assert result["decision_gate"]["checks"]
 
 
 def test_long_vs_short_flip_directional_pnl(db_session) -> None:

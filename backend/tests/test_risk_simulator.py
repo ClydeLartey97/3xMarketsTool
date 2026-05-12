@@ -49,6 +49,24 @@ def test_tail_multiplier_increases_kurtosis() -> None:
     assert stats.kurtosis(heavy_term, fisher=False) > stats.kurtosis(norm_term, fisher=False)
 
 
+def test_tail_multiplier_monotonically_increases_terminal_sigma() -> None:
+    """Intermediate normal/t blends must not accidentally suppress variance."""
+    terminal_sigmas = []
+    for tail in (1.0, 1.2, 1.6, 2.0):
+        cfg = SimConfig(
+            n_paths=30_000,
+            horizon_hours=12,
+            spot=100.0,
+            sigma_hourly=0.03,
+            tail_multiplier=tail,
+            seed=17,
+        )
+        terminal = np.log(simulate_price_paths(cfg).terminal_prices / 100.0)
+        terminal_sigmas.append(float(terminal.std(ddof=0)))
+
+    assert terminal_sigmas == sorted(terminal_sigmas)
+
+
 def test_pnl_mwh_position_is_path_independent_of_spot() -> None:
     """For a 100 MWh long position, P&L = 100 × (P_T − P_0) regardless of spot scale."""
     cfg = SimConfig(n_paths=2000, horizon_hours=6, spot=80.0,

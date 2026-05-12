@@ -103,8 +103,10 @@ def simulate_portfolio_from_leg_specs(
     shocks = rng.multivariate_normal(np.zeros(len(legs)), corr, size=max(1, int(n_paths)))
     pnl_columns: list[np.ndarray] = []
     for index, leg in enumerate(legs):
-        direction_sign = 1.0 if leg.direction.lower() == "long" else -1.0
-        pnl = leg.likely_gbp + direction_sign * leg.position_gbp * leg.sigma_return * shocks[:, index]
+        # `corr` is already a P&L correlation matrix, with long/short signs
+        # applied in `_pnl_correlation_matrix`. Applying direction again here
+        # would erase diversification for opposite positions.
+        pnl = leg.likely_gbp + leg.position_gbp * leg.sigma_return * shocks[:, index]
         pnl_columns.append(pnl)
 
     pnl_matrix = np.column_stack(pnl_columns)

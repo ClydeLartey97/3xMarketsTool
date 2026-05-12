@@ -99,7 +99,7 @@ def _configure_tracing(settings: Settings) -> None:
     if settings.otel_exporter_otlp_endpoint:
         exporter = OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint)
         provider.add_span_processor(BatchSpanProcessor(exporter))
-    else:
+    elif settings.otel_console_exporter:
         provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
     trace.set_tracer_provider(provider)
     _TRACING_CONFIGURED = True
@@ -125,5 +125,6 @@ def instrument_app(app: FastAPI, engine: Engine, settings: Settings) -> None:
     app.state.observability = {
         "service_name": settings.otel_service_name,
         "otlp_enabled": bool(settings.otel_exporter_otlp_endpoint),
+        "console_exporter_enabled": bool(settings.otel_console_exporter),
         "excluded_urls": settings.otel_excluded_urls,
     }

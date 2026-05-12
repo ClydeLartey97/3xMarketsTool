@@ -222,6 +222,140 @@ def _events_summary(events: list[Event]) -> list[dict[str, Any]]:
     ]
 
 
+def _build_decision_gate(
+    *,
+    data_status: str,
+    calibration: dict[str, Any] | None,
+    edge: float,
+    confidence: float,
+    likely_gbp: float,
+    risk_gbp: float,
+    position_gbp: float,
+    prob_loss: float,
+    tail_multiplier: float,
+) -> dict[str, Any]:
+    """Model-governance gate for the risk read.
+
+    The gate is deliberately conservative: it does not invent a trading
+    recommendation. It checks whether the model output is clean enough to
+    take into an investment-committee style decision.
+    """
+    risk_fraction = risk_gbp / max(float(position_gbp), 1.0)
+    edge_component = float(np.clip((edge + 0.10) / 0.70, 0.0, 1.0))
+    confidence_component = float(np.clip(confidence, 0.0, 1.0))
+    tail_component = 1.0 - float(np.clip((tail_multiplier - 1.0) / 1.25, 0.0, 0.45))
+    loss_component = 1.0 - float(np.clip((prob_loss - 0.45) / 0.50, 0.0, 0.35))
+    risk_component = 1.0 - float(np.clip((risk_fraction - 0.05) / 0.45, 0.0, 0.40))
+
+    score = 100.0 * (
+        0.36 * edge_component
+        + 0.24 * confidence_component
+        + 0.16 * tail_component
+        + 0.14 * loss_component
+        + 0.10 * risk_component
+    )
+
+    reasons: list[str] = []
+    checks: list[dict[str, Any]] = []
+
+    def add_check(label: str, status: str, value: str) -> None:
+        checks.append({"label": label, "status": status, "value": value})
+
+    if data_status == "degraded":
+        score = min(score, 20.0)
+        reasons.append("Market data is degraded, so the model read is blocked.")
+        add_check("Data quality", "fail", "degraded")
+    else:
+        add_check("Data quality", "pass", data_status)
+
+    calibration_status = "collecting"
+    calibration_sample = 0
+    if calibration:
+        calibration_status = str(calibration.get("calibration_status", "collecting"))
+        calibration_sample = int(calibration.get("sample_count", 0) or 0)
+        if calibration_sample < 20:
+            score *= 0.90
+            reasons.append("Calibration sample is still warming up.")
+            add_check("Calibration", "warn", f"{calibration_sample} reads")
+        elif calibration_status == "understating":
+            score *= 0.62
+            reasons.append("Recent realized breaches indicate understated risk.")
+            add_check("Calibration", "fail", calibration_status)
+        elif calibration_status == "overstating":
+            score *= 0.92
+            reasons.append("Risk appears conservative versus realized breaches.")
+            add_check("Calibration", "warn", calibration_status)
+        else:
+            add_check("Calibration", "pass", calibration_status)
+    else:
+        score *= 0.88
+        reasons.append("No calibration record is available yet.")
+        add_check("Calibration", "warn", "none")
+
+    if likely_gbp <= 0 or edge <= 0:
+        reasons.append("Expected P&L does not clear downside CVaR.")
+        add_check("Edge", "fail", f"{edge:.2f}")
+    elif edge < 0.25:
+        reasons.append("Positive edge exists, but the reward/risk ratio is thin.")
+        add_check("Edge", "warn", f"{edge:.2f}")
+    else:
+        add_check("Edge", "pass", f"{edge:.2f}")
+
+    if prob_loss > 0.60:
+        reasons.append("Loss probability is elevated for the selected direction.")
+        add_check("Loss probability", "fail", f"{prob_loss * 100:.1f}%")
+    elif prob_loss > 0.50:
+        reasons.append("Loss probability is close to a coin flip.")
+        add_check("Loss probability", "warn", f"{prob_loss * 100:.1f}%")
+    else:
+        add_check("Loss probability", "pass", f"{prob_loss * 100:.1f}%")
+
+    if tail_multiplier >= 1.60:
+        reasons.append("News/event tails are stressed.")
+        add_check("Tail stress", "fail", f"{tail_multiplier:.2f}x")
+    elif tail_multiplier >= 1.25:
+        reasons.append("News/event tails are above normal.")
+        add_check("Tail stress", "warn", f"{tail_multiplier:.2f}x")
+    else:
+        add_check("Tail stress", "pass", f"{tail_multiplier:.2f}x")
+
+    if risk_fraction > 0.50:
+        reasons.append("Downside CVaR consumes more than half the selected notional.")
+        add_check("Capital at risk", "fail", f"{risk_fraction * 100:.1f}%")
+    elif risk_fraction > 0.25:
+        reasons.append("Downside CVaR is large versus selected notional.")
+        add_check("Capital at risk", "warn", f"{risk_fraction * 100:.1f}%")
+    else:
+        add_check("Capital at risk", "pass", f"{risk_fraction * 100:.1f}%")
+
+    hard_block = (
+        data_status == "degraded"
+        or (calibration_status == "understating" and calibration_sample >= 20)
+        or risk_fraction > 0.50
+    )
+    if hard_block or (likely_gbp <= 0 and edge <= 0):
+        score = min(score, 49.0)
+        action = "block"
+        label = "Blocked by model governance"
+    elif score >= 72.0 and likely_gbp > 0 and edge >= 0.25 and prob_loss <= 0.55:
+        action = "clear"
+        label = "Clears model-governance gate"
+    else:
+        action = "watch"
+        label = "Watchlist - needs stronger confirmation"
+
+    if not reasons:
+        reasons.append("Edge, calibration, data quality, and tail stress are aligned.")
+
+    return {
+        "action": action,
+        "score": round(float(np.clip(score, 0.0, 100.0)), 1),
+        "label": label,
+        "reasons": reasons[:4],
+        "checks": checks,
+    }
+
+
 def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
     market = db.scalar(select(Market).where(Market.code == inputs.market_code))
     if not market:
@@ -545,6 +679,25 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
     expected_price = float(np.mean(base_result.terminal_prices))
     expected_return_pct = direction_sign * (expected_price - spot) / spot
     sigma_return_pct = sigma_hourly * np.sqrt(max(1.0, inputs.horizon_hours))
+    data_status = str((market.metadata_json or {}).get("data_status", "ready"))
+    try:
+        from app.services.risk_calibration import risk_calibration_for_market
+
+        calibration = risk_calibration_for_market(db, market.id)
+    except Exception as exc:  # noqa: BLE001 - advisory gate must not fail risk
+        logger.warning("decision gate calibration lookup failed for %s: %s", market.code, exc)
+        calibration = None
+    decision_gate = _build_decision_gate(
+        data_status=data_status,
+        calibration=calibration,
+        edge=edge,
+        confidence=confidence,
+        likely_gbp=likely_pnl,
+        risk_gbp=risk_pnl,
+        position_gbp=inputs.position_gbp,
+        prob_loss=prob_loss,
+        tail_multiplier=float(context["tail_multiplier"]),
+    )
 
     # ── Coefficient breakdown ───────────────────────────────────────────────
     # Every parameter that influenced the three headline numbers, exposed
@@ -733,6 +886,7 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
         "rationale": context["rationale"],
         "scenarios": scenario_outcomes,
         "coefficients": coefficients_block,
+        "decision_gate": decision_gate,
         "price_paths": sampled_paths,
         "basis": basis_meta,
         "congestion": congestion_meta,

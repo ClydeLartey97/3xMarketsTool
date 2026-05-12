@@ -120,7 +120,7 @@ export function RiskPanel({
     return () => {
       cancelled = true;
     };
-  }, [data?.as_of, data?.risk_gbp, data?.target_timestamp, isDegraded]);
+  }, [data, isDegraded]);
 
   async function saveDecision() {
     if (!data || thesisText.trim().length === 0) return;
@@ -237,6 +237,14 @@ export function RiskPanel({
   }, [marketCode, position, riskFirst, maxRisk, horizon, direction, cursorTimestampMs, isDegraded, onResult]);
 
   const riskColor = data && data.edge_score > 0.5 ? "text-price-up" : data && data.edge_score < -0.2 ? "text-price-dn" : "text-ink/80";
+  const gate = data?.decision_gate ?? null;
+  const gateTone = !gate
+    ? "border-seam bg-bg text-ink/55"
+    : gate.action === "clear"
+      ? "border-price-up/30 bg-price-up/10 text-price-up"
+      : gate.action === "block"
+        ? "border-price-dn/30 bg-price-dn/10 text-price-dn"
+        : "border-amber-400/30 bg-amber-400/10 text-amber-300";
   const provider = data?.scorer_provider ?? "—";
   const calibrationTone = !calibration
     ? "border-seam bg-bg text-ink/50"
@@ -408,6 +416,40 @@ export function RiskPanel({
           </div>
         </div>
       )}
+
+      {gate ? (
+        <div className={`mt-3 rounded-xl border p-3 ${gateTone}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest opacity-70">Decision gate</p>
+              <p className="mt-1 text-sm font-semibold text-ink">{gate.label}</p>
+            </div>
+            <div className="text-right">
+              <p className="font-mono text-2xl font-semibold tabular-nums text-ink">{gate.score.toFixed(1)}</p>
+              <p className="text-[9px] uppercase tracking-widest opacity-60">score</p>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-1.5">
+            {gate.checks.slice(0, 4).map((check) => (
+              <div key={`${check.label}-${check.value}`} className="rounded-lg bg-bg/70 px-2 py-1.5">
+                <p className="truncate text-[9px] uppercase tracking-widest text-ink/35">{check.label}</p>
+                <p
+                  className={`mt-0.5 truncate font-mono text-[11px] ${
+                    check.status === "pass"
+                      ? "text-price-up"
+                      : check.status === "fail"
+                        ? "text-price-dn"
+                        : "text-amber-300"
+                  }`}
+                >
+                  {check.value}
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-ink/62">{gate.reasons[0]}</p>
+        </div>
+      ) : null}
 
       <div className={`mt-3 rounded-lg border px-3 py-2 text-[11px] ${calibrationTone}`}>
         <span className="font-semibold">

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const PUBLIC_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+const PUBLIC_WS_BASE_URL = process.env.NEXT_PUBLIC_WS_BASE_URL ?? "ws://localhost:8000";
 
 export type MarketStreamMessage =
   | {
@@ -20,8 +20,12 @@ export type MarketStreamMessage =
     };
 
 function marketWebSocketUrl(marketCode: string): string {
-  const url = new URL(PUBLIC_API_BASE_URL);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  const url = new URL(PUBLIC_WS_BASE_URL);
+  if (url.protocol === "http:") {
+    url.protocol = "ws:";
+  } else if (url.protocol === "https:") {
+    url.protocol = "wss:";
+  }
   url.pathname = `/ws/markets/${encodeURIComponent(marketCode)}`;
   url.search = "";
   return url.toString();

@@ -60,10 +60,16 @@ def _heavy_tail_shocks(
     z = rng.standard_normal(size=shape)
     if tail_multiplier <= 1.2:
         return z
-    # Linear blend toward t(5) as tail_multiplier rises from 1.2 → 2.0.
+    # Linear blend toward t(5) as tail_multiplier rises from 1.2 -> 2.0.
+    # The blend is re-normalized to unit variance. Without this, a 50/50
+    # normal/t blend has variance 0.5 before the caller's tail multiplier,
+    # which can make intermediate tail settings less volatile than lower
+    # settings.
     weight = float(np.clip((tail_multiplier - 1.2) / 0.8, 0.0, 1.0))
     t5 = rng.standard_t(df=5, size=shape) / np.sqrt(5.0 / 3.0)  # rescale to var=1
-    return (1.0 - weight) * z + weight * t5
+    mixed = (1.0 - weight) * z + weight * t5
+    mixed_std = np.sqrt((1.0 - weight) ** 2 + weight**2)
+    return mixed / max(float(mixed_std), 1e-12)
 
 
 def simulate_price_paths(cfg: SimConfig) -> SimResult:

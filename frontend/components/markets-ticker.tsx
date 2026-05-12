@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { getMarkets, getPrices } from "@/lib/api";
-import type { Market, PricePoint } from "@/types/domain";
+import type { Market } from "@/types/domain";
 
 type TickerRow = {
   market: Market;
@@ -97,7 +97,7 @@ export function MarketsTicker({ activeCode }: { activeCode?: string }) {
           Markets · live
         </div>
         <div className="flex flex-1 items-stretch overflow-x-auto" key={pulse}>
-          {ordered.map(({ market, spot, changePct, asOf }) => {
+          {ordered.map(({ market, spot, changePct }) => {
             const isActive = market.code === activeCode;
             const dn = changePct != null && changePct < 0;
             const up = changePct != null && changePct > 0;

@@ -7,6 +7,9 @@ import { ReactNode } from "react";
 export const metadata = {
   title: "3x",
   description: "Energy market intelligence for power market operators and traders.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

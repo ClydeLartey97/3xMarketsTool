@@ -2,7 +2,7 @@ import type { Route } from "next";
 import Link from "next/link";
 
 import { BackendOfflineState } from "@/components/backend-offline-state";
-import { getDashboard, getMarkets } from "@/lib/api";
+import { getForecast, getMarkets, getPrices } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -19,25 +19,35 @@ export default async function HomePage() {
   try {
     const markets = await getMarkets();
 
-    const dashboardResults = await Promise.allSettled(
-      markets.map((market) => getDashboard(market.code)),
+    const marketResults = await Promise.allSettled(
+      markets.map(async (market) => {
+        const [prices, forecasts] = await Promise.all([
+          getPrices(market.id),
+          getForecast(market.id),
+        ]);
+        return { prices, forecasts };
+      }),
     );
 
     const marketData = markets.map((market, index) => {
-      const result = dashboardResults[index];
+      const result = marketResults[index];
       if (result.status === "fulfilled") {
-        const dashboard = result.value;
-        const latestPrice = dashboard.recent_prices[dashboard.recent_prices.length - 1];
-        const prevPrice = dashboard.recent_prices[dashboard.recent_prices.length - 2];
+        const { prices, forecasts } = result.value;
+        const latestPrice = prices[prices.length - 1];
+        const prevPrice = prices[prices.length - 2];
         const change =
           latestPrice && prevPrice ? latestPrice.price_value - prevPrice.price_value : null;
-        const forecast = dashboard.forecasts[0];
+        const forecast = forecasts[0];
+        const lastDay = prices.slice(-24);
+        const avgPrice = lastDay.length
+          ? lastDay.reduce((sum, point) => sum + point.price_value, 0) / lastDay.length
+          : null;
         return {
           market,
           latestPrice,
           change,
           forecast,
-          avgPrice: dashboard.key_metrics.avg_price_24h,
+          avgPrice,
         };
       }
 

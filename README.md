@@ -123,7 +123,9 @@ Copy `.env.example` to `.env` if you want to override defaults.
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/threex
 CORS_ORIGINS=["http://localhost:3000"]
 API_INTERNAL_BASE_URL=http://localhost:8000/api
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
+NEXT_PUBLIC_API_BASE_URL=/api/backend
+NEXT_PUBLIC_WS_BASE_URL=ws://localhost:8000
+API_BEARER_TOKEN=
 ```
 
 Useful optional variables:
@@ -240,7 +242,7 @@ This starts:
 - Worker: Redis-backed `arq` process for market refresh, hourly P&L fill, and nightly backtests
 - WebSocket stream: `ws://localhost:8000/ws/markets/{MARKET_CODE}` forwards Redis pub/sub market messages into the browser chart
 
-The backend container runs Alembic migrations before starting Uvicorn. The worker waits for the backend healthcheck so those migrations are complete before jobs run. The frontend uses `API_INTERNAL_BASE_URL` for server-side container calls and `NEXT_PUBLIC_API_BASE_URL` for browser-side requests, so the browser should call `localhost` while the Next.js server can call the backend container hostname.
+The backend container runs Alembic migrations before starting Uvicorn. The worker waits for the backend healthcheck so those migrations are complete before jobs run. The frontend uses `API_INTERNAL_BASE_URL` for server-side container calls and defaults browser-side calls to the authenticated Next proxy at `NEXT_PUBLIC_API_BASE_URL=/api/backend`. WebSockets connect through `NEXT_PUBLIC_WS_BASE_URL`. Set `API_BEARER_TOKEN` for a service token, or keep the local demo user credentials for development.
 
 ## Key API Endpoints
 
@@ -402,8 +404,8 @@ npx tsc --noEmit
 - U.S. real historical data requires `EIA_API_KEY`; otherwise U.S. markets are marked degraded outside demo mode.
 - European spot prices have no free hourly feed currently wired; prices fall back to the merit-order model using real weather inputs.
 - Local SQLite databases such as `backend/threex.db` are ignored by git; production-style runs should use Postgres via `DATABASE_URL`.
-- The frontend has both server-side and browser-side API calls, so keep `API_INTERNAL_BASE_URL` and `NEXT_PUBLIC_API_BASE_URL` distinct when running in containers.
-- Backend logs are emitted as JSON via structlog. OpenTelemetry traces use the console exporter by default; set `OTEL_EXPORTER_OTLP_ENDPOINT` to send spans to an OTLP collector.
+- The frontend has both server-side and browser-side API calls, so keep `API_INTERNAL_BASE_URL` pointed at the backend API and leave `NEXT_PUBLIC_API_BASE_URL=/api/backend` unless you supply browser auth yourself.
+- Backend logs are emitted as JSON via structlog. OpenTelemetry traces are exported when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; set `OTEL_CONSOLE_EXPORTER=true` only for local span debugging.
 - SlowAPI rate limiting is enabled by default: authenticated data endpoints use a 60 req/min per-user default, `/risk-assessment` uses 10 req/min, and `/risk-assessment/sensitivity` uses 5 req/min.
 
 ## Roadmap

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     otel_service_name: str = Field(default="3x-api", alias="OTEL_SERVICE_NAME")
     otel_exporter_otlp_endpoint: str = Field(default="", alias="OTEL_EXPORTER_OTLP_ENDPOINT")
+    otel_console_exporter: bool = Field(default=False, alias="OTEL_CONSOLE_EXPORTER")
     otel_excluded_urls: str = Field(default="/api/health", alias="OTEL_EXCLUDED_URLS")
     rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
     rate_limit_data_per_minute: int = Field(default=60, alias="RATE_LIMIT_DATA_PER_MINUTE")

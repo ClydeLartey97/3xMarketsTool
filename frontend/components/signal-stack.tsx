@@ -41,20 +41,20 @@ export function SignalStack({ dashboard }: { dashboard: DashboardData }) {
       </div>
 
       {/* Scenario cards */}
-      <div className="grid gap-2 sm:grid-cols-3 mb-4">
-        <div className="rounded-xl border border-seam bg-well p-4">
+      <div className="mb-4 grid gap-2">
+        <div className="rounded-xl border border-seam bg-well p-3">
           <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-ink/30">Base case</p>
-          <p className="font-mono text-2xl font-semibold tabular-nums text-ink">${baseCase.toFixed(2)}</p>
+          <p className="font-mono text-xl font-semibold tabular-nums text-ink">${baseCase.toFixed(2)}</p>
           <p className="mt-1 text-xs text-ink/40">12h avg forward price</p>
         </div>
-        <div className="rounded-xl border border-price-up/20 bg-price-up/5 p-4">
+        <div className="rounded-xl border border-price-up/20 bg-price-up/5 p-3">
           <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-price-up/65">Bull stress</p>
-          <p className="font-mono text-2xl font-semibold tabular-nums text-price-up">${bullCase.toFixed(2)}</p>
+          <p className="font-mono text-xl font-semibold tabular-nums text-price-up">${bullCase.toFixed(2)}</p>
           <p className="mt-1 text-xs text-price-up/60">Upper envelope, front strip</p>
         </div>
-        <div className="rounded-xl border border-price-hot/20 bg-price-hot/5 p-4">
+        <div className="rounded-xl border border-price-hot/20 bg-price-hot/5 p-3">
           <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-price-hot/65">Bear stress</p>
-          <p className="font-mono text-2xl font-semibold tabular-nums text-price-hot">${bearCase.toFixed(2)}</p>
+          <p className="font-mono text-xl font-semibold tabular-nums text-price-hot">${bearCase.toFixed(2)}</p>
           <p className="mt-1 text-xs text-price-hot/60">Lower envelope, front strip</p>
         </div>
       </div>

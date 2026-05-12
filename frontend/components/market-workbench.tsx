@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import { CalibrationPanel } from "@/components/calibration-panel";
@@ -67,6 +67,13 @@ export function MarketWorkbench({
   const front = lastObserved && latestForecast ? latestForecast.point_estimate - lastObserved.price_value : null;
   const directionalAccuracy = Math.round((dashboard.key_metrics.directional_accuracy ?? 0) * 100);
   const spikePrecision = Math.round((dashboard.key_metrics.spike_precision ?? 0) * 100);
+  const handleRiskResult = useCallback((result: RiskAssessment | null, loading: boolean) => {
+    setRisk(result);
+    setRiskLoading(loading);
+  }, []);
+  const handleDecisionSaved = useCallback(() => {
+    setDecisionRefresh((value) => value + 1);
+  }, []);
 
   return (
     <main className="space-y-5">
@@ -149,11 +156,8 @@ export function MarketWorkbench({
                     marketCode={dashboard.market.code}
                     cursorTimestampMs={cursorTs}
                     dataStatus={dashboard.market.data_status}
-                    onResult={(result, loading) => {
-                      setRisk(result);
-                      setRiskLoading(loading);
-                    }}
-                    onDecisionSaved={() => setDecisionRefresh((value) => value + 1)}
+                    onResult={handleRiskResult}
+                    onDecisionSaved={handleDecisionSaved}
                   />
                   <div className="min-h-0 scroll-pane">
                     <RiskDecompositionPanel data={risk} loading={riskLoading} />

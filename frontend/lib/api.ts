@@ -14,15 +14,97 @@ import {
 
 export type { OptimalHedgeResponse, RiskAssessment } from "@/types/domain";
 
-const PUBLIC_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
-const SERVER_API_BASE_URL = process.env.API_INTERNAL_BASE_URL ?? PUBLIC_API_BASE_URL;
+const PUBLIC_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/backend";
+const SERVER_API_BASE_URL = process.env.API_INTERNAL_BASE_URL ?? "http://localhost:8000/api";
+const TOKEN_STORAGE_KEY = "threex.accessToken";
+
+let cachedServerToken: string | null = null;
+let cachedServerTokenExpiresAt = 0;
+let pendingServerToken: Promise<string | null> | null = null;
 
 function apiBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    if (
+      PUBLIC_API_BASE_URL.includes("localhost:8000") ||
+      PUBLIC_API_BASE_URL.includes("127.0.0.1:8000")
+    ) {
+      return "/api/backend";
+    }
+    return PUBLIC_API_BASE_URL;
+  }
   return typeof window === "undefined" ? SERVER_API_BASE_URL : PUBLIC_API_BASE_URL;
 }
 
+async function getServerAccessToken(): Promise<string | null> {
+  if (typeof window !== "undefined") {
+    return null;
+  }
+  const staticToken = process.env.API_BEARER_TOKEN;
+  if (staticToken) {
+    return staticToken;
+  }
+  if (cachedServerToken && cachedServerTokenExpiresAt - Date.now() > 60_000) {
+    return cachedServerToken;
+  }
+  if (pendingServerToken) {
+    return pendingServerToken;
+  }
+
+  pendingServerToken = (async () => {
+    const email = process.env.DEMO_USER_EMAIL ?? "demo@3x.local";
+    const password =
+      process.env.DEMO_USER_PASSWORD ?? (process.env.NODE_ENV === "production" ? "" : "demo-password");
+    if (!password) {
+      return null;
+    }
+    try {
+      const response = await fetch(`${SERVER_API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const body = (await response.json()) as { access_token: string };
+      cachedServerToken = body.access_token;
+      cachedServerTokenExpiresAt = Date.now() + 10 * 60 * 1000;
+      return cachedServerToken;
+    } finally {
+      pendingServerToken = null;
+    }
+  })();
+
+  return pendingServerToken;
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  if (typeof window !== "undefined") {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY);
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+  const token = await getServerAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const auth = await authHeaders();
+  for (const [key, value] of Object.entries(auth)) {
+    if (!headers.has(key)) {
+      headers.set(key, value);
+    }
+  }
+  return fetch(`${apiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+    cache: "no-store",
+  });
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl()}${path}`, { cache: "no-store" });
+  const response = await apiFetch(path);
   if (!response.ok) {
     throw new Error(`API request failed for ${path}`);
   }
@@ -247,7 +329,7 @@ export type PortfolioRiskResponse = {
 };
 
 export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {
-  const response = await fetch(`${apiBaseUrl()}/risk-assessment`, {
+  const response = await apiFetch("/risk-assessment", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -263,7 +345,7 @@ export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise
 }
 
 export async function solveRiskAssessment(payload: RiskSolveRequest): Promise<RiskSolveResponse> {
-  const response = await fetch(`${apiBaseUrl()}/risk-assessment/solve`, {
+  const response = await apiFetch("/risk-assessment/solve", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -280,7 +362,7 @@ export async function solveRiskAssessment(payload: RiskSolveRequest): Promise<Ri
 }
 
 export async function runRiskSensitivity(payload: RiskSensitivityRequest): Promise<RiskSensitivityResponse> {
-  const response = await fetch(`${apiBaseUrl()}/risk-assessment/sensitivity`, {
+  const response = await apiFetch("/risk-assessment/sensitivity", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -296,7 +378,7 @@ export async function runRiskSensitivity(payload: RiskSensitivityRequest): Promi
 }
 
 export async function getOptimalHedge(payload: RiskAssessmentRequest): Promise<OptimalHedgeResponse> {
-  const response = await fetch(`${apiBaseUrl()}/risk-assessment/optimal-hedge`, {
+  const response = await apiFetch("/risk-assessment/optimal-hedge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -316,7 +398,7 @@ export function getRiskCalibration(marketId: number): Promise<RiskCalibration> {
 }
 
 export async function createDecision(payload: DecisionCreateRequest): Promise<DecisionItem> {
-  const response = await fetch(`${apiBaseUrl()}/decisions`, {
+  const response = await apiFetch("/decisions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -337,7 +419,7 @@ export async function updateDecision(
   decisionId: number,
   payload: DecisionUpdateRequest,
 ): Promise<DecisionItem> {
-  const response = await fetch(`${apiBaseUrl()}/decisions/${decisionId}`, {
+  const response = await apiFetch(`/decisions/${decisionId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -350,7 +432,7 @@ export async function updateDecision(
 }
 
 export async function deleteDecision(decisionId: number): Promise<{ deleted_id: number }> {
-  const response = await fetch(`${apiBaseUrl()}/decisions/${decisionId}`, {
+  const response = await apiFetch(`/decisions/${decisionId}`, {
     method: "DELETE",
     cache: "no-store",
   });
@@ -361,7 +443,7 @@ export async function deleteDecision(decisionId: number): Promise<{ deleted_id: 
 }
 
 export async function runPortfolioRisk(payload: PortfolioRiskRequest): Promise<PortfolioRiskResponse> {
-  const response = await fetch(`${apiBaseUrl()}/portfolio-risk`, {
+  const response = await apiFetch("/portfolio-risk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -374,7 +456,7 @@ export async function runPortfolioRisk(payload: PortfolioRiskRequest): Promise<P
 }
 
 export async function getRiskPaths(payload: RiskAssessmentRequest): Promise<RiskPathFanResponse> {
-  const response = await fetch(`${apiBaseUrl()}/risk-assessment/paths`, {
+  const response = await apiFetch("/risk-assessment/paths", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -393,7 +475,7 @@ export async function exportRiskAssessment(
   payload: RiskAssessmentRequest,
   format: "pdf" | "xlsx",
 ): Promise<Blob> {
-  const response = await fetch(`${apiBaseUrl()}/risk-assessment/export?format=${format}`, {
+  const response = await apiFetch(`/risk-assessment/export?format=${format}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

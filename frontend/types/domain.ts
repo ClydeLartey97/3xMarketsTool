@@ -152,6 +152,18 @@ export type ScenarioOutcome = {
   prob_loss: number;
 };
 
+export type DecisionGate = {
+  action: "clear" | "watch" | "block";
+  score: number;
+  label: string;
+  reasons: string[];
+  checks: Array<{
+    label: string;
+    status: "pass" | "warn" | "fail" | string;
+    value: string;
+  }>;
+};
+
 export type RiskAssessment = {
   market_code: string;
   market_name: string;
@@ -187,6 +199,7 @@ export type RiskAssessment = {
   rationale: string;
   scenarios: ScenarioOutcome[];
   coefficients: CoefficientBlock;
+  decision_gate: DecisionGate;
 };
 
 export type OptimalHedgeResponse = {
