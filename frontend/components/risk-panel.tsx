@@ -25,6 +25,45 @@ const HORIZONS: Array<{ label: string; value: number }> = [
 const PRESETS = [1000, 5000, 10000, 25000, 100000];
 const RISK_PRESETS = [250, 500, 1000, 2500, 5000];
 const HEDGE_SUGGESTION_THRESHOLD_GBP = 500;
+const HISTORY_LIMIT = 8;
+const HISTORY_STORAGE_PREFIX = "threex.riskHistory.v1";
+
+type SetupMode = "risk-first" | "notional";
+
+type RiskSetup = {
+  label: string;
+  detail: string;
+  mode: SetupMode;
+  maxRisk?: number;
+  position?: number;
+  horizon: number;
+  direction: "long" | "short";
+};
+
+type RiskHistoryItem = {
+  id: string;
+  marketCode: string;
+  createdAt: string;
+  mode: SetupMode;
+  maxRisk: number;
+  position: number;
+  horizon: number;
+  direction: "long" | "short";
+  riskGbp: number;
+  likelyGbp: number;
+  upsideGbp: number;
+  probLoss: number;
+  edgeScore: number;
+  gateLabel: string;
+};
+
+const COMMON_SETUPS: RiskSetup[] = [
+  { label: "Intraday spike", detail: "6h · £500 risk · long", mode: "risk-first", maxRisk: 500, horizon: 6, direction: "long" },
+  { label: "Day-ahead base", detail: "24h · £1k risk · long", mode: "risk-first", maxRisk: 1000, horizon: 24, direction: "long" },
+  { label: "Fade rally", detail: "12h · £10k notional · short", mode: "notional", position: 10000, horizon: 12, direction: "short" },
+  { label: "Stress window", detail: "72h · £2.5k risk · short", mode: "risk-first", maxRisk: 2500, horizon: 72, direction: "short" },
+  { label: "Swing book", detail: "48h · £25k notional · long", mode: "notional", position: 25000, horizon: 48, direction: "long" },
+];
 
 function formatGbp(value: number) {
   const sign = value < 0 ? "-" : "";
@@ -36,6 +75,30 @@ function formatGbp(value: number) {
 
 function formatPct(value: number) {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatPctValue(value: number, signed = false) {
+  const prefix = signed && value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(1)}%`;
+}
+
+function formatCompactTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function historyStorageKey(marketCode: string) {
+  return `${HISTORY_STORAGE_PREFIX}.${marketCode}`;
+}
+
+function riskMetricLabel(metric: string) {
+  if (metric.includes("t5")) return "CVaR95 t(5)";
+  if (metric.includes("normal")) return "CVaR95";
+  return metric.replaceAll("_", " ");
 }
 
 export type RiskPanelProps = {
@@ -73,10 +136,79 @@ export function RiskPanel({
   const [savingDecision, setSavingDecision] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [history, setHistory] = useState<RiskHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const historySignatureRef = useRef<string | null>(null);
   const isDegraded = dataStatus === "degraded";
+
+  useEffect(() => {
+    historySignatureRef.current = null;
+    try {
+      const raw = window.localStorage.getItem(historyStorageKey(marketCode));
+      setHistory(raw ? (JSON.parse(raw) as RiskHistoryItem[]) : []);
+    } catch {
+      setHistory([]);
+    }
+  }, [marketCode]);
+
+  useEffect(() => {
+    if (!data || isDegraded) return;
+    const signature = [
+      data.market_code,
+      data.target_timestamp,
+      data.position_gbp.toFixed(2),
+      data.horizon_hours,
+      data.direction,
+      data.risk_gbp.toFixed(2),
+      data.likely_gbp.toFixed(2),
+      data.upside_gbp.toFixed(2),
+    ].join("|");
+    if (historySignatureRef.current === signature) return;
+    historySignatureRef.current = signature;
+
+    const item: RiskHistoryItem = {
+      id: signature,
+      marketCode: data.market_code,
+      createdAt: data.as_of,
+      mode: riskFirst ? "risk-first" : "notional",
+      maxRisk,
+      position: data.position_gbp,
+      horizon: data.horizon_hours,
+      direction: data.direction === "short" ? "short" : "long",
+      riskGbp: data.risk_gbp,
+      likelyGbp: data.likely_gbp,
+      upsideGbp: data.upside_gbp,
+      probLoss: data.prob_loss,
+      edgeScore: data.edge_score,
+      gateLabel: data.decision_gate?.label ?? "No gate",
+    };
+
+    setHistory((current) => {
+      const next = [item, ...current.filter((entry) => entry.id !== item.id)].slice(0, HISTORY_LIMIT);
+      try {
+        window.localStorage.setItem(historyStorageKey(marketCode), JSON.stringify(next));
+      } catch {
+        // Local storage is a convenience cache; losing it should never block assessment.
+      }
+      return next;
+    });
+  }, [data, isDegraded, marketCode, maxRisk, riskFirst]);
+
+  function applySetup(setup: RiskSetup | RiskHistoryItem) {
+    const mode = setup.mode;
+    setRiskFirst(mode === "risk-first");
+    setHorizon(setup.horizon);
+    setDirection(setup.direction);
+    if (mode === "risk-first") {
+      setMaxRisk("maxRisk" in setup && setup.maxRisk ? setup.maxRisk : maxRisk);
+      if ("position" in setup && setup.position) setPosition(setup.position);
+    } else {
+      const nextPosition = "position" in setup && setup.position ? setup.position : position;
+      setPosition(nextPosition);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -272,6 +404,9 @@ export function RiskPanel({
         </span>
       </div>
 
+      <HeadlineFigures data={data} loading={loading} isDegraded={isDegraded} />
+      <MathSnapshot data={data} loading={loading} isDegraded={isDegraded} />
+
       {/* Position input */}
       <div className="mb-4 space-y-2">
         <div className="flex rounded-lg border border-seam bg-bg p-0.5">
@@ -383,39 +518,10 @@ export function RiskPanel({
         </div>
       </div>
 
-      {/* The three numbers */}
-      {isDegraded ? (
-        <div className="rounded-xl border border-price-dn/25 bg-price-dn/10 p-4 text-sm leading-relaxed text-ink/70">
-          <p className="font-semibold text-price-dn">Insufficient real data - try refresh.</p>
-          <p className="mt-1 text-xs text-ink/50">
-            Risk numbers are hidden until this market has a real price source in the selected window.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-xl border border-seam bg-bg p-3">
-            <p className="text-[10px] uppercase tracking-widest text-ink/40">Risk (95% CVaR)</p>
-            <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-price-dn">
-              {data ? formatGbp(data.risk_gbp) : "—"}
-            </p>
-            <p className="mt-1 text-[10px] text-ink/40">expected loss in worst 5%</p>
-          </div>
-          <div className="rounded-xl border border-seam bg-bg p-3">
-            <p className="text-[10px] uppercase tracking-widest text-ink/40">Likely</p>
-            <p className={`mt-1.5 font-mono text-xl font-semibold tabular-nums ${data && data.likely_gbp >= 0 ? "text-price-up" : "text-price-dn"}`}>
-              {data ? formatGbp(data.likely_gbp) : "—"}
-            </p>
-            <p className="mt-1 text-[10px] text-ink/40">expected P&amp;L</p>
-          </div>
-          <div className="rounded-xl border border-seam bg-bg p-3">
-            <p className="text-[10px] uppercase tracking-widest text-ink/40">Upside</p>
-            <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-price-up">
-              {data ? formatGbp(data.upside_gbp) : "—"}
-            </p>
-            <p className="mt-1 text-[10px] text-ink/40">95th percentile</p>
-          </div>
-        </div>
-      )}
+      <div className="mb-4 grid gap-2 2xl:grid-cols-[1fr_1.1fr]">
+        <CommonSetups setups={COMMON_SETUPS} onApply={applySetup} />
+        <RecentAssessments items={history} onApply={applySetup} />
+      </div>
 
       {gate ? (
         <div className={`mt-3 rounded-xl border p-3 ${gateTone}`}>
@@ -447,7 +553,7 @@ export function RiskPanel({
               </div>
             ))}
           </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-ink/62">{gate.reasons[0]}</p>
+          <p className="mt-2 text-[11px] leading-relaxed text-ink/60">{gate.reasons[0]}</p>
         </div>
       ) : null}
 
@@ -588,6 +694,245 @@ export function RiskPanel({
       <p className="mt-3 text-[10px] text-ink/30">
         Educational tool. Not financial advice. Numbers reflect modelled distributions, not realised outcomes.
       </p>
+    </div>
+  );
+}
+
+function HeadlineFigures({
+  data,
+  loading,
+  isDegraded,
+}: {
+  data: RiskAssessment | null;
+  loading: boolean;
+  isDegraded: boolean;
+}) {
+  if (isDegraded) {
+    return (
+      <div className="-mx-5 mb-4 border-y border-price-dn/25 bg-price-dn/10 px-5 py-4 text-sm leading-relaxed text-ink/70">
+        <p className="font-semibold text-price-dn">Insufficient real data - try refresh.</p>
+        <p className="mt-1 text-xs text-ink/50">
+          Risk numbers are hidden until this market has a real price source in the selected window.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="-mx-5 mb-4 border-y border-seam bg-surface/95 px-5 py-3 shadow-sm">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/40">
+          Headline figures
+        </span>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/35">
+          {data ? `${riskMetricLabel(data.risk_metric)} · ${data.n_paths.toLocaleString()} paths` : loading ? "scoring" : "ready"}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <FigureCell
+          label="Risk"
+          value={data ? formatGbp(data.risk_gbp) : "—"}
+          helper="worst 5%"
+          tone="dn"
+          active={loading}
+        />
+        <FigureCell
+          label="Likely"
+          value={data ? formatGbp(data.likely_gbp) : "—"}
+          helper="mean P&L"
+          tone={data && data.likely_gbp < 0 ? "dn" : "up"}
+          active={loading}
+        />
+        <FigureCell
+          label="Upside"
+          value={data ? formatGbp(data.upside_gbp) : "—"}
+          helper="95th pct"
+          tone="up"
+          active={loading}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FigureCell({
+  label,
+  value,
+  helper,
+  tone,
+  active,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  tone: "up" | "dn";
+  active: boolean;
+}) {
+  const toneClass = tone === "up" ? "text-price-up" : "text-price-dn";
+  return (
+    <div className={`min-w-0 rounded-lg border border-seam bg-bg p-3 ${active ? "animate-pulse" : ""}`}>
+      <p className="truncate text-[10px] uppercase tracking-widest text-ink/40">{label}</p>
+      <p className={`mt-1 truncate font-mono text-xl font-semibold tabular-nums xl:text-2xl ${toneClass}`}>
+        {value}
+      </p>
+      <p className="mt-1 truncate text-[10px] text-ink/40">{helper}</p>
+    </div>
+  );
+}
+
+function MathSnapshot({
+  data,
+  loading,
+  isDegraded,
+}: {
+  data: RiskAssessment | null;
+  loading: boolean;
+  isDegraded: boolean;
+}) {
+  if (isDegraded) return null;
+
+  return (
+    <div className="mb-4 rounded-lg border border-seam bg-bg p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/40">Math tape</span>
+        <span className="truncate font-mono text-[10px] uppercase tracking-widest text-ink/35">
+          {data ? `P&L = direction × position × Δprice × FX` : loading ? "solving" : "awaiting read"}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <MathChip label="P(loss)" value={data ? formatPct(data.prob_loss) : "—"} tone="dn" />
+        <MathChip label="σ horizon" value={data ? formatPctValue(data.sigma_return_pct) : "—"} />
+        <MathChip
+          label="μ horizon"
+          value={data ? formatPctValue(data.expected_return_pct, true) : "—"}
+          tone={data && data.expected_return_pct < 0 ? "dn" : "up"}
+        />
+        <MathChip label="VaR95" value={data ? formatGbp(data.var95_gbp) : "—"} tone="dn" />
+      </div>
+    </div>
+  );
+}
+
+function MathChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "up" | "dn";
+}) {
+  const toneClass = tone === "up" ? "text-price-up" : tone === "dn" ? "text-price-dn" : "text-ink";
+  return (
+    <div className="min-w-0 rounded-md border border-seam/70 bg-surface px-2.5 py-2">
+      <p className="truncate text-[9px] uppercase tracking-widest text-ink/35">{label}</p>
+      <p className={`mt-0.5 truncate font-mono text-sm font-semibold tabular-nums ${toneClass}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function CommonSetups({
+  setups,
+  onApply,
+}: {
+  setups: RiskSetup[];
+  onApply: (setup: RiskSetup) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-seam bg-bg p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[10px] uppercase tracking-widest text-ink/40">Common setups</span>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/30">
+          {setups.length}
+        </span>
+      </div>
+      <div className="grid gap-1.5">
+        {setups.map((setup) => (
+          <button
+            key={setup.label}
+            type="button"
+            onClick={() => onApply(setup)}
+            className="group rounded-md border border-transparent bg-surface px-2.5 py-2 text-left transition hover:border-seam-hi hover:bg-ink/5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate text-[12px] font-medium text-ink">{setup.label}</span>
+              <span
+                className={`shrink-0 font-mono text-[9px] uppercase tracking-widest ${
+                  setup.direction === "long" ? "text-price-up" : "text-price-dn"
+                }`}
+              >
+                {setup.direction}
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-[10px] text-ink/40">{setup.detail}</p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RecentAssessments({
+  items,
+  onApply,
+}: {
+  items: RiskHistoryItem[];
+  onApply: (item: RiskHistoryItem) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-seam bg-bg p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[10px] uppercase tracking-widest text-ink/40">Recent reads</span>
+        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/30">
+          {items.length}
+        </span>
+      </div>
+      {items.length === 0 ? (
+        <div className="rounded-md bg-surface px-3 py-6 text-center text-xs text-ink/40">
+          No recent reads yet.
+        </div>
+      ) : (
+        <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onApply(item)}
+              className="w-full rounded-md border border-transparent bg-surface px-2.5 py-2 text-left transition hover:border-seam-hi hover:bg-ink/5"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-[10px] uppercase tracking-widest text-ink/35">
+                    {formatCompactTime(item.createdAt)} · {item.direction} · {item.horizon}h
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-ink/50">{item.gateLabel}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="font-mono text-xs font-semibold tabular-nums text-price-dn">
+                    {formatGbp(item.riskGbp)}
+                  </p>
+                  <p
+                    className={`mt-0.5 font-mono text-[10px] tabular-nums ${
+                      item.likelyGbp >= 0 ? "text-price-up" : "text-price-dn"
+                    }`}
+                  >
+                    {formatGbp(item.likelyGbp)}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-1 text-[10px]">
+                <span className="truncate text-ink/40">{formatGbp(item.position)}</span>
+                <span className="truncate text-ink/40">loss {formatPct(item.probLoss)}</span>
+                <span className="truncate text-right font-mono text-ink/45">
+                  edge {item.edgeScore.toFixed(2)}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

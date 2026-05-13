@@ -43,6 +43,14 @@ function buildForecast(dashboard: DashboardData) {
   }));
 }
 
+function formatGbp(value: number) {
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${sign}£${(abs / 1_000_000).toFixed(2)}m`;
+  if (abs >= 10_000) return `${sign}£${(abs / 1000).toFixed(1)}k`;
+  return `${sign}£${abs.toFixed(0)}`;
+}
+
 export function MarketWorkbench({
   markets,
   dashboard,
@@ -119,6 +127,8 @@ export function MarketWorkbench({
           <KpiTile label="Model dir-acc" value={`${directionalAccuracy}%`} sub={`spike ${spikePrecision}%`} />
         </div>
       </section>
+
+      <AssessmentDock risk={risk} loading={riskLoading} />
 
       <section className="h-[calc(100vh-220px)] min-h-[980px]">
         <PanelGroup autoSaveId="frontier-workbench-rows-v2" direction="vertical" className="h-full">
@@ -226,6 +236,62 @@ function ResizeHandle({ direction }: { direction: "horizontal" | "vertical" }) {
       ? "mx-2 w-1 rounded-full bg-seam transition hover:bg-seam-hi data-[resize-handle-active]:bg-seam-hi"
       : "my-2 h-1 rounded-full bg-seam transition hover:bg-seam-hi data-[resize-handle-active]:bg-seam-hi";
   return <PanelResizeHandle className={className} />;
+}
+
+function AssessmentDock({ risk, loading }: { risk: RiskAssessment | null; loading: boolean }) {
+  const gate = risk?.decision_gate;
+  const gateTone =
+    gate?.action === "clear"
+      ? "border-price-up/30 bg-price-up/10 text-price-up"
+      : gate?.action === "block"
+        ? "border-price-dn/30 bg-price-dn/10 text-price-dn"
+        : "border-price-warn/30 bg-price-warn/10 text-price-warn";
+
+  return (
+    <section className="sticky top-[73px] z-30 rounded-xl border border-seam bg-surface/95 p-3 shadow-panel backdrop-blur">
+      <div className="grid gap-2 md:grid-cols-[0.9fr_1fr_1fr_1fr_1.1fr]">
+        <div className="flex min-w-0 flex-col justify-center rounded-lg bg-bg px-3 py-2">
+          <p className="truncate text-[10px] uppercase tracking-widest text-ink/35">Assessment</p>
+          <p className="mt-1 truncate font-mono text-[11px] uppercase tracking-widest text-ink/55">
+            {risk ? `${risk.direction} · ${risk.horizon_hours}h` : loading ? "scoring" : "awaiting read"}
+          </p>
+        </div>
+        <DockFigure label="Risk" value={risk ? formatGbp(risk.risk_gbp) : "—"} tone="dn" />
+        <DockFigure
+          label="Likely"
+          value={risk ? formatGbp(risk.likely_gbp) : "—"}
+          tone={risk && risk.likely_gbp < 0 ? "dn" : "up"}
+        />
+        <DockFigure label="Upside" value={risk ? formatGbp(risk.upside_gbp) : "—"} tone="up" />
+        <div className={`min-w-0 rounded-lg border px-3 py-2 ${gateTone}`}>
+          <p className="truncate text-[10px] uppercase tracking-widest opacity-70">Gate</p>
+          <p className="mt-1 truncate text-sm font-semibold text-ink">
+            {gate ? `${gate.label} · ${gate.score.toFixed(1)}` : "No read yet"}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DockFigure({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "up" | "dn";
+}) {
+  const toneClass = tone === "up" ? "text-price-up" : "text-price-dn";
+  return (
+    <div className="min-w-0 rounded-lg border border-seam bg-bg px-3 py-2">
+      <p className="truncate text-[10px] uppercase tracking-widest text-ink/35">{label}</p>
+      <p className={`mt-1 truncate font-mono text-lg font-semibold tabular-nums ${toneClass}`}>
+        {value}
+      </p>
+    </div>
+  );
 }
 
 function KpiTile({
