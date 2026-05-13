@@ -252,16 +252,17 @@ Format: `frontier-X.N (sha) — one-line result.`
 - frontier-E.3 (4f2705a) — Cross-zone basis trade type; engine runs paired correlated MC; spread P&L on combined position.
 - frontier-E.4 (68f9b47) — Congestion-aware σ overlay; per-market DC-OPF over 9 load multipliers; `congestion_multiplier` coefficient surfaced.
 - frontier-E.5 (87a725e) — Grid topology UI at `/grid`; `/api/grid/topology` + `/api/grid/flows` endpoints.
-- frontier-F.1 (pending) — Postgres `DATABASE_URL` path, Alembic baseline migration, and startup/scripts moved off `Base.metadata.create_all`; backend pytest 104 passed, 1 skipped.
-- frontier-F.2 (pending) — JWT auth endpoints, protected API routes, seeded demo user, and per-user decision ownership; backend pytest 108 passed, 1 skipped.
-- frontier-F.3 (pending) — Hash-chained audit log table, mutation audit writes, and `/api/audit` export; focused backend pytest 19 passed.
-- frontier-F.4 (pending) — Risk export endpoint returns audited PDF/XLSX packs; risk panel exposes export buttons. Tests: export + audit focused pass; tsc pass.
-- frontier-F.5 (pending) — OpenTelemetry tracing for FastAPI/SQLAlchemy/httpx with console-or-OTLP export; structlog JSON logging. Tests: observability focused pass.
-- frontier-F.5.1 (pending) — SlowAPI per-user data limits plus stricter risk-assessment and sensitivity throttles. Tests: rate-limit focused pass.
-- frontier-F.6 (pending) — Deployment Compose stack for Postgres, Redis, backend, frontend, and OTel collector; `make deploy` target. Tests: YAML structure pass; Docker unavailable locally.
-- frontier-F.6.1 (pending) — BackgroundScheduler removed; arq worker owns market refresh, hourly P&L fill, and nightly backtests with retry backoff. Tests: worker focused pass.
-- frontier-F.7 (pending) — Redis pub/sub market stream, `/ws/markets/{code}` bridge, worker-published events, and KLineCharts live-tick hook. Tests: stream focused pass; tsc pass.
-- frontier-F.8 (pending) — SOC2 prep doc covering audit log, encryption, secrets, access control, change management, incident response, and vendors.
+- frontier-F.1 (7fd9d55) — Postgres `DATABASE_URL` path, Alembic baseline migration, and startup/scripts moved off `Base.metadata.create_all`.
+- frontier-F.2 (99d6a0c) — JWT auth endpoints, protected API routes, seeded demo user, and per-user decision ownership.
+- frontier-F.3 (2fea0ef) — Hash-chained audit log table, mutation audit writes, and `/api/audit` export.
+- frontier-F.4 (c6bf19f) — Risk export endpoint returns audited PDF/XLSX packs; risk panel exposes export buttons.
+- frontier-F.5 (06b611d) — OpenTelemetry tracing for FastAPI/SQLAlchemy/httpx with console-or-OTLP export; structlog JSON logging.
+- frontier-F.5.1 (2d229f4) — SlowAPI per-user data limits plus stricter risk-assessment and sensitivity throttles.
+- frontier-F.6 (fdff366) — Deployment Compose stack for Postgres, Redis, backend, frontend, worker, and OTel collector; `make deploy` target.
+- frontier-F.6.1 (97db6f4) — BackgroundScheduler removed; arq worker owns market refresh, hourly P&L fill, and nightly backtests with retry backoff.
+- frontier-F.7 (1e3f6ca) — Redis pub/sub market stream, `/ws/markets/{code}` bridge, worker-published events, and KLineCharts live-tick hook.
+- frontier-F.8 (defd0f5) — SOC2 prep doc covering audit log, encryption, secrets, access control, change management, incident response, and vendors.
+- frontier-F.acceptance-partial (47f3992) — Frontend assessment dock (decision-gate verdict banner), per-market risk-history sidebar, and common-setup presets shipped alongside the F.3 risk gate. Phase F acceptance gate partially verified: Alembic baseline → auth → audit chain applies cleanly against a fresh SQLite store, compose YAML enumerates all 6 services, all Phase F sub-step tests pass in isolation. Full-stack Docker verification remains blocked locally.
 
 ## Blockers
 
