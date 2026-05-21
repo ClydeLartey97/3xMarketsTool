@@ -124,3 +124,10 @@ def current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+def audit_user(user: User = Depends(current_user)) -> User:
+    settings = get_settings()
+    if user.role not in set(settings.audit_export_roles):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Audit export requires auditor access")
+    return user

@@ -40,7 +40,7 @@ from app.schemas.domain import (
     RiskSolveResponse,
 )
 from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
-from app.services.auth import current_user
+from app.services.auth import audit_user, current_user
 from app.services.audit import list_audit_logs, write_audit_log
 from app.services.decision_diary import create_decision, delete_decision, list_decisions, update_decision
 from app.services.risk_calibration import log_risk_assessment, risk_calibration_for_market
@@ -712,6 +712,7 @@ def get_audit_logs(
     from_ts: datetime | None = Query(default=None, alias="from"),
     to_ts: datetime | None = Query(default=None, alias="to"),
     db: Session = Depends(get_db),
+    _: User = Depends(audit_user),
 ) -> list[AuditLogRead]:
     if from_ts and to_ts and from_ts > to_ts:
         raise HTTPException(status_code=400, detail="'from' must be before 'to'")

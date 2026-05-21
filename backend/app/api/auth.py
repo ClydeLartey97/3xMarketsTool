@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models import User
 from app.schemas.domain import AuthLoginRequest, AuthRegisterRequest, AuthTokenResponse, UserRead
+from app.core.config import get_settings
 from app.services.auth import authenticate_user, create_access_token, current_user, hash_password
 
 
@@ -37,6 +38,9 @@ def login(payload: AuthLoginRequest, db: Session = Depends(get_db)) -> AuthToken
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register(payload: AuthRegisterRequest, db: Session = Depends(get_db)) -> UserRead:
+    settings = get_settings()
+    if not settings.allow_registration:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration is disabled")
     email = payload.email.lower()
     if db.scalar(select(User.id).where(User.email == email)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
@@ -44,7 +48,7 @@ def register(payload: AuthRegisterRequest, db: Session = Depends(get_db)) -> Use
         email=email,
         password_hash=hash_password(payload.password),
         organisation=payload.organisation,
-        role=payload.role,
+        role=settings.registration_default_role,
     )
     db.add(user)
     db.commit()

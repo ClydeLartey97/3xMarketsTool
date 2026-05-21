@@ -6,6 +6,7 @@ import {
   dispose,
   ActionType,
   CandleType,
+  LineType,
   TooltipShowRule,
   TooltipShowType,
   type Chart,
@@ -81,12 +82,24 @@ function buildKlineData(
   return { kline, forecastStartMs };
 }
 
+/**
+ * Three price levels derived from the active risk assessment, drawn as
+ * locked horizontal lines on the chart so the user can see where each
+ * bubble's P&L lands relative to the live market.
+ */
+export type RiskOverlay = {
+  riskPrice: number;
+  likelyPrice: number;
+  upsidePrice: number;
+};
+
 export type PriceChartProps = {
   history: ChartHistoryPoint[];
   forecast: ChartForecastPoint[];
   livePriceTick?: ChartHistoryPoint | null;
   timezoneLabel?: string;
   onCrosshair?: (payload: CrosshairPayload | null) => void;
+  riskOverlay?: RiskOverlay | null;
 };
 
 function klineFromTick(point: ChartHistoryPoint, previousClose: number | null): KLineData | null {
@@ -104,7 +117,14 @@ function klineFromTick(point: ChartHistoryPoint, previousClose: number | null): 
   };
 }
 
-export function PriceChart({ history, forecast, livePriceTick, timezoneLabel, onCrosshair }: PriceChartProps) {
+export function PriceChart({
+  history,
+  forecast,
+  livePriceTick,
+  timezoneLabel,
+  onCrosshair,
+  riskOverlay,
+}: PriceChartProps) {
   const containerId = useId().replace(/[:]/g, "_");
   const chartRef = useRef<Chart | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -243,6 +263,36 @@ export function PriceChart({ history, forecast, livePriceTick, timezoneLabel, on
       if (id) chart.removeOverlay(id);
     };
   }, [forecastStartMs, forecast]);
+
+  // Risk overlay — three locked horizontal lines for risk / likely / upside.
+  // The lines redraw whenever the assessment refreshes (e.g., when the user
+  // edits position size in the hero) and clean up when the prop clears.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !riskOverlay) return;
+    const lines: Array<{ value: number; color: string; label: string }> = [
+      { value: riskOverlay.upsidePrice, color: "#059669", label: "Upside" },
+      { value: riskOverlay.likelyPrice, color: "rgba(8, 17, 26, 0.55)", label: "Likely" },
+      { value: riskOverlay.riskPrice, color: "#dc2626", label: "Risk" },
+    ];
+    const ids: string[] = [];
+    for (const line of lines) {
+      if (!Number.isFinite(line.value)) continue;
+      const id = chart.createOverlay({
+        name: "horizontalStraightLine",
+        lock: true,
+        points: [{ value: line.value }],
+        styles: {
+          line: { color: line.color, size: 1, style: LineType.Dashed, dashedValue: [6, 4] },
+        },
+        extendData: line.label,
+      }) as string | null;
+      if (id) ids.push(id);
+    }
+    return () => {
+      for (const id of ids) chart.removeOverlay(id);
+    };
+  }, [riskOverlay]);
 
   // Chart type toggle
   useEffect(() => {

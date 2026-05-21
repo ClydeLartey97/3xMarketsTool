@@ -44,6 +44,19 @@ def test_login_returns_bearer_token(anon_client: TestClient, auth_user: User) ->
     assert body["user"]["email"] == TEST_USER_EMAIL
 
 
+def test_registration_is_disabled_by_default(anon_client: TestClient) -> None:
+    response = anon_client.post(
+        "/api/auth/register",
+        json={
+            "email": "new-user@3x.local",
+            "password": "strong-password",
+            "organisation": "3x Test",
+            "role": "admin",
+        },
+    )
+    assert response.status_code == 403
+
+
 def test_user_cannot_read_or_mutate_another_users_decisions(
     anon_client: TestClient,
     db_session: Session,

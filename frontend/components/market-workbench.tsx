@@ -1,37 +1,62 @@
 "use client";
-
+/**
+ * Market workbench — the single market page.
+ *
+ * Information hierarchy (top to bottom):
+ *   1. Market identity (compact strip with selector + spot)
+ *   2. HERO: trade input + three bubbles + sticky follow-down bar
+ *   3. Decision gate strip
+ *   4. Price chart
+ *   5. Scenario cards
+ *   6. Path fan
+ *   7. Audit layer (decomposition + sensitivity ladder, side by side)
+ *   8. News briefs
+ *   9. Events timeline
+ *  10. Decisions diary + positions blotter
+ *  11. Calibration panel + signal stack
+ *
+ * The three numbers are the gravitational centre. Everything beneath
+ * exists to explain or back them up.
+ */
 import dynamic from "next/dynamic";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CalibrationPanel } from "@/components/calibration-panel";
 import { ClientErrorBoundary } from "@/components/client-error-boundary";
 import { DecisionDiary } from "@/components/decision-diary";
+import { DecisionGateStrip } from "@/components/decision-gate-strip";
 import { EventFeed } from "@/components/event-feed";
+import { MarketHero } from "@/components/market-hero";
 import { NewsBriefs } from "@/components/news-briefs";
 import { PositionBlotter } from "@/components/position-blotter";
 import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
-import { RiskPanel } from "@/components/risk-panel";
 import { RiskPathFan } from "@/components/risk-path-fan";
 import { RiskSensitivityLadder } from "@/components/risk-sensitivity-ladder";
+import { ScenarioCards } from "@/components/scenario-cards";
 import { SignalStack } from "@/components/signal-stack";
+import type { TradeInputState } from "@/components/trade-input-bar";
 import { useMarketStream } from "@/lib/use-market-stream";
 import { DashboardData, Market, RiskAssessment } from "@/types/domain";
 
-// Chart is canvas-based — render only on client
-const KlinePriceChart = dynamic(() => import("@/components/kline-price-chart").then((m) => m.KlinePriceChart), {
-  ssr: false,
-  loading: () => (
-    <div className="flex h-[620px] items-center justify-center rounded-2xl border border-seam bg-surface text-sm text-ink/40">
-      Loading chart…
-    </div>
-  ),
-});
+const KlinePriceChart = dynamic(
+  () => import("@/components/kline-price-chart").then((m) => m.KlinePriceChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[500px] items-center justify-center rounded-2xl border border-seam bg-surface text-sm text-ink/40">
+        Loading chart…
+      </div>
+    ),
+  },
+);
 
 function buildHistory(dashboard: DashboardData) {
-  return dashboard.recent_prices.map((p) => ({ timestamp: p.timestamp, value: p.price_value }));
+  return dashboard.recent_prices.map((p) => ({
+    timestamp: p.timestamp,
+    value: p.price_value,
+  }));
 }
 
 function buildForecast(dashboard: DashboardData) {
@@ -41,14 +66,6 @@ function buildForecast(dashboard: DashboardData) {
     lower: f.lower_bound,
     upper: f.upper_bound,
   }));
-}
-
-function formatGbp(value: number) {
-  const sign = value < 0 ? "-" : "";
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `${sign}£${(abs / 1_000_000).toFixed(2)}m`;
-  if (abs >= 10_000) return `${sign}£${(abs / 1000).toFixed(1)}k`;
-  return `${sign}£${abs.toFixed(0)}`;
 }
 
 export function MarketWorkbench({
@@ -62,7 +79,8 @@ export function MarketWorkbench({
   const [cursorTs, setCursorTs] = useState<number | null>(null);
   const [risk, setRisk] = useState<RiskAssessment | null>(null);
   const [riskLoading, setRiskLoading] = useState(false);
-  const [decisionRefresh, setDecisionRefresh] = useState(0);
+  const [decisionRefresh] = useState(0);
+
   const history = useMemo(() => buildHistory(dashboard), [dashboard]);
   const forecast = useMemo(() => buildForecast(dashboard), [dashboard]);
   const stream = useMarketStream(dashboard.market.code);
@@ -72,242 +90,242 @@ export function MarketWorkbench({
 
   const lastObserved = dashboard.recent_prices[dashboard.recent_prices.length - 1];
   const latestForecast = dashboard.forecasts[0] ?? dashboard.latest_forecast;
-  const front = lastObserved && latestForecast ? latestForecast.point_estimate - lastObserved.price_value : null;
-  const directionalAccuracy = Math.round((dashboard.key_metrics.directional_accuracy ?? 0) * 100);
-  const spikePrecision = Math.round((dashboard.key_metrics.spike_precision ?? 0) * 100);
-  const handleRiskResult = useCallback((result: RiskAssessment | null, loading: boolean) => {
-    setRisk(result);
-    setRiskLoading(loading);
-  }, []);
-  const handleDecisionSaved = useCallback(() => {
-    setDecisionRefresh((value) => value + 1);
-  }, []);
+  const front =
+    lastObserved && latestForecast ? latestForecast.point_estimate - lastObserved.price_value : null;
+
+  // Translate the three P&L numbers into price levels on the chart. Same
+  // formula as `pnlToPrice` in risk-path-fan.tsx; kept inline so the chart
+  // and the fan agree to the cent. For a short, gains come from a falling
+  // price, so the sign flips through the position-sign denominator.
+  const riskOverlay = useMemo(() => {
+    if (!risk) return null;
+    const sign = risk.direction === "short" ? -1 : 1;
+    const denominator = sign * Math.max(1, risk.position_gbp);
+    return {
+      riskPrice: risk.spot_price * (1 + -risk.risk_gbp / denominator),
+      likelyPrice: risk.spot_price * (1 + risk.likely_gbp / denominator),
+      upsidePrice: risk.spot_price * (1 + risk.upside_gbp / denominator),
+    };
+  }, [risk]);
+
+  const handleAssessmentChange = useCallback(
+    (next: { data: RiskAssessment | null; loading: boolean; inputs: TradeInputState }) => {
+      setRisk(next.data);
+      setRiskLoading(next.loading);
+    },
+    [],
+  );
 
   return (
-    <main className="space-y-5">
-      {/* Header */}
-      <section className="rounded-2xl border border-seam bg-surface p-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[10px] font-mono uppercase tracking-widest text-ink/55">
-                {dashboard.market.code}
-              </span>
-              <span className="text-[11px] text-ink/45">{dashboard.market.region}</span>
-              <span className="text-[11px] text-ink/35">·</span>
-              <span className="text-[11px] text-ink/45">{dashboard.market.timezone}</span>
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-ink">{dashboard.market.name}</h1>
+    <main className="space-y-8 pb-16">
+      {/* 1. Identity strip */}
+      <IdentityStrip
+        market={dashboard.market}
+        markets={markets}
+        spot={lastObserved?.price_value}
+        nextH={latestForecast?.point_estimate}
+        front={front ?? undefined}
+        onChangeMarket={(code) => router.push(`/markets/${code}` as Route)}
+      />
+
+      {/* 2. Hero — the three numbers */}
+      <MarketHero
+        marketId={dashboard.market.id}
+        marketCode={dashboard.market.code}
+        marketName={dashboard.market.name}
+        dataStatus={dashboard.market.data_status}
+        cursorTimestampMs={cursorTs}
+        onAssessmentChange={handleAssessmentChange}
+      />
+
+      {/* 3. Decision gate */}
+      {risk ? (
+        <SectionFrame title="Decision gate" subtitle="Should you put this trade on?">
+          <DecisionGateStrip data={risk} loading={riskLoading} />
+        </SectionFrame>
+      ) : null}
+
+      {/* 4. Chart */}
+      <SectionFrame
+        title="Price · forecast"
+        subtitle="Live spot, modelled distribution, and the events shaping it."
+      >
+        <ClientErrorBoundary
+          fallbackTitle="Chart engine recovering"
+          fallbackBody="The chart hit a client-side issue. Refresh once. The rest of the page stays live."
+        >
+          <div className="h-[500px] overflow-hidden rounded-2xl border border-seam bg-surface">
+            <KlinePriceChart
+              marketId={dashboard.market.id}
+              history={history}
+              forecast={forecast}
+              livePriceTick={livePriceTick}
+              events={dashboard.recent_events}
+              timezoneLabel={dashboard.market.timezone}
+              onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
+              riskOverlay={riskOverlay}
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={dashboard.market.code}
-              onChange={(event) => router.push(`/markets/${event.target.value}` as Route)}
-              className="rounded-lg border border-seam bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-seam-hi"
-            >
-              {markets.map((m) => (
-                <option key={m.code} value={m.code}>
-                  {m.name} · {m.region}
-                </option>
-              ))}
-            </select>
+        </ClientErrorBoundary>
+      </SectionFrame>
+
+      {/* 5. Scenarios */}
+      <SectionFrame title="Scenarios" subtitle="How the three numbers shift under named stress events.">
+        <ScenarioCards data={risk} loading={riskLoading} />
+      </SectionFrame>
+
+      {/* 6. Path fan */}
+      <SectionFrame
+        title="Path fan"
+        subtitle="A sample of the simulated price paths behind the three numbers."
+        collapsibleOnMobile
+        defaultOpen={false}
+      >
+        <div className="rounded-2xl border border-seam bg-surface p-4">
+          <RiskPathFan data={risk} loading={riskLoading} />
+        </div>
+      </SectionFrame>
+
+      {/* 7. Audit layer */}
+      <SectionFrame
+        title="Audit"
+        subtitle="Every coefficient feeding the read, and how each one moves the result."
+        collapsibleOnMobile
+        defaultOpen={false}
+      >
+        <div className="grid gap-4 xl:grid-cols-2">
+          <RiskDecompositionPanel data={risk} loading={riskLoading} />
+          <RiskSensitivityLadder data={risk} loading={riskLoading} />
+        </div>
+      </SectionFrame>
+
+      {/* 8. News + events */}
+      <SectionFrame
+        title="Market context"
+        subtitle="The news and structured events feeding the model."
+        collapsibleOnMobile
+        defaultOpen={false}
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-seam bg-surface p-4">
+            <NewsBriefs items={dashboard.recent_news.slice(0, 10)} />
+          </div>
+          <div className="rounded-2xl border border-seam bg-surface p-4">
+            <EventFeed
+              events={dashboard.recent_events.slice(0, 10)}
+              compact
+              title="Recent structured events"
+              subtitle="Events"
+            />
           </div>
         </div>
+      </SectionFrame>
 
-        {/* KPI strip */}
-        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-5">
-          <KpiTile label="Spot" value={lastObserved ? `$${lastObserved.price_value.toFixed(2)}` : "—"} />
-          <KpiTile label="Next H" value={latestForecast ? `$${latestForecast.point_estimate.toFixed(2)}` : "—"} accent />
-          <KpiTile
-            label="Front gap"
-            value={typeof front === "number" ? `${front >= 0 ? "+" : ""}${front.toFixed(2)}` : "—"}
-            tone={typeof front === "number" && front >= 0 ? "up" : "dn"}
-          />
-          <KpiTile label="Spike risk" value={`${Math.round((latestForecast?.spike_probability ?? 0) * 100)}%`} />
-          <KpiTile label="Model dir-acc" value={`${directionalAccuracy}%`} sub={`spike ${spikePrecision}%`} />
+      {/* 9. Decisions + positions */}
+      <SectionFrame
+        title="Your book"
+        subtitle="Open positions and the diary of past reads on this market."
+        collapsibleOnMobile
+        defaultOpen={false}
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-seam bg-surface p-4">
+            <PositionBlotter refreshKey={decisionRefresh} />
+          </div>
+          <div className="rounded-2xl border border-seam bg-surface p-4">
+            <DecisionDiary marketId={dashboard.market.id} refreshKey={decisionRefresh} />
+          </div>
         </div>
-      </section>
+      </SectionFrame>
 
-      <AssessmentDock risk={risk} loading={riskLoading} />
-
-      <section className="h-[calc(100vh-220px)] min-h-[980px]">
-        <PanelGroup autoSaveId="frontier-workbench-rows-v2" direction="vertical" className="h-full">
-          {/* TOP ROW — assessment-focused: chart (with path-fan below) + 3 right-column panels */}
-          <Panel defaultSize={64} minSize={44}>
-            <PanelGroup autoSaveId="frontier-workbench-top-v2" direction="horizontal" className="h-full">
-              <Panel defaultSize={58} minSize={36}>
-                <div className="flex h-full flex-col gap-2 pr-2">
-                  <ClientErrorBoundary
-                    fallbackTitle="Chart engine recovering"
-                    fallbackBody="The chart hit a client-side issue. Refresh once. The rest of the desk stays live."
-                  >
-                    <div className="flex-1 min-h-0 overflow-hidden">
-                      <KlinePriceChart
-                        marketId={dashboard.market.id}
-                        history={history}
-                        forecast={forecast}
-                        livePriceTick={livePriceTick}
-                        events={dashboard.recent_events}
-                        timezoneLabel={dashboard.market.timezone}
-                        onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
-                      />
-                    </div>
-                  </ClientErrorBoundary>
-                  <div className="shrink-0">
-                    <RiskPathFan data={risk} loading={riskLoading} />
-                  </div>
-                </div>
-              </Panel>
-              <ResizeHandle direction="horizontal" />
-              <Panel defaultSize={42} minSize={30}>
-                <div className="grid h-full grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-3 overflow-hidden pl-2">
-                  <RiskPanel
-                    marketId={dashboard.market.id}
-                    marketCode={dashboard.market.code}
-                    cursorTimestampMs={cursorTs}
-                    dataStatus={dashboard.market.data_status}
-                    onResult={handleRiskResult}
-                    onDecisionSaved={handleDecisionSaved}
-                  />
-                  <div className="min-h-0 scroll-pane">
-                    <RiskDecompositionPanel data={risk} loading={riskLoading} />
-                  </div>
-                  <div className="min-h-0 scroll-pane">
-                    <RiskSensitivityLadder data={risk} loading={riskLoading} />
-                  </div>
-                </div>
-              </Panel>
-            </PanelGroup>
-          </Panel>
-          <ResizeHandle direction="vertical" />
-          {/* BOTTOM ROW — market context + portfolio state. 5 columns. */}
-          <Panel defaultSize={36} minSize={24}>
-            <PanelGroup autoSaveId="frontier-workbench-bottom-v2" direction="horizontal" className="h-full">
-              <Panel defaultSize={22} minSize={14}>
-                <div className="h-full scroll-pane pr-2">
-                  <SignalStack dashboard={dashboard} />
-                </div>
-              </Panel>
-              <ResizeHandle direction="horizontal" />
-              <Panel defaultSize={20} minSize={14}>
-                <div className="h-full scroll-pane px-2">
-                  <NewsBriefs items={dashboard.recent_news.slice(0, 8)} />
-                </div>
-              </Panel>
-              <ResizeHandle direction="horizontal" />
-              <Panel defaultSize={20} minSize={14}>
-                <div className="h-full scroll-pane px-2">
-                  <EventFeed
-                    events={dashboard.recent_events.slice(0, 8)}
-                    compact
-                    title="Recent structured events"
-                    subtitle="Events"
-                  />
-                </div>
-              </Panel>
-              <ResizeHandle direction="horizontal" />
-              <Panel defaultSize={16} minSize={12}>
-                <div className="h-full scroll-pane px-2">
-                  <CalibrationPanel marketId={dashboard.market.id} />
-                </div>
-              </Panel>
-              <ResizeHandle direction="horizontal" />
-              <Panel defaultSize={22} minSize={16}>
-                <div className="flex h-full flex-col gap-3 overflow-hidden pl-2">
-                  <div className="min-h-0 flex-1 scroll-pane">
-                    <PositionBlotter refreshKey={decisionRefresh} />
-                  </div>
-                  <div className="min-h-0 flex-1 scroll-pane">
-                    <DecisionDiary marketId={dashboard.market.id} refreshKey={decisionRefresh} />
-                  </div>
-                </div>
-              </Panel>
-            </PanelGroup>
-          </Panel>
-        </PanelGroup>
-      </section>
+      {/* 10. Deep calibration + signals */}
+      <SectionFrame
+        title="Honesty &amp; signals"
+        subtitle="Long-run calibration and the model's current signal stack."
+        collapsibleOnMobile
+        defaultOpen={false}
+      >
+        <div className="grid gap-4 lg:grid-cols-[1fr_1.6fr]">
+          <CalibrationPanel marketId={dashboard.market.id} />
+          <SignalStack dashboard={dashboard} />
+        </div>
+      </SectionFrame>
     </main>
   );
 }
 
-function ResizeHandle({ direction }: { direction: "horizontal" | "vertical" }) {
-  const className =
-    direction === "horizontal"
-      ? "mx-2 w-1 rounded-full bg-seam transition hover:bg-seam-hi data-[resize-handle-active]:bg-seam-hi"
-      : "my-2 h-1 rounded-full bg-seam transition hover:bg-seam-hi data-[resize-handle-active]:bg-seam-hi";
-  return <PanelResizeHandle className={className} />;
-}
-
-function AssessmentDock({ risk, loading }: { risk: RiskAssessment | null; loading: boolean }) {
-  const gate = risk?.decision_gate;
-  const gateTone =
-    gate?.action === "clear"
-      ? "border-price-up/30 bg-price-up/10 text-price-up"
-      : gate?.action === "block"
-        ? "border-price-dn/30 bg-price-dn/10 text-price-dn"
-        : "border-price-warn/30 bg-price-warn/10 text-price-warn";
-
+function IdentityStrip({
+  market,
+  markets,
+  spot,
+  nextH,
+  front,
+  onChangeMarket,
+}: {
+  market: Market;
+  markets: Market[];
+  spot?: number;
+  nextH?: number;
+  front?: number;
+  onChangeMarket: (code: string) => void;
+}) {
   return (
-    <section className="sticky top-[73px] z-30 rounded-xl border border-seam bg-surface/95 p-3 shadow-panel backdrop-blur">
-      <div className="grid gap-2 md:grid-cols-[0.9fr_1fr_1fr_1fr_1.1fr]">
-        <div className="flex min-w-0 flex-col justify-center rounded-lg bg-bg px-3 py-2">
-          <p className="truncate text-[10px] uppercase tracking-widest text-ink/35">Assessment</p>
-          <p className="mt-1 truncate font-mono text-[11px] uppercase tracking-widest text-ink/55">
-            {risk ? `${risk.direction} · ${risk.horizon_hours}h` : loading ? "scoring" : "awaiting read"}
-          </p>
+    <section className="rounded-2xl border border-seam bg-surface p-4 sm:p-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="rounded-md bg-ink/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-ink/55">
+              {market.code}
+            </span>
+            <span className="text-[11px] text-ink/45">{market.region}</span>
+            <span className="text-[11px] text-ink/30">·</span>
+            <span className="text-[11px] text-ink/45">{market.timezone}</span>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{market.name}</h1>
         </div>
-        <DockFigure label="Risk" value={risk ? formatGbp(risk.risk_gbp) : "—"} tone="dn" />
-        <DockFigure
-          label="Likely"
-          value={risk ? formatGbp(risk.likely_gbp) : "—"}
-          tone={risk && risk.likely_gbp < 0 ? "dn" : "up"}
-        />
-        <DockFigure label="Upside" value={risk ? formatGbp(risk.upside_gbp) : "—"} tone="up" />
-        <div className={`min-w-0 rounded-lg border px-3 py-2 ${gateTone}`}>
-          <p className="truncate text-[10px] uppercase tracking-widest opacity-70">Gate</p>
-          <p className="mt-1 truncate text-sm font-semibold text-ink">
-            {gate ? `${gate.label} · ${gate.score.toFixed(1)}` : "No read yet"}
-          </p>
+        <div className="flex items-center gap-3">
+          {spot !== undefined ? (
+            <MiniStat label="Spot" value={`$${spot.toFixed(2)}`} />
+          ) : null}
+          {nextH !== undefined ? (
+            <MiniStat label="Next h" value={`$${nextH.toFixed(2)}`} accent />
+          ) : null}
+          {front !== undefined ? (
+            <MiniStat
+              label="Front"
+              value={`${front >= 0 ? "+" : ""}${front.toFixed(2)}`}
+              tone={front >= 0 ? "up" : "dn"}
+            />
+          ) : null}
+          <select
+            value={market.code}
+            onChange={(event) => onChangeMarket(event.target.value)}
+            className="rounded-lg border border-seam bg-bg px-3 py-2 text-sm text-ink outline-none focus:border-seam-hi"
+          >
+            {markets.map((m) => (
+              <option key={m.code} value={m.code}>
+                {m.name} · {m.region}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
     </section>
   );
 }
 
-function DockFigure({
+function MiniStat({
   label,
   value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "up" | "dn";
-}) {
-  const toneClass = tone === "up" ? "text-price-up" : "text-price-dn";
-  return (
-    <div className="min-w-0 rounded-lg border border-seam bg-bg px-3 py-2">
-      <p className="truncate text-[10px] uppercase tracking-widest text-ink/35">{label}</p>
-      <p className={`mt-1 truncate font-mono text-lg font-semibold tabular-nums ${toneClass}`}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function KpiTile({
-  label,
-  value,
-  sub,
   tone,
   accent,
 }: {
   label: string;
   value: string;
-  sub?: string;
   tone?: "up" | "dn";
   accent?: boolean;
 }) {
-  const valueClass = accent
+  const toneClass = accent
     ? "text-price-up"
     : tone === "up"
       ? "text-price-up"
@@ -315,10 +333,63 @@ function KpiTile({
         ? "text-price-dn"
         : "text-ink";
   return (
-    <div className="rounded-xl border border-seam bg-bg p-3">
-      <p className="text-[10px] uppercase tracking-widest text-ink/40">{label}</p>
-      <p className={`mt-1.5 font-mono text-xl font-semibold tabular-nums ${valueClass}`}>{value}</p>
-      {sub ? <p className="mt-0.5 text-[10px] text-ink/40">{sub}</p> : null}
+    <div className="hidden rounded-lg border border-seam bg-bg px-3 py-1.5 text-right sm:block">
+      <p className="font-mono text-[9px] uppercase tracking-widest text-ink/40">{label}</p>
+      <p className={`mt-0.5 font-mono text-sm font-semibold tabular-nums ${toneClass}`}>{value}</p>
     </div>
+  );
+}
+
+/**
+ * Section wrapper with a sticky-ish header. On mobile, sections beyond
+ * the first two collapse by default and are tap-to-expand so the user
+ * isn't dumped into a 10-screen scroll. The hero is always visible —
+ * collapse only applies to the evidence zone.
+ */
+function SectionFrame({
+  title,
+  subtitle,
+  children,
+  collapsibleOnMobile = false,
+  defaultOpen = true,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  collapsibleOnMobile?: boolean;
+  defaultOpen?: boolean;
+}) {
+  const [mobileOpen, setMobileOpen] = useState<boolean>(defaultOpen);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  const collapsed = collapsibleOnMobile && isMobile && !mobileOpen;
+
+  return (
+    <section className="space-y-3">
+      <header
+        className={`flex items-baseline justify-between gap-3 border-b border-seam/60 pb-2 ${
+          collapsibleOnMobile ? "cursor-pointer md:cursor-default" : ""
+        }`}
+        onClick={() => {
+          if (collapsibleOnMobile && isMobile) setMobileOpen((v) => !v);
+        }}
+      >
+        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-ink/70">{title}</h2>
+        {subtitle ? <p className="hidden text-[11px] text-ink/45 sm:block">{subtitle}</p> : null}
+        {collapsibleOnMobile ? (
+          <span className="font-mono text-xs text-ink/45 md:hidden">{collapsed ? "+" : "−"}</span>
+        ) : null}
+      </header>
+      {collapsed ? null : children}
+    </section>
   );
 }

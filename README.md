@@ -12,13 +12,14 @@
 
 3x is power-market intelligence software for monitoring wholesale electricity markets, forecasting near-term price risk, and translating market news into structured trading context. It covers ERCOT (North + Houston), PJM Western Hub, NYISO Zone J, ISO-NE Mass Hub, Great Britain, EPEX Germany, EPEX France, and Nord Pool SE3.
 
-The backend owns ingestion, feature engineering, forecasting, event extraction, risk scoring, alert generation, and API delivery. The Next.js frontend is a Bloomberg-style trading desk with a live multi-market ticker, range-selectable charting, structured news + events, and a transparent risk-decomposition workspace.
+The backend owns ingestion, feature engineering, forecasting, event extraction, risk scoring, alert generation, and API delivery. The Next.js frontend is a decision-first trading desk: the market page opens on the three numbers a trader cares about (`risk / likely / upside`) and keeps those numbers visible while the user inspects the chart, scenarios, news, events, and audit trail.
 
 ## What It Does
 
 - **Two years of hourly history per market** — real ELEXON spot prices for GB; real EIA demand + Open-Meteo archive weather for US markets; computed-from-fundamentals fallback elsewhere. Data provenance is surfaced on every dashboard.
 - **Probabilistic hourly forecasts** with point estimates, confidence bands, spike probabilities, and rationales. Walk-forward backtested against persistence, persistence-24h, and climatology baselines, with PIT calibration. Pluggable forecaster registry supports gradient boosting (default), Chronos-Bolt foundation model, and naive baselines.
-- **Monte Carlo risk engine** producing `risk_gbp / likely_gbp / upside_gbp` from 5,000+ simulated price paths. Native-currency pricing with FX conversion to GBP at the boundary. Tail-aware CVaR (Gaussian → Student-t(5) blend), regime-conditional residual σ, and LLM-conditioned drift/tail adjustments.
+- **Decision-first market workbench** — position size, long/short direction, and horizon drive a three-bubble `Risk / Likely / Upside` hero. The same numbers follow the user in a sticky bar while price-chart overlays, scenarios, path fan, news, events, and audit panels explain the read.
+- **Monte Carlo risk engine** producing `risk_gbp / likely_gbp / upside_gbp` from 5,000+ simulated price paths. Native-currency pricing with FX conversion to GBP at the boundary. Tail-aware CVaR (Gaussian -> Student-t(5) blend), regime-conditional residual σ, and LLM-conditioned drift/tail adjustments.
 - **Glass-box decomposition** — every parameter that drives the three numbers is surfaced in the API response (`coefficients.items`) and rendered as a Bloomberg-style grouped table in the UI. No black-box outputs.
 - **Position-sizing solver, sensitivity ladder, calibration badge, decision diary, path-fan visualisation** — five UX modes that make the three numbers the centre of the workflow rather than a readout.
 - **Portfolio risk** with joint Monte Carlo across positions using the cross-market correlation matrix. Optimal hedge ratios suggested by a trained deep-hedging policy.
@@ -26,6 +27,12 @@ The backend owns ingestion, feature engineering, forecasting, event extraction, 
 - **DC optimal power flow** on a canonical 13-bus / 13-line grid topology covering every priced market. LMPs, line flows, and binding-line detection visible at `/grid`. Congestion-aware σ overlay tightens risk when transmission is stressed.
 - **Structured event schema** with zone, magnitude_mw, duration distributions (p10/p50/p90), and historical analogue matching.
 - **News intelligence pipeline** with RSS ingestion, heuristic / Gemini / domain-LoRA scorers (configurable), and event extraction.
+
+## AI And LLM Scope
+
+3x is not just an LLM wrapper. The default price forecaster is a gradient boosting regressor (`ACTIVE_FORECASTER=gbr`) trained on market fundamentals, lagged prices, rolling volatility, and structured event features. The optional Chronos-Bolt adapter is available as a foundation-model forecaster, but gradient boosting remains the default production path.
+
+The LLM layer sits on top of market text and events. `LLM_SCORER_PROVIDER` can be set to `heuristic`, `gemini`, or `domain`; the scorer turns news and event context into structured risk coefficients such as `catalyst_severity`, `asymmetry`, `tail_multiplier`, `regime`, `confidence`, and rationale. Those coefficients condition Monte Carlo drift and tail assumptions in the risk engine. Natural-language querying over the data is not the core implemented feature yet.
 
 ## Architecture
 
@@ -54,11 +61,13 @@ backend/
 frontend/
   app/                Next.js app routes (dashboard, market workbench,
                       events, developer, grid)
-  components/         risk panel, decomposition, sensitivity ladder,
-                      path-fan, calibration badge, decision diary,
-                      position blotter, KLineCharts chart, grid topology view,
-                      markets ticker, news / events feeds
-  lib/                API client, market-history hook, typography tokens
+  components/         three-number hero, trade input bar, sticky risk bar,
+                      scenario cards, decomposition, sensitivity ladder,
+                      path-fan, calibration badge, decision diary, position
+                      blotter, KLineCharts chart, grid topology view, markets
+                      ticker, news / events feeds
+  lib/                API client, market-history and risk-assessment hooks,
+                      typography tokens
   types/              frontend domain types
 infrastructure/       Docker Compose for Postgres, Redis, backend, frontend
 ```
@@ -120,12 +129,14 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
 Copy `.env.example` to `.env` if you want to override defaults.
 
 ```env
+ENVIRONMENT=development
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/threex
 CORS_ORIGINS=["http://localhost:3000"]
 API_INTERNAL_BASE_URL=http://localhost:8000/api
 NEXT_PUBLIC_API_BASE_URL=/api/backend
 NEXT_PUBLIC_WS_BASE_URL=ws://localhost:8000
 API_BEARER_TOKEN=
+SERVER_AUTO_LOGIN=true
 ```
 
 Useful optional variables:
@@ -139,7 +150,10 @@ Useful optional variables:
 - `CHRONOS_DEVICE_MAP`: Chronos-Bolt inference device, default `cpu`. Use `cuda` on GPU hosts or `mps` on Apple Silicon.
 - `CHRONOS_USE_SMALL`: when `true`, uses `amazon/chronos-bolt-small`; otherwise Chronos uses the lighter `amazon/chronos-bolt-tiny`.
 - `JWT_SECRET`: HS256 signing secret for API bearer tokens. Change this outside local development.
-- `DEMO_USER_EMAIL` / `DEMO_USER_PASSWORD`: seeded analyst account used for local login after migrations.
+- `DEMO_USER_EMAIL` / `DEMO_USER_PASSWORD`: seeded analyst account used for local login after migrations. Use a non-default password for any shared environment.
+- `SERVER_AUTO_LOGIN`: lets the Next server acquire a demo-user token for server-rendered pages. Defaults to development-only unless explicitly set.
+- `ALLOW_REGISTRATION`: enables `/api/auth/register` when `true`; defaults to `false`.
+- `AUDIT_EXPORT_ROLES`: JSON list of roles allowed to read `/api/audit`, default `["admin","auditor"]`.
 - `FORECAST_CACHE_TTL_MINUTES`: forecast cache TTL, default `15`.
 - `DATA_REFRESH_INTERVAL_MINUTES`: background refresh interval, default `30`.
 - `DEMO_MODE`: when `true`, permits computed/synthetic fallback data without marking the market degraded. Defaults to `false`.
@@ -232,17 +246,27 @@ When `ENTSOE_TOKEN` is set, ENTSO-E Net Transfer Capacities are spliced into the
 make deploy
 ```
 
+For production-like Compose runs, create a real `.env` first. At minimum set
+`POSTGRES_PASSWORD`, `JWT_SECRET`, `DEMO_USER_PASSWORD`, `CORS_ORIGINS`, and
+`NEXT_PUBLIC_WS_BASE_URL`. Compose binds frontend/backend ports to `127.0.0.1`
+by default so a reverse proxy can terminate HTTPS in front of them.
+
 This starts:
 
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:8000/api`
-- PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
-- OpenTelemetry collector: OTLP gRPC `localhost:4317`, OTLP HTTP `localhost:4318`
+- PostgreSQL and Redis on the internal Compose network
+- OpenTelemetry collector on the internal Compose network
 - Worker: Redis-backed `arq` process for market refresh, hourly P&L fill, and nightly backtests
 - WebSocket stream: `ws://localhost:8000/ws/markets/{MARKET_CODE}` forwards Redis pub/sub market messages into the browser chart
 
 The backend container runs Alembic migrations before starting Uvicorn. The worker waits for the backend healthcheck so those migrations are complete before jobs run. The frontend uses `API_INTERNAL_BASE_URL` for server-side container calls and defaults browser-side calls to the authenticated Next proxy at `NEXT_PUBLIC_API_BASE_URL=/api/backend`. WebSockets connect through `NEXT_PUBLIC_WS_BASE_URL`. Set `API_BEARER_TOKEN` for a service token, or keep the local demo user credentials for development.
+
+## Deployment Hardening
+
+Production startup fails fast if `ENVIRONMENT=production` is combined with a weak `JWT_SECRET`, the default demo password, or wildcard CORS. Public self-registration is disabled unless `ALLOW_REGISTRATION=true`, and new registrations receive `REGISTRATION_DEFAULT_ROLE` rather than a caller-supplied role. Audit-log export is restricted to `AUDIT_EXPORT_ROLES`.
+
+The frontend demo auto-login path is development-only by default. In production, the Next proxy forwards authenticated requests only when `API_BEARER_TOKEN` is set or `SERVER_AUTO_LOGIN=true` is explicitly configured. The Compose stack keeps Postgres, Redis, and the OTEL collector on the internal network and binds frontend/backend ports to localhost by default for a reverse proxy.
 
 ## Key API Endpoints
 
@@ -355,7 +379,7 @@ RSS ingestion pulls recent articles from public energy sources and avoids duplic
 ## Frontend Pages
 
 - `/`: live multi-market ticker, market cards, range-selectable history chart (`1D | 1W | 1M | 1Y | 2Y | Max`), latest forecast, data-quality + backtest strips, and event context.
-- `/markets/{marketCode}`: market workbench. Resizable two-row layout. Top row: KLineCharts chart with drawing tools and demand / wind / solar / event overlays, path-fan beneath, and an assessment column with risk panel + risk decomposition table + sensitivity ladder. Bottom row: signals, news, events, calibration badge, position blotter + decision diary.
+- `/markets/{marketCode}`: market workbench. A trade input bar drives three large `Risk / Likely / Upside` bubbles, with a sticky compact bar that follows the user down the page. The evidence zone includes the KLineCharts price chart with forecast and risk price overlays, decision gate, scenario cards, path fan, risk decomposition, sensitivity ladder, news, structured events, calibration, signal stack, position blotter, and decision diary.
 - `/grid`: DC-OPF topology view with LMP-shaded buses, utilisation-coloured edges, and binding-line highlighting.
 - `/events`: all structured market events.
 - `/developer`: API endpoint and platform notes.
@@ -389,11 +413,11 @@ npx tsc --noEmit
 
 1. Open `/` and scan the multi-market ticker and market cards.
 2. Click into a market (e.g. `GB_POWER`) to open the workbench.
-3. Drag the chart range buttons: `1D`, `1W`, `1M`, `1Y`, `2Y`, or `Max`.
-4. Adjust position size, horizon, direction in the risk panel — or toggle "Risk-first sizing" and enter a max-risk number instead.
-5. Inspect the decomposition table: every coefficient that drove the three numbers, with units and descriptions.
-6. Scrub the sensitivity-ladder heatmap to see which inputs matter most.
-7. Save a thesis to the decision diary; close it later to compare realized vs predicted P&L.
+3. Enter position size, direction, and horizon in the trade input bar. Recent open decisions and last-used inputs are restored automatically when available.
+4. Read the three hero bubbles: worst 5 percent expected loss, expected P&L, and best 5 percent upside. Scroll down; the sticky risk bar keeps the numbers visible.
+5. Use the decision gate, chart risk lines, scenario cards, and path fan to understand how the trade behaves under modelled outcomes.
+6. Inspect the decomposition table and sensitivity ladder: every coefficient that drove the three numbers, with units and descriptions.
+7. Review news, structured events, calibration, signal stack, positions, and the decision diary; close positions later to compare realised vs predicted P&L.
 8. Open `/grid` to inspect inter-zone flows, LMPs, and binding lines.
 9. Visit `/events` and `/developer` for event feed and endpoint reference.
 

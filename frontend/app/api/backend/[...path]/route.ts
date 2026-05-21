@@ -10,10 +10,21 @@ type RouteContext = {
   params: Promise<{ path?: string[] }>;
 };
 
+function serverAutoLoginEnabled(): boolean {
+  const configured = process.env.SERVER_AUTO_LOGIN;
+  if (configured !== undefined) {
+    return configured === "true";
+  }
+  return process.env.NODE_ENV !== "production";
+}
+
 async function getAccessToken(): Promise<string | null> {
   const staticToken = process.env.API_BEARER_TOKEN;
   if (staticToken) {
     return staticToken;
+  }
+  if (!serverAutoLoginEnabled()) {
+    return null;
   }
   if (cachedToken && cachedTokenExpiresAt - Date.now() > 60_000) {
     return cachedToken;

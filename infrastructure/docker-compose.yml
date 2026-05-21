@@ -1,11 +1,14 @@
 x-backend-env: &backend-env
-  DATABASE_URL: postgresql+psycopg://threex:threex@postgres:5432/threex
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  DATABASE_URL: postgresql+psycopg://threex:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/threex
   REDIS_URL: redis://redis:6379/0
-  CORS_ORIGINS: '["http://localhost:3000"]'
-  JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+  CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS to your frontend origin JSON array}
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to a strong random secret}
   DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-demo@3x.local}
-  DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-demo-password}
+  DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:?Set DEMO_USER_PASSWORD to a non-default value}
   LLM_SCORER_PROVIDER: ${LLM_SCORER_PROVIDER:-heuristic}
+  ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+  AUDIT_EXPORT_ROLES: ${AUDIT_EXPORT_ROLES:-'["admin","auditor"]'}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   OTEL_SERVICE_NAME: 3x-api
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -17,14 +20,12 @@ services:
     environment:
       POSTGRES_DB: threex
       POSTGRES_USER: threex
-      POSTGRES_PASSWORD: threex
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U threex -d threex"]
       interval: 5s
       timeout: 5s
       retries: 20
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -36,17 +37,12 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.114.0
     command: ["--config=/etc/otelcol-contrib/config.yml"]
-    ports:
-      - "4317:4317"
-      - "4318:4318"
     volumes:
       - ./otel-collector-config.yml:/etc/otelcol-contrib/config.yml:ro
 
@@ -75,7 +71,7 @@ services:
       timeout: 5s
       retries: 30
     ports:
-      - "8000:8000"
+      - "${BACKEND_BIND:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
 
   worker:
     image: market-speculation-backend
@@ -97,15 +93,21 @@ services:
       context: ..
       dockerfile: frontend/Dockerfile
       args:
-        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/backend}
+        NEXT_PUBLIC_WS_BASE_URL: ${NEXT_PUBLIC_WS_BASE_URL:?Set NEXT_PUBLIC_WS_BASE_URL, e.g. wss://api.example.com/ws}
     environment:
       API_INTERNAL_BASE_URL: http://backend:8000/api
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000/api
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api/backend}
+      NEXT_PUBLIC_WS_BASE_URL: ${NEXT_PUBLIC_WS_BASE_URL:?Set NEXT_PUBLIC_WS_BASE_URL, e.g. wss://api.example.com/ws}
+      SERVER_AUTO_LOGIN: ${SERVER_AUTO_LOGIN:-false}
+      DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-demo@3x.local}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
+      API_BEARER_TOKEN: ${API_BEARER_TOKEN:-}
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-3000}:3000"
 
 volumes:
   postgres_data:

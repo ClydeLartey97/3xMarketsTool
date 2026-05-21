@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.auth import router as auth_router
 from app.api.routes import public_router, router
 from app.api.ws import router as ws_router
-from app.core.config import get_settings
+from app.core.config import get_settings, validate_runtime_settings
 from app.core.observability import configure_logging, instrument_app
 from app.core.rate_limit import configure_rate_limiting
 from app.db.compat import apply_sqlite_compat_migrations
@@ -18,6 +18,7 @@ from app.db.session import SessionLocal, engine
 from app.ingestion.seeds import seed_database
 
 settings = get_settings()
+validate_runtime_settings(settings)
 configure_logging(settings)
 logger = logging.getLogger(__name__)
 

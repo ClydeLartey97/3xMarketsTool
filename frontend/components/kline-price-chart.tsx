@@ -6,6 +6,7 @@ import {
   PriceChart,
   type ChartForecastPoint,
   type ChartHistoryPoint,
+  type RiskOverlay,
 } from "@/components/price-chart";
 import {
   getMarketTimeseries,
@@ -27,6 +28,7 @@ export type KlinePriceChartProps = {
   events?: EventItem[];
   timezoneLabel?: string;
   onCrosshair?: (payload: CrosshairPayload | null) => void;
+  riskOverlay?: RiskOverlay | null;
 };
 
 const SEVERITY_CLASS: Record<string, string> = {
@@ -51,6 +53,7 @@ export function KlinePriceChart({
   events = [],
   timezoneLabel,
   onCrosshair,
+  riskOverlay,
 }: KlinePriceChartProps) {
   const [fundamentals, setFundamentals] = useState<MarketTimeseriesPoint[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
@@ -99,6 +102,7 @@ export function KlinePriceChart({
         livePriceTick={livePriceTick}
         timezoneLabel={timezoneLabel}
         onCrosshair={onCrosshair}
+        riskOverlay={riskOverlay}
       />
 
       <div className="rounded-xl border border-seam bg-surface p-3">

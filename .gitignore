@@ -4,6 +4,9 @@ __pycache__/
 .mypy_cache/
 .next/
 node_modules/
+frontend/.eslintcache
+frontend/node_modules/.cache/
+.claude/
 *.pyc
 *.pyo
 *.tsbuildinfo

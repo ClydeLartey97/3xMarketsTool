@@ -35,6 +35,14 @@ function apiBaseUrl(): string {
   return typeof window === "undefined" ? SERVER_API_BASE_URL : PUBLIC_API_BASE_URL;
 }
 
+function serverAutoLoginEnabled(): boolean {
+  const configured = process.env.SERVER_AUTO_LOGIN;
+  if (configured !== undefined) {
+    return configured === "true";
+  }
+  return process.env.NODE_ENV !== "production";
+}
+
 async function getServerAccessToken(): Promise<string | null> {
   if (typeof window !== "undefined") {
     return null;
@@ -42,6 +50,9 @@ async function getServerAccessToken(): Promise<string | null> {
   const staticToken = process.env.API_BEARER_TOKEN;
   if (staticToken) {
     return staticToken;
+  }
+  if (!serverAutoLoginEnabled()) {
+    return null;
   }
   if (cachedServerToken && cachedServerTokenExpiresAt - Date.now() > 60_000) {
     return cachedServerToken;

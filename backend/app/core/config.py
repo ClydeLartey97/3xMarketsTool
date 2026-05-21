@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     rate_limit_data_per_minute: int = Field(default=60, alias="RATE_LIMIT_DATA_PER_MINUTE")
     rate_limit_risk_assessment_per_minute: int = Field(default=10, alias="RATE_LIMIT_RISK_ASSESSMENT_PER_MINUTE")
     rate_limit_sensitivity_per_minute: int = Field(default=5, alias="RATE_LIMIT_SENSITIVITY_PER_MINUTE")
+    allow_registration: bool = Field(default=False, alias="ALLOW_REGISTRATION")
+    registration_default_role: str = Field(default="analyst", alias="REGISTRATION_DEFAULT_ROLE")
+    audit_export_roles: list[str] = Field(
+        default_factory=lambda: ["admin", "auditor"],
+        alias="AUDIT_EXPORT_ROLES",
+    )
 
     # Background refresh interval in minutes
     data_refresh_interval_minutes: int = Field(default=30, alias="DATA_REFRESH_INTERVAL_MINUTES")
@@ -66,3 +72,17 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def validate_runtime_settings(settings: Settings) -> None:
+    """Fail fast for production deployments with development-safe defaults."""
+    if settings.environment.lower() not in {"production", "prod"}:
+        return
+
+    jwt_secret = settings.jwt_secret.get_secret_value()
+    if jwt_secret in {"dev-change-me", "change-me-in-production"} or len(jwt_secret) < 32:
+        raise RuntimeError("JWT_SECRET must be set to a strong secret in production.")
+    if settings.demo_user_password == "demo-password":
+        raise RuntimeError("DEMO_USER_PASSWORD must be changed in production.")
+    if "*" in settings.cors_origins:
+        raise RuntimeError("CORS_ORIGINS must not contain '*' in production.")
