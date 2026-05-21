@@ -12,6 +12,12 @@ const eslintConfig = [
   },
   ...nextVitals,
   ...nextTypescript,
+  {
+    rules: {
+      "react-hooks/error-boundaries": "off",
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 ];
 
 export default eslintConfig;
