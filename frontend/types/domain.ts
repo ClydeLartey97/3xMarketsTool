@@ -117,6 +117,24 @@ export type DashboardData = {
   key_metrics: Record<string, number>;
 };
 
+export type PowerBIEmbedConfig = {
+  enabled: boolean;
+  configured: boolean;
+  market_code: string | null;
+  workspace_id: string | null;
+  report_id: string | null;
+  dataset_id: string | null;
+  report_name: string | null;
+  embed_url: string | null;
+  embed_token: string | null;
+  token_type: "Embed";
+  expires_at: string | null;
+  page_name: string | null;
+  filter_table: string | null;
+  filter_column: string | null;
+  reason: string | null;
+};
+
 export type ForecastRunResponse = {
   market: Market;
   forecast_points: ForecastPoint[];

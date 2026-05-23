@@ -6,6 +6,7 @@ const ENDPOINTS = [
   { method: "GET", path: "/markets/{id}/alerts", desc: "Active watchlist alerts" },
   { method: "GET", path: "/dashboard/{code}", desc: "Full dashboard data bundle" },
   { method: "GET", path: "/events", desc: "All structured events across markets" },
+  { method: "GET", path: "/integrations/power-bi/embed-config", desc: "Power BI embedded report config" },
   { method: "POST", path: "/forecasts/run", desc: "Trigger forecast run for a market" },
   { method: "POST", path: "/articles/ingest", desc: "Ingest a news article and extract event" },
   { method: "POST", path: "/risk-assessment", desc: "Estimate position risk, likely P&L, and upside" },
@@ -87,6 +88,10 @@ export default function DeveloperPage() {
             <p>
               APScheduler runs a background job every 30 minutes to pull fresh prices across all markets and re-seed
               the SQLite DB.
+            </p>
+            <p>
+              Power BI embedding is optional. The backend mints embed tokens only when the Power BI service-principal
+              settings are present.
             </p>
             <div className="mt-4 rounded-xl border border-seam bg-well p-3">
               <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-ink/30">Quickstart</p>

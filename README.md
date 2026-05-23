@@ -268,6 +268,39 @@ Production startup fails fast if `ENVIRONMENT=production` is combined with a wea
 
 The frontend demo auto-login path is development-only by default. In production, the Next proxy forwards authenticated requests only when `API_BEARER_TOKEN` is set or `SERVER_AUTO_LOGIN=true` is explicitly configured. The Compose stack keeps Postgres, Redis, and the OTEL collector on the internal network and binds frontend/backend ports to localhost by default for a reverse proxy.
 
+## Power BI Embedded Analytics
+
+Power BI is optional and disabled by default. When configured, the backend uses a Microsoft Entra service principal to request a Power BI embed token, and the frontend renders the report through `powerbi-client` on `/power-bi` and inside each market workbench.
+
+Backend-only settings:
+
+- `POWER_BI_TENANT_ID`
+- `POWER_BI_CLIENT_ID`
+- `POWER_BI_CLIENT_SECRET`
+- `POWER_BI_WORKSPACE_ID`
+- `POWER_BI_REPORT_ID`
+
+Optional settings:
+
+- `POWER_BI_DATASET_ID` - semantic model/dataset ID. If omitted, the backend uses the report metadata response when available.
+- `POWER_BI_REPORT_MAP_JSON` - JSON map of market code to workspace/report/dataset/page overrides.
+- `POWER_BI_MARKET_FILTER_TABLE` and `POWER_BI_MARKET_FILTER_COLUMN` - enable a client-side market filter when the report has a matching market-code field.
+
+Example market map:
+
+```json
+{
+  "GB_POWER": {
+    "workspace_id": "00000000-0000-0000-0000-000000000000",
+    "report_id": "11111111-1111-1111-1111-111111111111",
+    "dataset_id": "22222222-2222-2222-2222-222222222222",
+    "page_name": "ReportSectionMarket"
+  }
+}
+```
+
+The browser never receives the client secret. It only receives the report ID, embed URL, short-lived embed token, optional page name, and optional market filter metadata from `GET /api/integrations/power-bi/embed-config`.
+
 ## Key API Endpoints
 
 **Markets & data**
@@ -287,6 +320,7 @@ The frontend demo auto-login path is development-only by default. In production,
 - `GET /api/dashboard/{market_code}?history_hours=720`
 - `GET /api/events`
 - `GET /api/news/sources`
+- `GET /api/integrations/power-bi/embed-config?market_code=GB_POWER`
 - `POST /api/articles/ingest`
 - `POST /api/forecasts/run?market_code=ERCOT_NORTH`
 - `POST /api/markets/{market_code}/refresh`

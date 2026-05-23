@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     # Real data API keys (optional — app degrades gracefully without them)
     eia_api_key: str = Field(default="", alias="EIA_API_KEY")
 
+    # Optional Power BI embedded analytics configuration.
+    power_bi_tenant_id: str = Field(default="", alias="POWER_BI_TENANT_ID")
+    power_bi_client_id: str = Field(default="", alias="POWER_BI_CLIENT_ID")
+    power_bi_client_secret: SecretStr = Field(default=SecretStr(""), alias="POWER_BI_CLIENT_SECRET")
+    power_bi_workspace_id: str = Field(default="", alias="POWER_BI_WORKSPACE_ID")
+    power_bi_report_id: str = Field(default="", alias="POWER_BI_REPORT_ID")
+    power_bi_dataset_id: str = Field(default="", alias="POWER_BI_DATASET_ID")
+    power_bi_report_map_json: str = Field(default="", alias="POWER_BI_REPORT_MAP_JSON")
+    power_bi_market_filter_table: str = Field(default="", alias="POWER_BI_MARKET_FILTER_TABLE")
+    power_bi_market_filter_column: str = Field(default="", alias="POWER_BI_MARKET_FILTER_COLUMN")
+
     # Forecast cache TTL in minutes
     forecast_cache_ttl_minutes: int = Field(default=15, alias="FORECAST_CACHE_TTL_MINUTES")
     active_forecaster: str = Field(default="gbr", alias="ACTIVE_FORECASTER")

@@ -29,6 +29,7 @@ from app.schemas.domain import (
     OptimalHedgeResponse,
     PortfolioRiskRequest,
     PortfolioRiskResponse,
+    PowerBIEmbedConfig,
     PricePointRead,
     RiskAssessmentRequest,
     RiskAssessmentResponse,
@@ -61,6 +62,7 @@ from app.services.forecast_service import (
 from app.services.market_service import get_market_by_code, get_market_by_id, list_markets
 from app.services.news_service import list_news_articles, list_news_sources
 from app.services.portfolio_risk import PortfolioPositionInput, run_portfolio_risk
+from app.services.power_bi import PowerBIIntegrationError, build_power_bi_embed_config
 from app.services.deep_hedger import hedge_features_from_assessment, recommend_hedge_ratio
 
 public_router = APIRouter()
@@ -297,6 +299,19 @@ def get_market_news(market_id: int, db: Session = Depends(get_db)) -> list[NewsA
 @router.get("/news/sources", response_model=list[NewsSourceRead])
 def get_news_sources() -> list[NewsSourceRead]:
     return list_news_sources()
+
+
+@router.get("/integrations/power-bi/embed-config", response_model=PowerBIEmbedConfig)
+def get_power_bi_embed_config(
+    market_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> PowerBIEmbedConfig:
+    if market_code and not get_market_by_code(db, market_code):
+        raise HTTPException(status_code=404, detail="Market not found")
+    try:
+        return build_power_bi_embed_config(market_code=market_code)
+    except PowerBIIntegrationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 @router.post("/articles/ingest", response_model=Optional[EventRead])

@@ -180,6 +180,31 @@ class HealthResponse(BaseModel):
     database: str
 
 
+class PowerBIReportTarget(BaseModel):
+    workspace_id: str
+    report_id: str
+    dataset_id: Optional[str] = None
+    page_name: Optional[str] = None
+
+
+class PowerBIEmbedConfig(BaseModel):
+    enabled: bool
+    configured: bool
+    market_code: Optional[str] = None
+    workspace_id: Optional[str] = None
+    report_id: Optional[str] = None
+    dataset_id: Optional[str] = None
+    report_name: Optional[str] = None
+    embed_url: Optional[str] = None
+    embed_token: Optional[str] = None
+    token_type: Literal["Embed"] = "Embed"
+    expires_at: Optional[datetime] = None
+    page_name: Optional[str] = None
+    filter_table: Optional[str] = None
+    filter_column: Optional[str] = None
+    reason: Optional[str] = None
+
+
 class UserRead(BaseModel):
     id: int
     email: str

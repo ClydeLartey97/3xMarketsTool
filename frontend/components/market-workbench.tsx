@@ -31,6 +31,7 @@ import { EventFeed } from "@/components/event-feed";
 import { MarketHero } from "@/components/market-hero";
 import { NewsBriefs } from "@/components/news-briefs";
 import { PositionBlotter } from "@/components/position-blotter";
+import { PowerBIReport } from "@/components/power-bi-report";
 import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
 import { RiskPathFan } from "@/components/risk-path-fan";
 import { RiskSensitivityLadder } from "@/components/risk-sensitivity-ladder";
@@ -199,7 +200,17 @@ export function MarketWorkbench({
         </div>
       </SectionFrame>
 
-      {/* 8. News + events */}
+      {/* 8. Power BI */}
+      <SectionFrame
+        title="Power BI analytics"
+        subtitle="Embedded report scoped to this market."
+        collapsibleOnMobile
+        defaultOpen={false}
+      >
+        <PowerBIReport marketCode={dashboard.market.code} compact />
+      </SectionFrame>
+
+      {/* 9. News + events */}
       <SectionFrame
         title="Market context"
         subtitle="The news and structured events feeding the model."
@@ -221,7 +232,7 @@ export function MarketWorkbench({
         </div>
       </SectionFrame>
 
-      {/* 9. Decisions + positions */}
+      {/* 10. Decisions + positions */}
       <SectionFrame
         title="Your book"
         subtitle="Open positions and the diary of past reads on this market."
@@ -238,7 +249,7 @@ export function MarketWorkbench({
         </div>
       </SectionFrame>
 
-      {/* 10. Deep calibration + signals */}
+      {/* 11. Deep calibration + signals */}
       <SectionFrame
         title="Honesty &amp; signals"
         subtitle="Long-run calibration and the model's current signal stack."

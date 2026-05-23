@@ -9,6 +9,7 @@ import {
   NewsArticle,
   NewsSource,
   OptimalHedgeResponse,
+  PowerBIEmbedConfig,
   RiskAssessment,
 } from "@/types/domain";
 
@@ -173,6 +174,15 @@ export function getNewsSources(): Promise<NewsSource[]> {
 
 export function getAlerts(marketId: number): Promise<AlertItem[]> {
   return fetchJson<AlertItem[]>(`/markets/${marketId}/alerts`);
+}
+
+export function getPowerBIEmbedConfig(marketCode?: string): Promise<PowerBIEmbedConfig> {
+  const params = new URLSearchParams();
+  if (marketCode) {
+    params.set("market_code", marketCode);
+  }
+  const query = params.toString();
+  return fetchJson<PowerBIEmbedConfig>(`/integrations/power-bi/embed-config${query ? `?${query}` : ""}`);
 }
 
 export function runForecast(marketCode: string): Promise<ForecastRunResponse> {

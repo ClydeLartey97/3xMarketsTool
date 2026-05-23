@@ -11,6 +11,7 @@ const navItems = [
   { href: "/", label: "Markets" },
   { href: "/grid", label: "Grid" },
   { href: "/events", label: "Events" },
+  { href: "/power-bi", label: "Power BI" },
   { href: "/developer", label: "API" },
 ] as const satisfies ReadonlyArray<{ href: Route; label: string }>;
 
