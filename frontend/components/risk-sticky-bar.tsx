@@ -1,11 +1,13 @@
 "use client";
 /**
- * The compact follow-down strip that anchors below the top nav once the
- * hero scrolls out of view. Shows the same three numbers as the hero
- * bubbles, but inline and minimal so the user never loses sight of their
- * read while exploring the evidence beneath.
+ * Right-rail bubble stack. When the hero scrolls out of view, three
+ * smaller bubbles slide in from the right edge of the viewport,
+ * vertically stacked, so the user never loses sight of their Risk /
+ * Likely / Upside while reading the evidence below.
  *
- * The "Edit" affordance scrolls back to the hero and re-focuses the input.
+ * The "Edit" affordance scrolls back to the hero and re-focuses the
+ * input bar. On mobile (< sm) we fall back to a slim top-bar collapsed
+ * sheet because a side rail eats too much horizontal width on phones.
  */
 import { useState } from "react";
 
@@ -40,61 +42,54 @@ export function RiskStickyBar({
   onEdit,
 }: RiskStickyBarProps) {
   const [mobileExpandRequested, setMobileExpandRequested] = useState(false);
-  // The sheet is only "open" if the bar is also visible — derived, no effect needed.
   const mobileExpanded = visible && mobileExpandRequested;
 
   const risk = data ? formatGbp(data.risk_gbp) : loading ? "…" : "—";
   const likely = data ? formatGbp(data.likely_gbp, true) : loading ? "…" : "—";
   const upside = data ? formatGbp(data.upside_gbp, true) : loading ? "…" : "—";
+  const likelyTone: "up" | "dn" = data && data.likely_gbp < 0 ? "dn" : "up";
 
   return (
     <>
-      {/* Desktop / tablet inline bar */}
-      <div
+      {/* Desktop / tablet: right-rail vertical bubble stack */}
+      <aside
         aria-hidden={!visible}
-        className={`fixed inset-x-0 z-40 hidden border-b border-seam bg-surface/95 backdrop-blur-md transition-transform duration-200 ease-out sm:block ${
-          visible ? "translate-y-0" : "-translate-y-full"
+        aria-label="Risk read"
+        className={`fixed right-4 z-40 hidden flex-col items-center gap-3 transition-all duration-300 ease-out sm:flex ${
+          visible ? "translate-x-0 opacity-100" : "translate-x-[140%] opacity-0 pointer-events-none"
         }`}
-        style={{ top: APP_NAV_HEIGHT_PX }}
+        style={{ top: APP_NAV_HEIGHT_PX + 24 }}
       >
-        <div className="mx-auto flex max-w-[1440px] items-center gap-4 px-6 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="rounded-md bg-ink/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-ink/55">
-              {marketCode}
-            </span>
-            <span className="truncate text-xs font-medium text-ink/70">{marketName}</span>
-          </div>
-
-          <div className="ml-auto flex items-center gap-4">
-            <InlineFigure label="Risk" value={risk} tone="dn" loading={loading} />
-            <span className="text-ink/20">·</span>
-            <InlineFigure
-              label="Likely"
-              value={likely}
-              tone={data && data.likely_gbp < 0 ? "dn" : "up"}
-              loading={loading}
-            />
-            <span className="text-ink/20">·</span>
-            <InlineFigure label="Upside" value={upside} tone="up" loading={loading} />
-          </div>
-
-          <span
-            title="Modelled distributions, not realised outcomes. Educational tool — not financial advice."
-            className="ml-3 hidden rounded-md border border-seam/60 bg-bg px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-ink/40 md:inline-block"
-          >
-            Not advice
+        <div className="mb-1 flex flex-col items-center gap-0.5">
+          <span className="rounded-md bg-ink/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-ink/55">
+            {marketCode}
           </span>
-          <button
-            type="button"
-            onClick={onEdit}
-            className="ml-2 rounded-md border border-seam bg-bg px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-ink/60 transition hover:border-seam-hi hover:text-ink"
-          >
-            Edit
-          </button>
+          <span className="max-w-[120px] truncate text-center text-[10px] text-ink/45">
+            {marketName}
+          </span>
         </div>
-      </div>
 
-      {/* Mobile collapsed bar — shows only Risk, taps to open sheet */}
+        <MiniBubble label="Risk" value={risk} tone="risk" loading={loading} />
+        <MiniBubble label="Likely" value={likely} tone={likelyTone === "up" ? "likely" : "risk"} loading={loading} />
+        <MiniBubble label="Upside" value={upside} tone="upside" loading={loading} />
+
+        <button
+          type="button"
+          onClick={onEdit}
+          title="Jump back to inputs"
+          className="mt-1 rounded-full border border-seam bg-surface px-3 py-1.5 font-mono text-[9px] uppercase tracking-wider text-ink/60 shadow-sm transition hover:border-seam-hi hover:text-ink"
+        >
+          Edit
+        </button>
+        <span
+          title="Modelled distributions, not realised outcomes. Educational tool — not financial advice."
+          className="mt-1 rounded-full border border-seam/60 bg-surface/70 px-2 py-0.5 font-mono text-[8px] uppercase tracking-wider text-ink/35"
+        >
+          Not advice
+        </span>
+      </aside>
+
+      {/* Mobile (< sm): slim top bar that can expand to a sheet */}
       <div
         aria-hidden={!visible}
         className={`fixed inset-x-0 z-40 border-b border-seam bg-surface/95 backdrop-blur-md transition-transform duration-200 ease-out sm:hidden ${
@@ -110,18 +105,17 @@ export function RiskStickyBar({
           <span className="rounded-md bg-ink/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-ink/55">
             {marketCode}
           </span>
-          <InlineFigure label="Risk" value={risk} tone="dn" loading={loading} />
+          <span className="inline-flex items-baseline gap-1.5">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-ink/40">Risk</span>
+            <span className="font-mono text-sm font-semibold tabular-nums text-price-dn">{risk}</span>
+          </span>
           <span className="ml-auto font-mono text-xs text-ink/40">{mobileExpanded ? "−" : "···"}</span>
         </button>
         {mobileExpanded ? (
           <div className="border-t border-seam bg-surface px-4 pb-3 pt-2">
             <div className="grid grid-cols-3 gap-2">
               <CompactCell label="Risk" value={risk} tone="dn" />
-              <CompactCell
-                label="Likely"
-                value={likely}
-                tone={data && data.likely_gbp < 0 ? "dn" : "up"}
-              />
+              <CompactCell label="Likely" value={likely} tone={likelyTone} />
               <CompactCell label="Upside" value={upside} tone="up" />
             </div>
             <button
@@ -138,7 +132,28 @@ export function RiskStickyBar({
   );
 }
 
-function InlineFigure({
+const TONE_BUBBLE: Record<"risk" | "likely" | "upside", { ring: string; glow: string; text: string; chip: string }> = {
+  risk: {
+    ring: "border-price-dn/40",
+    glow: "shadow-[0_0_24px_rgba(220,38,38,0.18)]",
+    text: "text-price-dn",
+    chip: "bg-price-dn/10 text-price-dn",
+  },
+  likely: {
+    ring: "border-price-up/40",
+    glow: "shadow-[0_0_24px_rgba(5,150,105,0.18)]",
+    text: "text-price-up",
+    chip: "bg-price-up/10 text-price-up",
+  },
+  upside: {
+    ring: "border-price-up/40",
+    glow: "shadow-[0_0_24px_rgba(5,150,105,0.18)]",
+    text: "text-price-up",
+    chip: "bg-price-up/10 text-price-up",
+  },
+};
+
+function MiniBubble({
   label,
   value,
   tone,
@@ -146,15 +161,23 @@ function InlineFigure({
 }: {
   label: string;
   value: string;
-  tone: "up" | "dn";
+  tone: "risk" | "likely" | "upside";
   loading: boolean;
 }) {
-  const toneClass = tone === "up" ? "text-price-up" : "text-price-dn";
+  const cls = TONE_BUBBLE[tone];
   return (
-    <span className={`inline-flex items-baseline gap-1.5 ${loading ? "opacity-60" : ""}`}>
-      <span className="font-mono text-[10px] uppercase tracking-widest text-ink/40">{label}</span>
-      <span className={`font-mono text-sm font-semibold tabular-nums ${toneClass}`}>{value}</span>
-    </span>
+    <div
+      className={`flex h-[88px] w-[88px] flex-col items-center justify-center rounded-full border bg-surface/95 backdrop-blur transition ${
+        cls.ring
+      } ${cls.glow} ${loading ? "animate-pulse" : ""}`}
+    >
+      <span className={`mb-0.5 inline-flex rounded-full px-1.5 py-px font-mono text-[8px] uppercase tracking-[0.18em] ${cls.chip}`}>
+        {label}
+      </span>
+      <span className={`font-mono text-[13px] font-semibold tabular-nums leading-tight ${cls.text}`}>
+        {value}
+      </span>
+    </div>
   );
 }
 
