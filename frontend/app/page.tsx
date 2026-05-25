@@ -2,7 +2,8 @@ import type { Route } from "next";
 import Link from "next/link";
 
 import { BackendOfflineState } from "@/components/backend-offline-state";
-import { getForecast, getMarkets, getPrices } from "@/lib/api";
+import { MarketCardLive } from "@/components/market-card-live";
+import { getMarkets } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -15,50 +16,15 @@ const REGION_FLAGS: Record<string, string> = {
   Nordics: "🇸🇪",
 };
 
+/**
+ * Home page renders the market grid the moment the markets list resolves.
+ * Per-market spot / forecast prices are fetched client-side after first
+ * paint so we never block on 15 sequential backend calls before sending
+ * any HTML to the browser.
+ */
 export default async function HomePage() {
   try {
     const markets = await getMarkets();
-
-    const marketResults = await Promise.allSettled(
-      markets.map(async (market) => {
-        const [prices, forecasts] = await Promise.all([
-          getPrices(market.id),
-          getForecast(market.id),
-        ]);
-        return { prices, forecasts };
-      }),
-    );
-
-    const marketData = markets.map((market, index) => {
-      const result = marketResults[index];
-      if (result.status === "fulfilled") {
-        const { prices, forecasts } = result.value;
-        const latestPrice = prices[prices.length - 1];
-        const prevPrice = prices[prices.length - 2];
-        const change =
-          latestPrice && prevPrice ? latestPrice.price_value - prevPrice.price_value : null;
-        const forecast = forecasts[0];
-        const lastDay = prices.slice(-24);
-        const avgPrice = lastDay.length
-          ? lastDay.reduce((sum, point) => sum + point.price_value, 0) / lastDay.length
-          : null;
-        return {
-          market,
-          latestPrice,
-          change,
-          forecast,
-          avgPrice,
-        };
-      }
-
-      return {
-        market,
-        latestPrice: null,
-        change: null,
-        forecast: null,
-        avgPrice: null,
-      };
-    });
 
     return (
       <main className="animate-fade-in">
@@ -79,12 +45,8 @@ export default async function HomePage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {marketData.map(({ market, latestPrice, change, forecast, avgPrice }) => {
-            const price = latestPrice?.price_value;
-            const isUp = typeof change === "number" && change > 0;
-            const isDown = typeof change === "number" && change < 0;
+          {markets.map((market) => {
             const flag = REGION_FLAGS[market.region] ?? "🌐";
-
             return (
               <Link
                 key={market.code}
@@ -106,70 +68,92 @@ export default async function HomePage() {
                       {market.region} · {market.timezone}
                     </p>
                   </div>
-                  <div
-                    className={`rounded-lg px-2.5 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider ${
-                      isUp
-                        ? "bg-price-up/10 text-price-up"
-                        : isDown
-                          ? "bg-price-dn/10 text-price-dn"
-                          : "bg-ink/5 text-ink/40"
-                    }`}
-                  >
-                    {isUp ? "▲" : isDown ? "▼" : "—"}
-                    {typeof change === "number" ? ` ${Math.abs(change).toFixed(1)}` : ""}
-                  </div>
-                </div>
-
-                <div className="mb-4 flex items-end gap-3">
-                  <div>
-                    <p className="mb-1 text-[10px] uppercase tracking-widest text-ink/30">Spot</p>
-                    <p className="font-mono text-2xl font-semibold tabular-nums text-ink">
-                      {typeof price === "number" ? (
-                        `$${price.toFixed(2)}`
-                      ) : (
-                        <span className="skeleton block h-7 w-20" />
-                      )}
-                    </p>
-                  </div>
-                  {forecast ? (
-                    <div className="ml-auto mb-0.5 text-right">
-                      <p className="mb-1 text-[10px] uppercase tracking-widest text-ink/30">
-                        Next H
-                      </p>
-                      <p className="font-mono text-lg font-medium tabular-nums text-price-up">
-                        ${forecast.point_estimate.toFixed(2)}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center justify-between border-t border-seam pt-3">
-                  <div className="flex items-center gap-3 text-[11px] text-ink/35">
-                    {typeof avgPrice === "number" ? (
-                      <span>
-                        24h avg{" "}
-                        <span className="font-mono text-ink/55">${avgPrice.toFixed(0)}</span>
-                      </span>
-                    ) : null}
-                    {forecast ? (
-                      <span>
-                        spike risk{" "}
-                        <span
-                          className={`font-mono font-medium ${
-                            forecast.spike_probability > 0.4
-                              ? "text-price-hot"
-                              : "text-ink/55"
+                  <MarketCardLive
+                    marketId={market.id}
+                    render={({ change }) => {
+                      const isUp = typeof change === "number" && change > 0;
+                      const isDown = typeof change === "number" && change < 0;
+                      return (
+                        <div
+                          className={`rounded-lg px-2.5 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider ${
+                            isUp
+                              ? "bg-price-up/10 text-price-up"
+                              : isDown
+                                ? "bg-price-dn/10 text-price-dn"
+                                : "bg-ink/5 text-ink/40"
                           }`}
                         >
-                          {Math.round(forecast.spike_probability * 100)}%
-                        </span>
-                      </span>
-                    ) : null}
-                  </div>
-                  <span className="text-[11px] font-medium text-ink/25 transition-colors group-hover:text-ink/50">
-                    Open desk →
-                  </span>
+                          {isUp ? "▲" : isDown ? "▼" : "—"}
+                          {typeof change === "number" ? ` ${Math.abs(change).toFixed(1)}` : ""}
+                        </div>
+                      );
+                    }}
+                  />
                 </div>
+
+                <MarketCardLive
+                  marketId={market.id}
+                  render={({ spot, forecast, avgPrice }, loading) => (
+                    <>
+                      <div className="mb-4 flex items-end gap-3">
+                        <div>
+                          <p className="mb-1 text-[10px] uppercase tracking-widest text-ink/30">
+                            Spot
+                          </p>
+                          <p className="font-mono text-2xl font-semibold tabular-nums text-ink">
+                            {typeof spot === "number" ? (
+                              `$${spot.toFixed(2)}`
+                            ) : loading ? (
+                              <span className="skeleton block h-7 w-20" />
+                            ) : (
+                              "—"
+                            )}
+                          </p>
+                        </div>
+                        {forecast ? (
+                          <div className="ml-auto mb-0.5 text-right">
+                            <p className="mb-1 text-[10px] uppercase tracking-widest text-ink/30">
+                              Next H
+                            </p>
+                            <p className="font-mono text-lg font-medium tabular-nums text-price-up">
+                              ${forecast.point_estimate.toFixed(2)}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="flex items-center justify-between border-t border-seam pt-3">
+                        <div className="flex items-center gap-3 text-[11px] text-ink/35">
+                          {typeof avgPrice === "number" ? (
+                            <span>
+                              24h avg{" "}
+                              <span className="font-mono text-ink/55">
+                                ${avgPrice.toFixed(0)}
+                              </span>
+                            </span>
+                          ) : null}
+                          {forecast ? (
+                            <span>
+                              spike risk{" "}
+                              <span
+                                className={`font-mono font-medium ${
+                                  forecast.spike_probability > 0.4
+                                    ? "text-price-hot"
+                                    : "text-ink/55"
+                                }`}
+                              >
+                                {Math.round(forecast.spike_probability * 100)}%
+                              </span>
+                            </span>
+                          ) : null}
+                        </div>
+                        <span className="text-[11px] font-medium text-ink/25 transition-colors group-hover:text-ink/50">
+                          Open desk →
+                        </span>
+                      </div>
+                    </>
+                  )}
+                />
               </Link>
             );
           })}

@@ -23,23 +23,72 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { CalibrationPanel } from "@/components/calibration-panel";
+import { getDashboard } from "@/lib/api";
+
 import { ClientErrorBoundary } from "@/components/client-error-boundary";
-import { DecisionDiary } from "@/components/decision-diary";
 import { DecisionGateStrip } from "@/components/decision-gate-strip";
-import { EventFeed } from "@/components/event-feed";
 import { MarketHero } from "@/components/market-hero";
-import { NewsBriefs } from "@/components/news-briefs";
-import { PositionBlotter } from "@/components/position-blotter";
-import { PowerBIReport } from "@/components/power-bi-report";
-import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
-import { RiskPathFan } from "@/components/risk-path-fan";
-import { RiskSensitivityLadder } from "@/components/risk-sensitivity-ladder";
-import { ScenarioCards } from "@/components/scenario-cards";
-import { SignalStack } from "@/components/signal-stack";
 import type { TradeInputState } from "@/components/trade-input-bar";
 import { useMarketStream } from "@/lib/use-market-stream";
 import { DashboardData, Market, RiskAssessment } from "@/types/domain";
+
+/**
+ * Below-the-fold panels are lazy-loaded so the hero (the three bubbles)
+ * paints first and the heavier chart / audit / news / blotter chunks only
+ * fetch their JS when the user actually scrolls toward them. Massively
+ * shrinks the initial bundle on every page load.
+ */
+const PanelSkeleton = ({ height = 200 }: { height?: number }) => (
+  <div
+    className="animate-pulse rounded-2xl border border-seam bg-bg"
+    style={{ height }}
+  />
+);
+
+const ScenarioCards = dynamic(
+  () => import("@/components/scenario-cards").then((m) => m.ScenarioCards),
+  { ssr: false, loading: () => <PanelSkeleton height={140} /> },
+);
+const RiskPathFan = dynamic(
+  () => import("@/components/risk-path-fan").then((m) => m.RiskPathFan),
+  { ssr: false, loading: () => <PanelSkeleton height={260} /> },
+);
+const RiskDecompositionPanel = dynamic(
+  () => import("@/components/risk-decomposition-panel").then((m) => m.RiskDecompositionPanel),
+  { ssr: false, loading: () => <PanelSkeleton height={300} /> },
+);
+const RiskSensitivityLadder = dynamic(
+  () => import("@/components/risk-sensitivity-ladder").then((m) => m.RiskSensitivityLadder),
+  { ssr: false, loading: () => <PanelSkeleton height={300} /> },
+);
+const NewsBriefs = dynamic(
+  () => import("@/components/news-briefs").then((m) => m.NewsBriefs),
+  { ssr: false, loading: () => <PanelSkeleton height={200} /> },
+);
+const EventFeed = dynamic(
+  () => import("@/components/event-feed").then((m) => m.EventFeed),
+  { ssr: false, loading: () => <PanelSkeleton height={200} /> },
+);
+const PositionBlotter = dynamic(
+  () => import("@/components/position-blotter").then((m) => m.PositionBlotter),
+  { ssr: false, loading: () => <PanelSkeleton height={200} /> },
+);
+const DecisionDiary = dynamic(
+  () => import("@/components/decision-diary").then((m) => m.DecisionDiary),
+  { ssr: false, loading: () => <PanelSkeleton height={200} /> },
+);
+const CalibrationPanel = dynamic(
+  () => import("@/components/calibration-panel").then((m) => m.CalibrationPanel),
+  { ssr: false, loading: () => <PanelSkeleton height={200} /> },
+);
+const SignalStack = dynamic(
+  () => import("@/components/signal-stack").then((m) => m.SignalStack),
+  { ssr: false, loading: () => <PanelSkeleton height={200} /> },
+);
+const PowerBIReport = dynamic(
+  () => import("@/components/power-bi-report").then((m) => m.PowerBIReport),
+  { ssr: false, loading: () => <PanelSkeleton height={200} /> },
+);
 
 const KlinePriceChart = dynamic(
   () => import("@/components/kline-price-chart").then((m) => m.KlinePriceChart),
@@ -71,10 +120,10 @@ function buildForecast(dashboard: DashboardData) {
 
 export function MarketWorkbench({
   markets,
-  dashboard,
+  market,
 }: {
   markets: Market[];
-  dashboard: DashboardData;
+  market: Market;
 }) {
   const router = useRouter();
   const [cursorTs, setCursorTs] = useState<number | null>(null);
@@ -82,15 +131,34 @@ export function MarketWorkbench({
   const [riskLoading, setRiskLoading] = useState(false);
   const [decisionRefresh] = useState(0);
 
-  const history = useMemo(() => buildHistory(dashboard), [dashboard]);
-  const forecast = useMemo(() => buildForecast(dashboard), [dashboard]);
-  const stream = useMarketStream(dashboard.market.code);
+  // Dashboard is fetched client-side so the page can paint the hero
+  // immediately instead of blocking on a multi-table backend query. The
+  // chart, news, events and other evidence panels render skeletons until
+  // this resolves — usually a few hundred ms.
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getDashboard(market.code)
+      .then((result) => {
+        if (!cancelled) setDashboard(result);
+      })
+      .catch(() => {
+        if (!cancelled) setDashboard(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [market.code]);
+
+  const history = useMemo(() => (dashboard ? buildHistory(dashboard) : []), [dashboard]);
+  const forecast = useMemo(() => (dashboard ? buildForecast(dashboard) : []), [dashboard]);
+  const stream = useMarketStream(market.code);
   const livePriceTick = stream.priceTick
     ? { timestamp: stream.priceTick.timestamp, value: stream.priceTick.price_value }
     : null;
 
-  const lastObserved = dashboard.recent_prices[dashboard.recent_prices.length - 1];
-  const latestForecast = dashboard.forecasts[0] ?? dashboard.latest_forecast;
+  const lastObserved = dashboard?.recent_prices[dashboard.recent_prices.length - 1];
+  const latestForecast = dashboard?.forecasts[0] ?? dashboard?.latest_forecast;
   const front =
     lastObserved && latestForecast ? latestForecast.point_estimate - lastObserved.price_value : null;
 
@@ -121,7 +189,7 @@ export function MarketWorkbench({
     <main className="space-y-8 pb-16">
       {/* 1. Identity strip */}
       <IdentityStrip
-        market={dashboard.market}
+        market={market}
         markets={markets}
         spot={lastObserved?.price_value}
         nextH={latestForecast?.point_estimate}
@@ -131,10 +199,10 @@ export function MarketWorkbench({
 
       {/* 2. Hero — the three numbers */}
       <MarketHero
-        marketId={dashboard.market.id}
-        marketCode={dashboard.market.code}
-        marketName={dashboard.market.name}
-        dataStatus={dashboard.market.data_status}
+        marketId={market.id}
+        marketCode={market.code}
+        marketName={market.name}
+        dataStatus={market.data_status}
         cursorTimestampMs={cursorTs}
         onAssessmentChange={handleAssessmentChange}
       />
@@ -156,16 +224,22 @@ export function MarketWorkbench({
           fallbackBody="The chart hit a client-side issue. Refresh once. The rest of the page stays live."
         >
           <div className="h-[500px] overflow-hidden rounded-2xl border border-seam bg-surface">
-            <KlinePriceChart
-              marketId={dashboard.market.id}
-              history={history}
-              forecast={forecast}
-              livePriceTick={livePriceTick}
-              events={dashboard.recent_events}
-              timezoneLabel={dashboard.market.timezone}
-              onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
-              riskOverlay={riskOverlay}
-            />
+            {dashboard ? (
+              <KlinePriceChart
+                marketId={market.id}
+                history={history}
+                forecast={forecast}
+                livePriceTick={livePriceTick}
+                events={dashboard.recent_events}
+                timezoneLabel={market.timezone}
+                onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
+                riskOverlay={riskOverlay}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-ink/40">
+                Loading chart…
+              </div>
+            )}
           </div>
         </ClientErrorBoundary>
       </SectionFrame>
@@ -207,7 +281,7 @@ export function MarketWorkbench({
         collapsibleOnMobile
         defaultOpen={false}
       >
-        <PowerBIReport marketCode={dashboard.market.code} compact />
+        <PowerBIReport marketCode={market.code} compact />
       </SectionFrame>
 
       {/* 9. News + events */}
@@ -219,11 +293,11 @@ export function MarketWorkbench({
       >
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-2xl border border-seam bg-surface p-4">
-            <NewsBriefs items={dashboard.recent_news.slice(0, 10)} />
+            <NewsBriefs items={dashboard?.recent_news.slice(0, 10) ?? []} />
           </div>
           <div className="rounded-2xl border border-seam bg-surface p-4">
             <EventFeed
-              events={dashboard.recent_events.slice(0, 10)}
+              events={dashboard?.recent_events.slice(0, 10) ?? []}
               compact
               title="Recent structured events"
               subtitle="Events"
@@ -244,7 +318,7 @@ export function MarketWorkbench({
             <PositionBlotter refreshKey={decisionRefresh} />
           </div>
           <div className="rounded-2xl border border-seam bg-surface p-4">
-            <DecisionDiary marketId={dashboard.market.id} refreshKey={decisionRefresh} />
+            <DecisionDiary marketId={market.id} refreshKey={decisionRefresh} />
           </div>
         </div>
       </SectionFrame>
@@ -257,8 +331,8 @@ export function MarketWorkbench({
         defaultOpen={false}
       >
         <div className="grid gap-4 lg:grid-cols-[1fr_1.6fr]">
-          <CalibrationPanel marketId={dashboard.market.id} />
-          <SignalStack dashboard={dashboard} />
+          <CalibrationPanel marketId={market.id} />
+          {dashboard ? <SignalStack dashboard={dashboard} /> : <div className="h-40 animate-pulse rounded-2xl border border-seam bg-bg" />}
         </div>
       </SectionFrame>
     </main>
