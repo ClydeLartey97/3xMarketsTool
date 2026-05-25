@@ -1,6 +1,3 @@
-import type { Route } from "next";
-import Link from "next/link";
-
 import { BackendOfflineState } from "@/components/backend-offline-state";
 import { MarketCardLive } from "@/components/market-card-live";
 import { getMarkets } from "@/lib/api";
@@ -18,9 +15,9 @@ const REGION_FLAGS: Record<string, string> = {
 
 /**
  * Home page renders the market grid the moment the markets list resolves.
- * Per-market spot / forecast prices are fetched client-side after first
- * paint so we never block on 15 sequential backend calls before sending
- * any HTML to the browser.
+ * Each card is a client component that fetches its own spot / forecast
+ * after mount, so the home page never blocks on N sequential backend
+ * calls before sending HTML.
  */
 export default async function HomePage() {
   try {
@@ -45,118 +42,13 @@ export default async function HomePage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {markets.map((market) => {
-            const flag = REGION_FLAGS[market.region] ?? "🌐";
-            return (
-              <Link
-                key={market.code}
-                href={`/markets/${market.code}` as Route}
-                className="group relative overflow-hidden rounded-2xl border border-seam bg-surface p-5 transition-all duration-200 hover:border-seam-hi hover:shadow-sm"
-              >
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div>
-                    <div className="mb-1 flex items-center gap-2">
-                      <span className="text-sm">{flag}</span>
-                      <span className="font-mono text-[10px] uppercase tracking-widest text-ink/30">
-                        {market.code}
-                      </span>
-                    </div>
-                    <h3 className="text-base font-semibold leading-tight text-ink">
-                      {market.name}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-ink/40">
-                      {market.region} · {market.timezone}
-                    </p>
-                  </div>
-                  <MarketCardLive
-                    marketId={market.id}
-                    render={({ change }) => {
-                      const isUp = typeof change === "number" && change > 0;
-                      const isDown = typeof change === "number" && change < 0;
-                      return (
-                        <div
-                          className={`rounded-lg px-2.5 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider ${
-                            isUp
-                              ? "bg-price-up/10 text-price-up"
-                              : isDown
-                                ? "bg-price-dn/10 text-price-dn"
-                                : "bg-ink/5 text-ink/40"
-                          }`}
-                        >
-                          {isUp ? "▲" : isDown ? "▼" : "—"}
-                          {typeof change === "number" ? ` ${Math.abs(change).toFixed(1)}` : ""}
-                        </div>
-                      );
-                    }}
-                  />
-                </div>
-
-                <MarketCardLive
-                  marketId={market.id}
-                  render={({ spot, forecast, avgPrice }, loading) => (
-                    <>
-                      <div className="mb-4 flex items-end gap-3">
-                        <div>
-                          <p className="mb-1 text-[10px] uppercase tracking-widest text-ink/30">
-                            Spot
-                          </p>
-                          <p className="font-mono text-2xl font-semibold tabular-nums text-ink">
-                            {typeof spot === "number" ? (
-                              `$${spot.toFixed(2)}`
-                            ) : loading ? (
-                              <span className="skeleton block h-7 w-20" />
-                            ) : (
-                              "—"
-                            )}
-                          </p>
-                        </div>
-                        {forecast ? (
-                          <div className="ml-auto mb-0.5 text-right">
-                            <p className="mb-1 text-[10px] uppercase tracking-widest text-ink/30">
-                              Next H
-                            </p>
-                            <p className="font-mono text-lg font-medium tabular-nums text-price-up">
-                              ${forecast.point_estimate.toFixed(2)}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-seam pt-3">
-                        <div className="flex items-center gap-3 text-[11px] text-ink/35">
-                          {typeof avgPrice === "number" ? (
-                            <span>
-                              24h avg{" "}
-                              <span className="font-mono text-ink/55">
-                                ${avgPrice.toFixed(0)}
-                              </span>
-                            </span>
-                          ) : null}
-                          {forecast ? (
-                            <span>
-                              spike risk{" "}
-                              <span
-                                className={`font-mono font-medium ${
-                                  forecast.spike_probability > 0.4
-                                    ? "text-price-hot"
-                                    : "text-ink/55"
-                                }`}
-                              >
-                                {Math.round(forecast.spike_probability * 100)}%
-                              </span>
-                            </span>
-                          ) : null}
-                        </div>
-                        <span className="text-[11px] font-medium text-ink/25 transition-colors group-hover:text-ink/50">
-                          Open desk →
-                        </span>
-                      </div>
-                    </>
-                  )}
-                />
-              </Link>
-            );
-          })}
+          {markets.map((market) => (
+            <MarketCardLive
+              key={market.code}
+              market={market}
+              flag={REGION_FLAGS[market.region] ?? "🌐"}
+            />
+          ))}
         </div>
 
         <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-ink/25">
