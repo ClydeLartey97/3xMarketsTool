@@ -2,7 +2,7 @@ import { BackendOfflineState } from "@/components/backend-offline-state";
 import { EventFeed } from "@/components/event-feed";
 import { getEvents } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function EventsPage() {
   try {

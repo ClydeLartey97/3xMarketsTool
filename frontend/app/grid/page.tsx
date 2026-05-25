@@ -2,7 +2,7 @@ import { BackendOfflineState } from "@/components/backend-offline-state";
 import { GridTopologyView } from "@/components/grid-topology-view";
 import { getGridFlows } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function GridPage() {
   try {

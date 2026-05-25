@@ -2,7 +2,9 @@ import { BackendOfflineState } from "@/components/backend-offline-state";
 import { MarketWorkbench } from "@/components/market-workbench";
 import { getMarkets } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
+// `revalidate = 0` keeps the page dynamic without triggering the Next 16
+// Turbopack bug in `staticPathsWorker.loadStaticPaths`.
+export const revalidate = 0;
 
 /**
  * Server-side render is intentionally lean: we only fetch the markets list

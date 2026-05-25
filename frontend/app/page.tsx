@@ -2,7 +2,11 @@ import { BackendOfflineState } from "@/components/backend-offline-state";
 import { MarketCardLive } from "@/components/market-card-live";
 import { getMarkets } from "@/lib/api";
 
-export const dynamic = "force-dynamic";
+// The page is naturally dynamic (it fetches per-request from the backend);
+// the explicit `force-dynamic` directive triggers a Next 16 Turbopack bug
+// in `staticPathsWorker.loadStaticPaths` that crashes hydration. The
+// `cache: "no-store"` already set in `apiFetch` keeps the data fresh.
+export const revalidate = 0;
 
 const REGION_FLAGS: Record<string, string> = {
   Texas: "🇺🇸",
