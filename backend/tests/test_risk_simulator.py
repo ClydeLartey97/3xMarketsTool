@@ -67,6 +67,23 @@ def test_tail_multiplier_monotonically_increases_terminal_sigma() -> None:
     assert terminal_sigmas == sorted(terminal_sigmas)
 
 
+def test_extreme_synthetic_inputs_remain_finite() -> None:
+    cfg = SimConfig(
+        n_paths=5_000,
+        horizon_hours=168,
+        spot=45.0,
+        sigma_hourly=6.0,
+        drift_hourly=4.0,
+        tail_multiplier=2.0,
+        asymmetry=1.0,
+        seed=260512,
+    )
+    result = simulate_price_paths(cfg)
+
+    assert np.isfinite(result.paths).all()
+    assert np.all(result.paths > 0)
+
+
 def test_pnl_mwh_position_is_path_independent_of_spot() -> None:
     """For a 100 MWh long position, P&L = 100 × (P_T − P_0) regardless of spot scale."""
     cfg = SimConfig(n_paths=2000, horizon_hours=6, spot=80.0,

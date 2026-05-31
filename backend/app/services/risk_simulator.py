@@ -19,6 +19,9 @@ from typing import Optional
 
 import numpy as np
 
+_LOG_PRICE_MIN = -30.0
+_LOG_PRICE_MAX = 30.0
+
 
 @dataclass
 class SimConfig:
@@ -77,10 +80,12 @@ def simulate_price_paths(cfg: SimConfig) -> SimResult:
     h = max(1, int(cfg.horizon_hours))
     n = max(1, int(cfg.n_paths))
 
-    sigma = max(0.0, cfg.sigma_hourly * cfg.tail_multiplier)
+    spot = float(np.nan_to_num(cfg.spot, nan=100.0, posinf=100.0, neginf=1e-6))
+    spot = max(spot, 1e-6)
+    sigma = max(0.0, float(np.nan_to_num(cfg.sigma_hourly * cfg.tail_multiplier, nan=0.0, posinf=0.0, neginf=0.0)))
     # Asymmetry contributes a small per-step drift bias.
     asym_drift = 0.05 * sigma * float(np.clip(cfg.asymmetry, -1.0, 1.0))
-    drift = cfg.drift_hourly + asym_drift
+    drift = float(np.nan_to_num(cfg.drift_hourly + asym_drift, nan=0.0, posinf=0.0, neginf=0.0))
 
     shocks = _heavy_tail_shocks(rng, (n, h), cfg.tail_multiplier)
     log_returns = drift + sigma * shocks
@@ -88,7 +93,17 @@ def simulate_price_paths(cfg: SimConfig) -> SimResult:
 
     # Prepend a column of zeros so paths[:, 0] == spot.
     log_paths = np.concatenate([np.zeros((n, 1)), log_paths], axis=1)
-    paths = max(cfg.spot, 1e-6) * np.exp(log_paths)
+    # Demo/synthetic markets can occasionally combine high hourly volatility,
+    # heavy tails, and drift into extreme log paths. Keep those rare paths
+    # finite so API responses remain JSON-safe while preserving tail ordering.
+    log_paths = np.nan_to_num(
+        log_paths,
+        nan=0.0,
+        posinf=_LOG_PRICE_MAX,
+        neginf=_LOG_PRICE_MIN,
+    )
+    log_paths = np.clip(log_paths, _LOG_PRICE_MIN, _LOG_PRICE_MAX)
+    paths = spot * np.exp(log_paths)
     return SimResult(paths=paths, config=cfg)
 
 
