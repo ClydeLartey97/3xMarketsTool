@@ -149,6 +149,16 @@ export function KlinePriceChart({
               <div>
                 <p className="text-xs font-semibold text-ink">{selectedEvent.title}</p>
                 <p className="mt-1 text-[11px] leading-relaxed text-ink/60">{selectedEvent.description}</p>
+                {selectedEvent.source_url ? (
+                  <a
+                    href={selectedEvent.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-block font-mono text-[10px] uppercase tracking-wider text-ink/38 hover:text-ink/70"
+                  >
+                    Open article →
+                  </a>
+                ) : null}
               </div>
               <button
                 type="button"

@@ -60,7 +60,10 @@ def test_ingest_article(client) -> None:
         },
     )
     assert response.status_code == 200
-    assert response.json()["event_type"] == "transmission_outage"
+    body = response.json()
+    assert body["event_type"] == "transmission_outage"
+    assert body["source_name"] == "Ops Note"
+    assert body["source_url"] == "https://example.com/outage"
 
 
 def test_risk_assessment_endpoint(client, db_session) -> None:

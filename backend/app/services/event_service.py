@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import desc, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.events.extractor import extract_primary_event
 from app.events.impact import estimate_price_impact_pct
@@ -18,7 +18,12 @@ SEVERITY_SCORE = {"low": 1.0, "medium": 2.0, "high": 3.0}
 
 def list_events(db: Session, market_id: int | None = None, hours: int = 72) -> list[Event]:
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
-    stmt = select(Event).where(Event.created_at >= since).order_by(desc(Event.created_at))
+    stmt = (
+        select(Event)
+        .options(selectinload(Event.article))
+        .where(Event.created_at >= since)
+        .order_by(desc(Event.created_at))
+    )
     if market_id is not None:
         stmt = stmt.where(Event.market_id == market_id)
     events = list(db.scalars(stmt).all())

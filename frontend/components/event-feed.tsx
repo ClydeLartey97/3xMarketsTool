@@ -52,11 +52,15 @@ export function EventFeed({
         ) : (
           events.map((event) => {
             const style = SEVERITY_STYLES[event.severity] ?? SEVERITY_STYLES.low;
-            return (
-              <article
-                key={event.id}
-                className="rounded-xl border border-seam bg-well p-4"
-              >
+            const sourceUrl = event.source_url;
+            const cardClassName = [
+              "rounded-xl border border-seam bg-well p-4",
+              sourceUrl ? "group block transition-all hover:border-seam-hi hover:bg-surface" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            const content = (
+              <>
                 {/* Tag row */}
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <span className={`rounded px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest ${style.badge}`}>
@@ -135,6 +139,28 @@ export function EventFeed({
                     Analogues #{event.analogue_event_ids.slice(0, 5).join(" #")}
                   </p>
                 ) : null}
+
+                {sourceUrl ? (
+                  <p className="mt-3 text-right font-mono text-[10px] uppercase tracking-wider text-ink/32 transition-colors group-hover:text-ink/60">
+                    Open article →
+                  </p>
+                ) : null}
+              </>
+            );
+
+            return sourceUrl ? (
+              <a
+                key={event.id}
+                href={sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={cardClassName}
+              >
+                {content}
+              </a>
+            ) : (
+              <article key={event.id} className={cardClassName}>
+                {content}
               </article>
             );
           })

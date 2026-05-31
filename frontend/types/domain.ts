@@ -38,6 +38,8 @@ export type EventItem = {
   id: number;
   article_id: number | null;
   market_id: number | null;
+  source_name: string | null;
+  source_url: string | null;
   event_type: string;
   title: string;
   description: string;

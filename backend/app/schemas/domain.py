@@ -112,6 +112,8 @@ class EventRead(BaseModel):
     id: int
     article_id: Optional[int]
     market_id: Optional[int]
+    source_name: Optional[str] = None
+    source_url: Optional[str] = None
     event_type: str
     title: str
     description: str

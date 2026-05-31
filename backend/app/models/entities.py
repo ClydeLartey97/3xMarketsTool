@@ -119,8 +119,16 @@ class Event(Base):
     rationale: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
-    article: Mapped["NewsArticle"] = relationship(back_populates="events")
+    article: Mapped[Optional["NewsArticle"]] = relationship(back_populates="events")
     market: Mapped[Optional["Market"]] = relationship(back_populates="events")
+
+    @property
+    def source_name(self) -> Optional[str]:
+        return self.article.source_name if self.article else None
+
+    @property
+    def source_url(self) -> Optional[str]:
+        return self.article.source_url if self.article else None
 
 
 class Forecast(Base):

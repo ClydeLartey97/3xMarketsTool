@@ -92,6 +92,23 @@ REQUIRED_MARKET_FIELDS = {
     "metadata",
 }
 
+REQUIRED_EVENT_FIELDS = {
+    "id",
+    "article_id",
+    "market_id",
+    "source_name",
+    "source_url",
+    "event_type",
+    "title",
+    "description",
+    "affected_region",
+    "severity",
+    "confidence",
+    "price_direction",
+    "estimated_price_impact_pct",
+    "created_at",
+}
+
 
 def _assert_required(body: dict[str, Any], required: set[str], name: str) -> None:
     missing = required - set(body)
@@ -126,6 +143,9 @@ def test_dashboard_endpoint_shape(client) -> None:
     assert isinstance(body["forecasts"], list)
     assert isinstance(body["tracked_sources"], list)
     assert isinstance(body["active_alerts"], list)
+    assert isinstance(body["recent_events"], list)
+    if body["recent_events"]:
+        _assert_required(body["recent_events"][0], REQUIRED_EVENT_FIELDS, "DashboardResponse.recent_events")
 
 
 def test_risk_assessment_shape_preserves_three_numbers(client) -> None:
