@@ -37,6 +37,9 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "node_modules_broken_*",
+    ".next",
+    ".next_broken_*"
   ]
 }

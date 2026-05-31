@@ -210,6 +210,10 @@ export function PowerBIReport({
   }, [config]);
 
   const heightClass = compact ? "h-[520px]" : "h-[680px]";
+  const setupHeightClass = compact ? "min-h-[120px]" : "min-h-[260px]";
+  const setupMessage = compact
+    ? "Optional analytics are not connected for this local run."
+    : "Power BI is optional here. Add the Power BI environment variables when you want to connect a real embedded report.";
 
   return (
     <section className="rounded-2xl border border-seam bg-surface p-4 shadow-panel sm:p-5">
@@ -226,12 +230,10 @@ export function PowerBIReport({
       </div>
 
       {state === "setup" ? (
-        <div className={`${heightClass} flex items-center justify-center rounded-xl border border-dashed border-seam bg-well p-6`}>
+        <div className={`${setupHeightClass} flex items-center justify-center rounded-xl border border-dashed border-seam bg-well p-6`}>
           <div className="max-w-xl text-center">
-            <p className="text-sm font-semibold text-ink">Power BI is ready to connect.</p>
-            <p className="mt-2 text-sm leading-6 text-ink/55">
-              {message || "Add the Power BI environment variables on the backend to enable embedded reports."}
-            </p>
+            <p className="text-sm font-semibold text-ink">Power BI not connected</p>
+            <p className="mt-2 text-sm leading-6 text-ink/55">{setupMessage}</p>
           </div>
         </div>
       ) : state === "error" ? (

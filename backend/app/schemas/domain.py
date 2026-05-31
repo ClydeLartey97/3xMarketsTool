@@ -512,3 +512,39 @@ class DashboardResponse(BaseModel):
     tracked_sources: list[NewsSourceRead]
     active_alerts: list[AlertRead]
     key_metrics: dict[str, float]
+
+
+class MarketOverviewForecast(BaseModel):
+    forecast_for_timestamp: datetime
+    point_estimate: float
+    lower_bound: float
+    upper_bound: float
+    currency: str = "USD"
+    spike_probability: float
+
+
+class MarketOverviewItem(BaseModel):
+    market: MarketRead
+    spot: Optional[float] = None
+    previous_spot: Optional[float] = None
+    change: Optional[float] = None
+    avg_price_24h: Optional[float] = None
+    spike_probability: Optional[float] = None
+    next_forecast: Optional[MarketOverviewForecast] = None
+    data_status: str = "ready"
+
+
+class DashboardSummaryResponse(BaseModel):
+    """Lightweight first-screen payload for the market workbench.
+
+    Additive endpoint introduced by the performance preservation plan
+    (Phase 5.2). Does NOT replace `DashboardResponse` — that schema
+    remains the canonical full-fat dashboard contract.
+    """
+
+    market: MarketRead
+    latest_forecast: Optional[ForecastRead]
+    forecasts: list[ForecastRead]
+    recent_prices: list[PricePointRead]
+    key_metrics: dict[str, float]
+    data_status: str = "ready"

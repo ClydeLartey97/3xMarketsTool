@@ -15,7 +15,6 @@ from app.core.rate_limit import configure_rate_limiting
 from app.db.compat import apply_sqlite_compat_migrations
 from app.db.schema import database_has_schema
 from app.db.session import SessionLocal, engine
-from app.ingestion.seeds import seed_database
 
 settings = get_settings()
 validate_runtime_settings(settings)
@@ -26,9 +25,13 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     schema_ready = database_has_schema(engine)
-    if schema_ready:
+    if schema_ready and settings.skip_startup_seed:
+        apply_sqlite_compat_migrations(engine)
+    elif schema_ready:
         apply_sqlite_compat_migrations(engine)
         with SessionLocal() as db:
+            from app.ingestion.seeds import seed_database
+
             seed_database(db)
     else:
         logger.warning(

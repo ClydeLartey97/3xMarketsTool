@@ -1,0 +1,9 @@
+# Optional local AI dependencies.
+#
+# The core app runs without these. Install them only when you want to use the
+# Chronos foundation forecaster or retrain/run the Torch deep-hedging policy:
+#
+#   python -m pip install -r backend/requirements-optional-ai.txt
+
+chronos-forecasting==2.2.2
+torch==2.11.0

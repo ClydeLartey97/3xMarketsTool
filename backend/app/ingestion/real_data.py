@@ -931,6 +931,33 @@ def populate_market_real_data(
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
 
+    if settings.demo_mode:
+        gas_price = 38.0 if is_european or is_gb else 3.5
+        sources["gas_price"] = "synthetic"
+        inserted = _insert_market_frames(
+            db,
+            market,
+            market_code,
+            weather_df=pd.DataFrame(),
+            demand_df=pd.DataFrame(),
+            wind_eia_df=pd.DataFrame(),
+            solar_eia_df=pd.DataFrame(),
+            gb_prices_df=pd.DataFrame(),
+            gas_price=gas_price,
+            sources=sources,
+            start=start,
+            end=end,
+            rng=rng,
+        )
+        _apply_data_status(market, sources, demo_mode=True)
+        logger.info(
+            "Market %s: inserted %d synthetic demo data points. Sources: %s",
+            market_code,
+            inserted,
+            sources,
+        )
+        return sources
+
     # ── Weather ───────────────────────────────────────────────────────────
     coords = MARKET_COORDS.get(market_code)
     weather_df = pd.DataFrame()

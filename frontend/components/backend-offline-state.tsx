@@ -5,7 +5,7 @@ type BackendOfflineStateProps = {
 
 export function BackendOfflineState({
   title,
-  detail = "The frontend is running, but it could not reach the Python API at http://localhost:8000/api.",
+  detail = "The frontend is running, but it could not reach the Python API at http://127.0.0.1:8000/api.",
 }: BackendOfflineStateProps) {
   return (
     <main className="min-h-[calc(100vh-9rem)]">
@@ -35,7 +35,7 @@ export function BackendOfflineState({
 python3 -m uvicorn app.main:app --reload --port 8000`}</code>
             </pre>
             <p className="mt-4 text-sm text-ink/62">
-              After that, refresh this page. You can check the API directly at `http://localhost:8000/api/health`.
+              After that, refresh this page. You can check the API directly at `http://127.0.0.1:8000/api/health`.
             </p>
           </div>
         </div>

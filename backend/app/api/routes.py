@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -15,6 +13,7 @@ from app.schemas.domain import (
     ArticleIngestRequest,
     AuditLogRead,
     DashboardResponse,
+    DashboardSummaryResponse,
     DecisionCreateRequest,
     DecisionRead,
     DecisionUpdateRequest,
@@ -22,6 +21,7 @@ from app.schemas.domain import (
     ForecastRunResponse,
     ForecastRead,
     HealthResponse,
+    MarketOverviewItem,
     MarketRead,
     MarketTimeseriesPoint,
     NewsArticleRead,
@@ -40,30 +40,18 @@ from app.schemas.domain import (
     RiskSolveRequest,
     RiskSolveResponse,
 )
-from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
 from app.services.auth import audit_user, current_user
 from app.services.audit import list_audit_logs, write_audit_log
 from app.services.decision_diary import create_decision, delete_decision, list_decisions, update_decision
 from app.services.risk_calibration import log_risk_assessment, risk_calibration_for_market
-from app.services.risk_sensitivity import run_risk_sensitivity
-from app.services.risk_solver import RiskSolveInputs, solve_position_for_risk
-from app.services.alert_service import list_alerts, refresh_alerts_for_market
-from app.services.backtest_reports import dashboard_backtest_metrics, latest_backtest_report_for_market
 from app.services.event_analogues import find_analogues
-from app.services.event_service import ingest_article, list_events
-from app.services.export_pack import build_risk_export
-from app.services.forecast_service import (
-    invalidate_forecast_cache,
-    list_forecasts,
-    list_price_history,
-    list_recent_prices,
-    run_forecast_for_market,
+from app.services.market_service import (
+    build_markets_overview,
+    get_market_by_code,
+    get_market_by_id,
+    list_markets,
+    market_overview_to_dict,
 )
-from app.services.market_service import get_market_by_code, get_market_by_id, list_markets
-from app.services.news_service import list_news_articles, list_news_sources
-from app.services.portfolio_risk import PortfolioPositionInput, run_portfolio_risk
-from app.services.power_bi import PowerBIIntegrationError, build_power_bi_embed_config
-from app.services.deep_hedger import hedge_features_from_assessment, recommend_hedge_ratio
 
 public_router = APIRouter()
 router = APIRouter(dependencies=[Depends(current_user)])
@@ -144,6 +132,15 @@ def get_markets(db: Session = Depends(get_db)) -> list[MarketRead]:
     return [_market_read(market) for market in markets]
 
 
+@router.get("/markets/overview", response_model=list[MarketOverviewItem])
+def get_markets_overview(db: Session = Depends(get_db)) -> list[MarketOverviewItem]:
+    """Single-call home-page payload (plan §4). Additive — does not
+    replace /markets, /markets/{id}/prices, or /markets/{id}/forecast.
+    """
+    entries = build_markets_overview(db)
+    return [MarketOverviewItem.model_validate(market_overview_to_dict(entry)) for entry in entries]
+
+
 @router.get("/markets/{market_id}", response_model=MarketRead)
 def get_market(market_id: int, db: Session = Depends(get_db)) -> MarketRead:
     market = get_market_by_id(db, market_id)
@@ -154,6 +151,8 @@ def get_market(market_id: int, db: Session = Depends(get_db)) -> MarketRead:
 
 @router.get("/markets/{market_id}/prices", response_model=list[PricePointRead])
 def get_prices(market_id: int, limit: int = Query(default=720, ge=1, le=8760), db: Session = Depends(get_db)) -> list[PricePointRead]:
+    from app.services.forecast_service import list_recent_prices
+
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     return [PricePointRead.model_validate(item) for item in list_recent_prices(db, market_id, limit=limit)]
@@ -166,6 +165,8 @@ def get_market_history(
     to_ts: datetime | None = Query(default=None, alias="to"),
     db: Session = Depends(get_db),
 ) -> list[PricePointRead]:
+    from app.services.forecast_service import list_price_history
+
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     if from_ts and to_ts and from_ts > to_ts:
@@ -237,6 +238,8 @@ def get_market_timeseries(
 
 @router.get("/markets/{market_id}/forecast", response_model=list[ForecastRead])
 def get_market_forecast(market_id: int, limit: int = Query(default=48, le=168), db: Session = Depends(get_db)) -> list[ForecastRead]:
+    from app.services.forecast_service import list_forecasts
+
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     forecasts = list_forecasts(db, market_id, limit)
@@ -250,6 +253,9 @@ def run_forecast(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> ForecastRunResponse:
+    from app.services.alert_service import refresh_alerts_for_market
+    from app.services.forecast_service import run_forecast_for_market
+
     market = get_market_by_code(db, market_code)
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
@@ -271,6 +277,8 @@ def run_forecast(
 
 @router.get("/markets/{market_id}/events", response_model=list[EventRead])
 def get_market_events(market_id: int, db: Session = Depends(get_db)) -> list[EventRead]:
+    from app.services.event_service import list_events
+
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     return [EventRead.model_validate(item) for item in list_events(db, market_id=market_id)]
@@ -278,6 +286,8 @@ def get_market_events(market_id: int, db: Session = Depends(get_db)) -> list[Eve
 
 @router.get("/events", response_model=list[EventRead])
 def get_events(db: Session = Depends(get_db)) -> list[EventRead]:
+    from app.services.event_service import list_events
+
     return [EventRead.model_validate(item) for item in list_events(db)]
 
 
@@ -291,6 +301,8 @@ def get_event_analogues(event_id: int, db: Session = Depends(get_db)) -> list[Ev
 
 @router.get("/markets/{market_id}/news", response_model=list[NewsArticleRead])
 def get_market_news(market_id: int, db: Session = Depends(get_db)) -> list[NewsArticleRead]:
+    from app.services.news_service import list_news_articles
+
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     return list_news_articles(db, market_id=market_id)
@@ -298,6 +310,8 @@ def get_market_news(market_id: int, db: Session = Depends(get_db)) -> list[NewsA
 
 @router.get("/news/sources", response_model=list[NewsSourceRead])
 def get_news_sources() -> list[NewsSourceRead]:
+    from app.services.news_service import list_news_sources
+
     return list_news_sources()
 
 
@@ -306,6 +320,8 @@ def get_power_bi_embed_config(
     market_code: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> PowerBIEmbedConfig:
+    from app.services.power_bi import PowerBIIntegrationError, build_power_bi_embed_config
+
     if market_code and not get_market_by_code(db, market_code):
         raise HTTPException(status_code=404, detail="Market not found")
     try:
@@ -320,6 +336,8 @@ def post_article(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> EventRead | None:
+    from app.services.event_service import ingest_article
+
     event = ingest_article(db, payload)
     write_audit_log(
         db,
@@ -333,6 +351,8 @@ def post_article(
 
 @router.get("/markets/{market_id}/alerts", response_model=list[AlertRead])
 def get_market_alerts(market_id: int, db: Session = Depends(get_db)) -> list[AlertRead]:
+    from app.services.alert_service import list_alerts
+
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     return [AlertRead.model_validate(item) for item in list_alerts(db, market_id)]
@@ -346,6 +366,7 @@ def refresh_market_data(
 ) -> dict:
     """Trigger immediate data refresh for a market and invalidate forecast cache."""
     from app.core.config import get_settings
+    from app.services.forecast_service import invalidate_forecast_cache
     from app.ingestion.real_data import populate_market_real_data
 
     market = get_market_by_code(db, market_code)
@@ -377,10 +398,12 @@ def refresh_market_data(
 def post_risk_assessment(
     request: Request,
     response: Response,
-    payload: RiskAssessmentRequest,
+    payload: RiskAssessmentRequest = Body(...),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> RiskAssessmentResponse:
+    from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
+
     del request
     del response
     try:
@@ -428,6 +451,8 @@ def post_risk_assessment_solve(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> RiskSolveResponse:
+    from app.services.risk_solver import RiskSolveInputs, solve_position_for_risk
+
     try:
         result = solve_position_for_risk(
             db,
@@ -464,9 +489,12 @@ def post_risk_assessment_solve(
 def post_risk_assessment_sensitivity(
     request: Request,
     response: Response,
-    payload: RiskSensitivityRequest,
+    payload: RiskSensitivityRequest = Body(...),
     db: Session = Depends(get_db),
 ) -> RiskSensitivityResponse:
+    from app.services.risk_engine import RiskInputs, ScenarioSpec
+    from app.services.risk_sensitivity import run_risk_sensitivity
+
     del request
     del response
     try:
@@ -506,6 +534,8 @@ def post_risk_assessment_paths(
     payload: RiskAssessmentRequest,
     db: Session = Depends(get_db),
 ) -> RiskPathFanResponse:
+    from app.services.risk_engine import RiskInputs, ScenarioSpec, assess_risk
+
     try:
         result = assess_risk(
             db,
@@ -545,6 +575,9 @@ def post_risk_assessment_paths(
 
 @router.post("/risk-assessment/optimal-hedge", response_model=OptimalHedgeResponse)
 def post_optimal_hedge(payload: RiskAssessmentRequest, db: Session = Depends(get_db)) -> OptimalHedgeResponse:
+    from app.services.deep_hedger import hedge_features_from_assessment, recommend_hedge_ratio
+    from app.services.risk_engine import RiskInputs, assess_risk
+
     try:
         current = assess_risk(
             db,
@@ -598,6 +631,8 @@ def post_risk_assessment_export(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> Response:
+    from app.services.export_pack import build_risk_export
+
     try:
         content, media_type, filename, audit_payload = build_risk_export(db, payload, format)
     except ValueError as exc:
@@ -620,6 +655,8 @@ def post_risk_assessment_export(
 
 @router.post("/portfolio-risk", response_model=PortfolioRiskResponse)
 def post_portfolio_risk(payload: PortfolioRiskRequest, db: Session = Depends(get_db)) -> PortfolioRiskResponse:
+    from app.services.portfolio_risk import PortfolioPositionInput, run_portfolio_risk
+
     try:
         result = run_portfolio_risk(
             db,
@@ -736,6 +773,8 @@ def get_audit_logs(
 
 @router.get("/markets/{market_id}/backtest/latest", response_model=dict[str, Any] | None)
 def get_latest_market_backtest(market_id: int, db: Session = Depends(get_db)) -> dict[str, Any] | None:
+    from app.services.backtest_reports import latest_backtest_report_for_market
+
     market = get_market_by_id(db, market_id)
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
@@ -807,6 +846,12 @@ def get_dashboard(
     history_hours: int = Query(default=720, ge=1, le=8760),
     db: Session = Depends(get_db),
 ) -> DashboardResponse:
+    from app.services.alert_service import list_alerts, refresh_alerts_for_market
+    from app.services.backtest_reports import dashboard_backtest_metrics
+    from app.services.event_service import list_events
+    from app.services.forecast_service import list_recent_prices, run_forecast_for_market
+    from app.services.news_service import list_news_articles, list_news_sources
+
     market = get_market_by_code(db, market_code)
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
@@ -843,4 +888,57 @@ def get_dashboard(
             **dashboard_backtest_metrics(market.code),
             **_price_provenance_metrics(prices),
         },
+    )
+
+
+@router.get(
+    "/dashboard/{market_code}/summary",
+    response_model=DashboardSummaryResponse,
+)
+def get_dashboard_summary(
+    market_code: str,
+    history_hours: int = Query(default=168, ge=1, le=8760),
+    db: Session = Depends(get_db),
+) -> DashboardSummaryResponse:
+    from app.services.forecast_service import list_recent_prices, run_forecast_for_market
+
+    """Lightweight first-screen payload for the market workbench.
+
+    Plan §5.2 — additive endpoint. Returns only what the hero, trade
+    input, and chart need; does NOT refresh alerts, fetch news, fetch
+    events, or load tracked sources. The full `/dashboard/{market_code}`
+    endpoint remains the canonical compatibility surface.
+    """
+    market = get_market_by_code(db, market_code)
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
+
+    forecasts, metrics = run_forecast_for_market(db, market, horizon_hours=48)
+    latest_forecast = forecasts[0] if forecasts else None
+    prices = list_recent_prices(db, market.id, history_hours)
+
+    avg_price = round(
+        sum(point.price_value for point in prices[-24:]) / max(len(prices[-24:]), 1),
+        2,
+    )
+    avg_spike_probability = round(
+        sum(f.spike_probability for f in forecasts[:12]) / max(len(forecasts[:12]), 1),
+        3,
+    )
+
+    return DashboardSummaryResponse(
+        market=_market_read(market),
+        latest_forecast=ForecastRead.model_validate(latest_forecast) if latest_forecast else None,
+        forecasts=[ForecastRead.model_validate(item) for item in forecasts],
+        recent_prices=[PricePointRead.model_validate(item) for item in prices],
+        key_metrics={
+            "avg_price_24h": avg_price,
+            "avg_spike_probability_12h": avg_spike_probability,
+            "model_mae": metrics["mae"],
+            "model_rmse": metrics["rmse"],
+            "directional_accuracy": metrics["directional_accuracy"],
+            "spike_precision": metrics["spike_precision"],
+            **_price_provenance_metrics(prices),
+        },
+        data_status=_market_data_status(market),
     )

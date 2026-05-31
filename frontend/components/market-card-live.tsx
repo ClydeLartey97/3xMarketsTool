@@ -1,8 +1,12 @@
 "use client";
 /**
- * Client component for a single market card on the home page. Fetches
- * the spot / forecast for this market after mount so the home page can
- * paint the whole grid instantly while prices stream in card-by-card.
+ * Client component for a single market card on the home page.
+ *
+ * Per performance preservation plan §4.2, the home page now batches all
+ * card stats via /markets/overview and passes them down through the
+ * `preloaded` prop. If `preloaded` is omitted (or set to `undefined`),
+ * the card falls back to its legacy per-card fetch so any caller still
+ * using the original prop shape keeps working.
  *
  * Owns its full UI (not a render prop) because render props can't be
  * passed from server components to client components — functions don't
@@ -12,7 +16,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { getForecast, getPrices } from "@/lib/api";
+import { getForecast, getPrices, type MarketOverviewItem } from "@/lib/api";
 import type { ForecastPoint, Market, PricePoint } from "@/types/domain";
 
 type Stats = {
@@ -24,12 +28,48 @@ type Stats = {
 
 const EMPTY: Stats = { spot: null, change: null, forecast: null, avgPrice: null };
 
-export function MarketCardLive({ market, flag }: { market: Market; flag: string }) {
-  const [stats, setStats] = useState<Stats>(EMPTY);
-  const [loading, setLoading] = useState(true);
+function statsFromOverview(entry: MarketOverviewItem): Stats {
+  const f = entry.next_forecast;
+  return {
+    spot: entry.spot,
+    change: entry.change,
+    forecast: f
+      ? ({
+          forecast_for_timestamp: f.forecast_for_timestamp,
+          point_estimate: f.point_estimate,
+          lower_bound: f.lower_bound,
+          upper_bound: f.upper_bound,
+          currency: f.currency,
+          spike_probability: f.spike_probability,
+        } as unknown as ForecastPoint)
+      : null,
+    avgPrice: entry.avg_price_24h,
+  };
+}
+
+export function MarketCardLive({
+  market,
+  flag,
+  preloaded,
+}: {
+  market: Market;
+  flag: string;
+  preloaded?: MarketOverviewItem | null;
+}) {
+  const [stats, setStats] = useState<Stats>(() =>
+    preloaded ? statsFromOverview(preloaded) : EMPTY,
+  );
+  const [loading, setLoading] = useState(() => preloaded == null);
 
   useEffect(() => {
+    if (preloaded) {
+      setStats(statsFromOverview(preloaded));
+      setLoading(false);
+      return;
+    }
+    // Fallback: legacy per-card fetch path (kept per plan §4.3).
     let cancelled = false;
+    setLoading(true);
     Promise.all([getPrices(market.id), getForecast(market.id)])
       .then(([prices, forecasts]: [PricePoint[], ForecastPoint[]]) => {
         if (cancelled) return;
@@ -56,7 +96,7 @@ export function MarketCardLive({ market, flag }: { market: Market; flag: string 
     return () => {
       cancelled = true;
     };
-  }, [market.id]);
+  }, [market.id, preloaded]);
 
   const { spot, change, forecast, avgPrice } = stats;
   const isUp = typeof change === "number" && change > 0;

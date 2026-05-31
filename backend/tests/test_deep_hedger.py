@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("torch")
+
 from app.services.deep_hedger import evaluate_policy_cvar, train_policy
 
 

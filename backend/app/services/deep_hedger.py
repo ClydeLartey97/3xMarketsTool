@@ -5,8 +5,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import torch
-from torch import nn
 
 
 MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "deep_hedger.pt"
@@ -23,23 +21,41 @@ class HedgeFeatures:
     horizon_hours: float
 
 
-class DeepHedgePolicy(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(7, 32),
-            nn.ReLU(),
-            nn.Linear(32, 16),
-            nn.ReLU(),
-            nn.Linear(16, 1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, features: torch.Tensor) -> torch.Tensor:
-        return self.net(features).squeeze(-1)
+def _load_torch() -> tuple[Any, Any]:
+    try:
+        import torch
+        from torch import nn
+    except ImportError as exc:
+        raise RuntimeError(
+            "Optional AI dependencies are not installed. Run "
+            "`python -m pip install -r backend/requirements-optional-ai.txt` "
+            "to train or load the Torch hedging policy."
+        ) from exc
+    return torch, nn
 
 
-def feature_tensor(features: HedgeFeatures | list[HedgeFeatures]) -> torch.Tensor:
+def _new_policy(nn: Any) -> Any:
+    class DeepHedgePolicy(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.net = nn.Sequential(
+                nn.Linear(7, 32),
+                nn.ReLU(),
+                nn.Linear(32, 16),
+                nn.ReLU(),
+                nn.Linear(16, 1),
+                nn.Sigmoid(),
+            )
+
+        def forward(self, features: Any) -> Any:
+            return self.net(features).squeeze(-1)
+
+    return DeepHedgePolicy()
+
+
+def feature_tensor(features: HedgeFeatures | list[HedgeFeatures], torch_module: Any | None = None) -> Any:
+    if torch_module is None:
+        torch_module, _ = _load_torch()
     items = features if isinstance(features, list) else [features]
     rows = [
         [
@@ -53,23 +69,29 @@ def feature_tensor(features: HedgeFeatures | list[HedgeFeatures]) -> torch.Tenso
         ]
         for item in items
     ]
-    return torch.tensor(rows, dtype=torch.float32)
+    return torch_module.tensor(rows, dtype=torch_module.float32)
 
 
 def recommend_hedge_ratio(features: HedgeFeatures, model_path: Path = MODEL_PATH) -> float:
+    try:
+        torch, _ = _load_torch()
+    except RuntimeError:
+        return _heuristic_hedge_ratio(features)
+
     policy = load_policy(model_path)
     with torch.no_grad():
-        ratio = float(policy(feature_tensor(features))[0].item())
+        ratio = float(policy(feature_tensor(features, torch))[0].item())
     return float(np.clip(ratio, 0.0, 1.0))
 
 
-def load_policy(model_path: Path = MODEL_PATH) -> DeepHedgePolicy:
-    policy = DeepHedgePolicy()
+def load_policy(model_path: Path = MODEL_PATH) -> Any:
+    torch, nn = _load_torch()
+    policy = _new_policy(nn)
     if model_path.exists():
         state = torch.load(model_path, map_location="cpu")
         policy.load_state_dict(state)
     else:
-        _initialize_conservative_policy(policy)
+        _initialize_conservative_policy(policy, torch, nn)
     policy.eval()
     return policy
 
@@ -81,11 +103,12 @@ def train_policy(
     batch_size: int = 512,
     seed: int = 7,
     output_path: Path = MODEL_PATH,
-) -> DeepHedgePolicy:
+) -> Any:
+    torch, nn = _load_torch()
     torch.manual_seed(seed)
-    policy = DeepHedgePolicy()
+    policy = _new_policy(nn)
     optimizer = torch.optim.Adam(policy.parameters(), lr=0.01)
-    features, raw_returns = _sample_training_scenarios(n_scenarios, seed=seed)
+    features, raw_returns = _sample_training_scenarios(torch, n_scenarios, seed=seed)
 
     for _ in range(epochs):
         order = torch.randperm(features.shape[0])
@@ -112,13 +135,14 @@ def train_policy(
 
 
 def evaluate_policy_cvar(
-    policy: DeepHedgePolicy,
+    policy: Any,
     *,
     n_scenarios: int = 2048,
     seed: int = 101,
     random_hedge: bool = False,
 ) -> float:
-    features, raw_returns = _sample_training_scenarios(n_scenarios, seed=seed)
+    torch, _ = _load_torch()
+    features, raw_returns = _sample_training_scenarios(torch, n_scenarios, seed=seed)
     with torch.no_grad():
         if random_hedge:
             generator = torch.Generator().manual_seed(seed + 99)
@@ -134,7 +158,7 @@ def evaluate_policy_cvar(
     return float(cvar95.mean().item())
 
 
-def _sample_training_scenarios(n_scenarios: int, *, seed: int) -> tuple[torch.Tensor, torch.Tensor]:
+def _sample_training_scenarios(torch: Any, n_scenarios: int, *, seed: int) -> tuple[Any, Any]:
     generator = torch.Generator().manual_seed(seed)
     spot = torch.empty(n_scenarios, 1).uniform_(30.0, 180.0, generator=generator)
     sigma_hourly = torch.empty(n_scenarios, 1).uniform_(0.005, 0.12, generator=generator)
@@ -166,13 +190,25 @@ def _sample_training_scenarios(n_scenarios: int, *, seed: int) -> tuple[torch.Te
     return features, raw_pnl
 
 
-def _initialize_conservative_policy(policy: DeepHedgePolicy) -> None:
+def _initialize_conservative_policy(policy: Any, torch: Any, nn: Any) -> None:
     with torch.no_grad():
         for param in policy.parameters():
             param.zero_()
         final_layer = policy.net[-2]
         if isinstance(final_layer, nn.Linear):
             final_layer.bias.fill_(1.2)
+
+
+def _heuristic_hedge_ratio(features: HedgeFeatures) -> float:
+    """Small local fallback so the app can run without Torch installed."""
+
+    vol = np.clip(features.sigma_hourly / 0.08, 0.0, 1.0)
+    tail = np.clip((features.tail_multiplier - 1.0) / 1.5, 0.0, 1.0)
+    catalyst = np.clip(features.catalyst_severity, 0.0, 1.0)
+    asymmetry = np.clip(abs(features.asymmetry), 0.0, 1.0)
+    horizon = np.clip(features.horizon_hours / 72.0, 0.0, 1.0)
+    ratio = 0.2 + 0.25 * vol + 0.25 * tail + 0.15 * catalyst + 0.1 * asymmetry + 0.05 * horizon
+    return float(np.clip(ratio, 0.05, 0.95))
 
 
 def hedge_features_from_assessment(assessment: dict[str, Any]) -> HedgeFeatures:

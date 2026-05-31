@@ -16,7 +16,7 @@ import {
 export type { OptimalHedgeResponse, RiskAssessment } from "@/types/domain";
 
 const PUBLIC_API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/backend";
-const SERVER_API_BASE_URL = process.env.API_INTERNAL_BASE_URL ?? "http://localhost:8000/api";
+const SERVER_API_BASE_URL = process.env.API_INTERNAL_BASE_URL ?? "http://127.0.0.1:8000/api";
 const TOKEN_STORAGE_KEY = "threex.accessToken";
 
 let cachedServerToken: string | null = null;
@@ -41,7 +41,11 @@ function serverAutoLoginEnabled(): boolean {
   if (configured !== undefined) {
     return configured === "true";
   }
-  return process.env.NODE_ENV !== "production";
+  return (
+    process.env.NODE_ENV !== "production" ||
+    SERVER_API_BASE_URL.includes("127.0.0.1") ||
+    SERVER_API_BASE_URL.includes("localhost")
+  );
 }
 
 async function getServerAccessToken(): Promise<string | null> {
@@ -127,8 +131,49 @@ export function getMarkets(): Promise<Market[]> {
   return fetchJson<Market[]>("/markets");
 }
 
+export type MarketOverviewForecast = {
+  forecast_for_timestamp: string;
+  point_estimate: number;
+  lower_bound: number;
+  upper_bound: number;
+  currency: string;
+  spike_probability: number;
+};
+
+export type MarketOverviewItem = {
+  market: Market;
+  spot: number | null;
+  previous_spot: number | null;
+  change: number | null;
+  avg_price_24h: number | null;
+  spike_probability: number | null;
+  next_forecast: MarketOverviewForecast | null;
+  data_status: string;
+};
+
+export function getMarketsOverview(): Promise<MarketOverviewItem[]> {
+  return fetchJson<MarketOverviewItem[]>("/markets/overview");
+}
+
 export function getDashboard(marketCode: string): Promise<DashboardData> {
   return fetchJson<DashboardData>(`/dashboard/${marketCode}`);
+}
+
+export type DashboardSummary = {
+  market: Market;
+  latest_forecast: ForecastPoint | null;
+  forecasts: ForecastPoint[];
+  recent_prices: PricePoint[];
+  key_metrics: Record<string, number>;
+  data_status: string;
+};
+
+export function getDashboardSummary(
+  marketCode: string,
+  historyHours = 168,
+): Promise<DashboardSummary> {
+  const params = new URLSearchParams({ history_hours: String(historyHours) });
+  return fetchJson<DashboardSummary>(`/dashboard/${marketCode}/summary?${params.toString()}`);
 }
 
 export function getPrices(marketId: number): Promise<PricePoint[]> {
@@ -349,7 +394,10 @@ export type PortfolioRiskResponse = {
   contributions: PortfolioRiskContribution[];
 };
 
-export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise<RiskAssessment> {
+export async function runRiskAssessment(
+  payload: RiskAssessmentRequest,
+  options: { signal?: AbortSignal } = {},
+): Promise<RiskAssessment> {
   const response = await apiFetch("/risk-assessment", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -358,6 +406,7 @@ export async function runRiskAssessment(payload: RiskAssessmentRequest): Promise
       target_timestamp: payload.target_timestamp ?? null,
     }),
     cache: "no-store",
+    signal: options.signal,
   });
   if (!response.ok) {
     throw new Error(`risk-assessment failed: ${response.status}`);

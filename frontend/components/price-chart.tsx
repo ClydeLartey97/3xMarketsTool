@@ -130,6 +130,7 @@ export function PriceChart({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lastCloseRef = useRef<number | null>(null);
   const lastLiveTickRef = useRef<string | null>(null);
+  const lastCrosshairKeyRef = useRef<string | null>(null);
   const [chartType, setChartType] = useState<ChartType>(CandleType.Area);
   const [activeTool, setActiveTool] = useState<string>("");
   const [overlayIds, setOverlayIds] = useState<string[]>([]);
@@ -308,14 +309,23 @@ export function PriceChart({
     const handler = (data: unknown) => {
       const d = data as { kLineData?: KLineData } | null;
       if (!d || !d.kLineData) {
+        if (lastCrosshairKeyRef.current === null) return;
+        lastCrosshairKeyRef.current = null;
         onCrosshair(null);
         return;
       }
       const ts = d.kLineData.timestamp;
+      const isForecast = forecastStartMs !== null && ts >= forecastStartMs;
+      // Dedupe per plan: skip duplicate emissions for the same logical
+      // point (timestamp + close + forecast flag). Moving within the same
+      // candle no longer cascades into parent state updates.
+      const key = `${ts}:${d.kLineData.close}:${isForecast ? 1 : 0}`;
+      if (lastCrosshairKeyRef.current === key) return;
+      lastCrosshairKeyRef.current = key;
       onCrosshair({
         timestampMs: ts,
         price: d.kLineData.close,
-        isForecast: forecastStartMs !== null && ts >= forecastStartMs,
+        isForecast,
       });
     };
     chart.subscribeAction(ActionType.OnCrosshairChange, handler);

@@ -23,7 +23,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getDashboard } from "@/lib/api";
+import { getDashboard, getDashboardSummary, type DashboardSummary } from "@/lib/api";
 
 import { ClientErrorBoundary } from "@/components/client-error-boundary";
 import { DecisionGateStrip } from "@/components/decision-gate-strip";
@@ -102,15 +102,17 @@ const KlinePriceChart = dynamic(
   },
 );
 
-function buildHistory(dashboard: DashboardData) {
-  return dashboard.recent_prices.map((p) => ({
+type PriceSource = Pick<DashboardData, "recent_prices" | "forecasts">;
+
+function buildHistory(source: PriceSource) {
+  return source.recent_prices.map((p) => ({
     timestamp: p.timestamp,
     value: p.price_value,
   }));
 }
 
-function buildForecast(dashboard: DashboardData) {
-  return dashboard.forecasts.map((f) => ({
+function buildForecast(source: PriceSource) {
+  return source.forecasts.map((f) => ({
     timestamp: f.forecast_for_timestamp,
     point: f.point_estimate,
     lower: f.lower_bound,
@@ -131,13 +133,24 @@ export function MarketWorkbench({
   const [riskLoading, setRiskLoading] = useState(false);
   const [decisionRefresh] = useState(0);
 
-  // Dashboard is fetched client-side so the page can paint the hero
-  // immediately instead of blocking on a multi-table backend query. The
-  // chart, news, events and other evidence panels render skeletons until
-  // this resolves — usually a few hundred ms.
+  // Plan §5.4 — split the workbench load:
+  //   1. `summary` (lightweight, no alert refresh, no news/events) lands
+  //      first and feeds the chart + identity strip + hero context.
+  //   2. `dashboard` (full canonical payload) lands next and fills in the
+  //      news, events, and signal-stack panels.
+  // Both run in parallel so first useful paint is bounded by the smaller
+  // request, while no evidence panel is removed.
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   useEffect(() => {
     let cancelled = false;
+    getDashboardSummary(market.code)
+      .then((result) => {
+        if (!cancelled) setSummary(result);
+      })
+      .catch(() => {
+        if (!cancelled) setSummary(null);
+      });
     getDashboard(market.code)
       .then((result) => {
         if (!cancelled) setDashboard(result);
@@ -150,15 +163,25 @@ export function MarketWorkbench({
     };
   }, [market.code]);
 
-  const history = useMemo(() => (dashboard ? buildHistory(dashboard) : []), [dashboard]);
-  const forecast = useMemo(() => (dashboard ? buildForecast(dashboard) : []), [dashboard]);
+  // Prefer the full dashboard for chart data once it arrives so the
+  // chart and news panels stay perfectly in sync; fall back to the
+  // summary while the full dashboard is in flight.
+  const chartSource: PriceSource | null = dashboard ?? summary;
+  const history = useMemo(() => (chartSource ? buildHistory(chartSource) : []), [chartSource]);
+  const forecast = useMemo(() => (chartSource ? buildForecast(chartSource) : []), [chartSource]);
   const stream = useMarketStream(market.code);
   const livePriceTick = stream.priceTick
     ? { timestamp: stream.priceTick.timestamp, value: stream.priceTick.price_value }
     : null;
 
-  const lastObserved = dashboard?.recent_prices[dashboard.recent_prices.length - 1];
-  const latestForecast = dashboard?.forecasts[0] ?? dashboard?.latest_forecast;
+  const lastObserved =
+    chartSource?.recent_prices[chartSource.recent_prices.length - 1];
+  const latestForecast =
+    dashboard?.forecasts[0] ??
+    dashboard?.latest_forecast ??
+    summary?.forecasts[0] ??
+    summary?.latest_forecast ??
+    null;
   const front =
     lastObserved && latestForecast ? latestForecast.point_estimate - lastObserved.price_value : null;
 
@@ -224,13 +247,13 @@ export function MarketWorkbench({
           fallbackBody="The chart hit a client-side issue. Refresh once. The rest of the page stays live."
         >
           <div className="h-[500px] overflow-hidden rounded-2xl border border-seam bg-surface">
-            {dashboard ? (
+            {chartSource ? (
               <KlinePriceChart
                 marketId={market.id}
                 history={history}
                 forecast={forecast}
                 livePriceTick={livePriceTick}
-                events={dashboard.recent_events}
+                events={dashboard?.recent_events ?? []}
                 timezoneLabel={market.timezone}
                 onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
                 riskOverlay={riskOverlay}

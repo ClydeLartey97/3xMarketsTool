@@ -6,6 +6,7 @@ const eslintConfig = [
     ignores: [
       ".next/**",
       "node_modules/**",
+      "node_modules_broken_*/**",
       "next-env.d.ts",
       "tsconfig.tsbuildinfo",
     ],

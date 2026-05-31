@@ -1,6 +1,10 @@
 import { BackendOfflineState } from "@/components/backend-offline-state";
 import { MarketCardLive } from "@/components/market-card-live";
-import { getMarkets } from "@/lib/api";
+import {
+  getMarkets,
+  getMarketsOverview,
+  type MarketOverviewItem,
+} from "@/lib/api";
 
 // The page is naturally dynamic (it fetches per-request from the backend);
 // the explicit `force-dynamic` directive triggers a Next 16 Turbopack bug
@@ -19,13 +23,21 @@ const REGION_FLAGS: Record<string, string> = {
 
 /**
  * Home page renders the market grid the moment the markets list resolves.
- * Each card is a client component that fetches its own spot / forecast
- * after mount, so the home page never blocks on N sequential backend
- * calls before sending HTML.
+ *
+ * Per performance preservation plan §4 the page now fetches a single
+ * `/markets/overview` payload server-side, which contains the per-card
+ * spot/forecast/24h-avg stats. Each card receives its stats via the
+ * `preloaded` prop. If the overview endpoint fails (e.g. older backend),
+ * the cards fall back to their legacy per-card /prices + /forecast
+ * fetches so the page still works.
  */
 export default async function HomePage() {
   try {
-    const markets = await getMarkets();
+    const [markets, overview] = await Promise.all([
+      getMarkets(),
+      getMarketsOverview().catch(() => [] as MarketOverviewItem[]),
+    ]);
+    const overviewByCode = new Map(overview.map((entry) => [entry.market.code, entry]));
 
     return (
       <main className="animate-fade-in">
@@ -51,6 +63,7 @@ export default async function HomePage() {
               key={market.code}
               market={market}
               flag={REGION_FLAGS[market.region] ?? "🌐"}
+              preloaded={overviewByCode.get(market.code) ?? null}
             />
           ))}
         </div>

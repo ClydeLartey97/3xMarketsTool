@@ -84,6 +84,47 @@ See `PLAN.md` for the original phase-by-phase upgrade specification and `FRONTIE
 
 ## Local Quick Start
 
+### Fast path
+
+For day-to-day local work, use the root Make targets. They create/use
+`backend/.venv`, install frontend packages, apply Alembic migrations against
+`.local/threex.dev.db`, and run both servers with one command. The quickest
+launcher reuses a fresh frontend build, starts both servers in the background,
+waits for readiness, and opens the app automatically.
+
+```bash
+make setup
+make run
+```
+
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000).
+Use `make stop` to stop the background servers. Use `make dev` when you want
+the long-running logs in the terminal.
+If you intentionally need a fresh production bundle, run
+`REBUILD_FRONTEND=1 make run`.
+If you intentionally need migrations in the same launch, run
+`RUN_MIGRATIONS=1 make run`.
+For frontend hot reload only, run `npm run dev:hot` inside `frontend/`.
+
+If dependencies get into a bad local state, rebuild them:
+
+```bash
+RESET_DEPS=1 make setup
+```
+
+For a quick local confidence check:
+
+```bash
+make check
+```
+
+Optional Chronos/Torch AI dependencies are no longer required for the core app
+to boot. Install them only when needed:
+
+```bash
+INSTALL_OPTIONAL_AI=1 make setup
+```
+
 ### 1. Backend
 
 From the repository root:
@@ -132,9 +173,9 @@ Copy `.env.example` to `.env` if you want to override defaults.
 ENVIRONMENT=development
 DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/threex
 CORS_ORIGINS=["http://localhost:3000"]
-API_INTERNAL_BASE_URL=http://localhost:8000/api
+API_INTERNAL_BASE_URL=http://127.0.0.1:8000/api
 NEXT_PUBLIC_API_BASE_URL=/api/backend
-NEXT_PUBLIC_WS_BASE_URL=ws://localhost:8000
+NEXT_PUBLIC_WS_BASE_URL=ws://127.0.0.1:8000
 API_BEARER_TOKEN=
 SERVER_AUTO_LOGIN=true
 ```
@@ -158,8 +199,30 @@ Useful optional variables:
 - `DATA_REFRESH_INTERVAL_MINUTES`: background refresh interval, default `30`.
 - `DEMO_MODE`: when `true`, permits computed/synthetic fallback data without marking the market degraded. Defaults to `false`.
 
-For a lightweight local SQLite database, set `DATABASE_URL=sqlite:///./threex.db` and still run `alembic -c alembic.ini upgrade head` before starting the backend.
+For a lightweight local SQLite database, the root scripts default to `.local/threex.dev.db`. If you override `DATABASE_URL`, still run `alembic -c alembic.ini upgrade head` before starting the backend.
 Except for `/api/health` and `/api/auth/*`, API routes require `Authorization: Bearer <token>` from `POST /api/auth/login`.
+
+## Data Strategy
+
+The ingestion layer is hybrid: it prefers real market data, then degrades to calibrated synthetic data when API keys are missing, public APIs fail, or `DEMO_MODE=true` is set. In a default local setup with no `.env` configured, expect U.S. markets to use synthetic demand/weather-derived prices. GB Power can use ELEXON spot data without an auth key, and Open-Meteo weather works without auth, but both still fall back cleanly if calls fail.
+
+Real adapters live in `backend/app/ingestion/real_data.py`:
+
+| Source | What it provides | Markets covered |
+| --- | --- | --- |
+| EIA API v2 (`api.eia.gov/v2`) | Hourly demand and generation by fuel type | ERCOT, PJM, NYISO, ISO-NE |
+| ELEXON BMRS | Market Index Data spot prices | `GB_POWER` |
+| Open-Meteo | Wind speed, solar radiation, temperature | All markets, no auth needed |
+| yfinance `NG=F` | U.S. natural gas futures | U.S. markets |
+| yfinance TTF series | Dutch TTF gas futures | European markets |
+| yfinance `GBPUSD=X` | GBP/USD FX | `GB_POWER` |
+
+Fallback rules:
+
+- `EIA_API_KEY` is optional. Without it, U.S. grid demand/generation calls are skipped and synthetic regional profiles are used.
+- `DEMO_MODE=true` forces the local/demo path and marks markets as ready so the app can run without credentials.
+- Outside demo mode, markets without a real price source are marked `data_status="degraded"` so the UI does not present estimated data as fully market-grade.
+- Synthetic fallbacks are calibrated Gaussian processes with regional demand, weather, and price profiles; they are useful for development and demos, not a substitute for production-grade market data.
 
 ## Historical Backfill
 
@@ -461,7 +524,7 @@ npx tsc --noEmit
 - Some market data is computed or synthetic when public APIs are unavailable or unauthenticated. The UI labels this explicitly.
 - U.S. real historical data requires `EIA_API_KEY`; otherwise U.S. markets are marked degraded outside demo mode.
 - European spot prices have no free hourly feed currently wired; prices fall back to the merit-order model using real weather inputs.
-- Local SQLite databases such as `backend/threex.db` are ignored by git; production-style runs should use Postgres via `DATABASE_URL`.
+- Local SQLite databases such as `.local/threex.dev.db` are ignored by git; production-style runs should use Postgres via `DATABASE_URL`.
 - The frontend has both server-side and browser-side API calls, so keep `API_INTERNAL_BASE_URL` pointed at the backend API and leave `NEXT_PUBLIC_API_BASE_URL=/api/backend` unless you supply browser auth yourself.
 - Backend logs are emitted as JSON via structlog. OpenTelemetry traces are exported when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; set `OTEL_CONSOLE_EXPORTER=true` only for local span debugging.
 - SlowAPI rate limiting is enabled by default: authenticated data endpoints use a 60 req/min per-user default, `/risk-assessment` uses 10 req/min, and `/risk-assessment/sensitivity` uses 5 req/min.

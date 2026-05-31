@@ -54,6 +54,14 @@ _CVAR95_NORMAL = 2.0627
 # E[T | T > t_{0.95}] / σ ≈ 2.73 for t(5)
 _CVAR95_T5 = 2.73
 
+# Largest lookback used inside the risk calculation:
+#   - `_recent_returns` uses up to `prices[-168:]`
+#   - congestion tightness uses `prices[-24:]`
+#   - currency lookup uses `prices[-1]`
+# Reading more than this is wasted work. The +72 buffer gives headroom for
+# future lookback bumps without falling back to unbounded reads.
+_RISK_PRICE_HISTORY_LIMIT = 240
+
 
 def _cvar95_multiplier(tail_multiplier: float) -> float:
     """Blend Gaussian and t(5) CVaR multipliers based on the LLM tail read.
@@ -369,14 +377,21 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
     if not chosen:
         raise ValueError("no forecast available for this market")
 
-    # 2) Realised vol from price history
-    prices = list(
+    # 2) Realised vol from price history.
+    # Behavior-preserving optimisation: only the most recent rows are used
+    # downstream (`spot = prices[-1]`, `_recent_returns(prices)` capped at
+    # 168 rows, congestion tightness at 24 rows). We fetch the latest
+    # bounded window in descending order and reverse so existing helpers
+    # see the same ascending list.
+    recent_desc = list(
         db.scalars(
             select(PricePoint)
             .where(PricePoint.market_id == market.id)
-            .order_by(PricePoint.timestamp.asc())
+            .order_by(PricePoint.timestamp.desc())
+            .limit(_RISK_PRICE_HISTORY_LIMIT)
         ).all()
     )
+    prices = list(reversed(recent_desc))
     spot = prices[-1].price_value if prices else chosen.point_estimate
     returns = _recent_returns(prices)
     sigma_h = _hourly_vol(returns)
@@ -520,13 +535,15 @@ def assess_risk(db: Session, inputs: RiskInputs) -> dict[str, Any]:
         paired = db.scalar(select(Market).where(Market.code == inputs.basis_against_market_code))
         if paired is None:
             raise ValueError(f"unknown basis market {inputs.basis_against_market_code}")
-        paired_prices = list(
+        paired_recent_desc = list(
             db.scalars(
                 select(PricePoint)
                 .where(PricePoint.market_id == paired.id)
-                .order_by(PricePoint.timestamp.asc())
+                .order_by(PricePoint.timestamp.desc())
+                .limit(_RISK_PRICE_HISTORY_LIMIT)
             ).all()
         )
+        paired_prices = list(reversed(paired_recent_desc))
         if not paired_prices:
             raise ValueError(f"no prices for basis market {paired.code}")
         paired_spot = float(paired_prices[-1].price_value)

@@ -2,6 +2,9 @@ from collections.abc import Generator
 import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_threex.db")
+os.environ.setdefault("DEMO_MODE", "true")
+os.environ.setdefault("EIA_API_KEY", "")
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 import pytest
 from fastapi.testclient import TestClient

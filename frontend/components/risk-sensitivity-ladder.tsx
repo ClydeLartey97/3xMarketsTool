@@ -7,6 +7,7 @@ import {
   type RiskSensitivityResponse,
   type SensitivityCoefficient,
 } from "@/lib/api";
+import { useNearViewport } from "@/lib/use-near-viewport";
 import type { RiskAssessment } from "@/types/domain";
 
 const COEFFICIENTS: SensitivityCoefficient[] = [
@@ -66,14 +67,35 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
   const [sensitivity, setSensitivity] = useState<RiskSensitivityResponse | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>();
+
+  // Stable dedupe key per plan §3.4 — identical logical inputs must not
+  // retrigger the sensitivity call.
+  const requestKey = data
+    ? [
+        data.market_code,
+        data.position_gbp,
+        data.direction,
+        data.horizon_hours,
+        data.target_timestamp ?? "",
+        5000,
+        COEFFICIENTS.join(","),
+      ].join("|")
+    : null;
+  const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!data || loading) {
       setSensitivity(null);
       setPending(false);
       setError(null);
+      setLastFetchedKey(null);
       return;
     }
+    // Plan §3.3: defer the sensitivity request until the section is
+    // near the viewport. Latches once visible.
+    if (!visible) return;
+    if (lastFetchedKey === requestKey) return;
 
     let cancelled = false;
     setPending(true);
@@ -91,7 +113,10 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
       coefficients_to_perturb: COEFFICIENTS,
     })
       .then((result) => {
-        if (!cancelled) setSensitivity(result);
+        if (!cancelled) {
+          setSensitivity(result);
+          setLastFetchedKey(requestKey);
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -106,7 +131,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
     return () => {
       cancelled = true;
     };
-  }, [data, loading]);
+  }, [data, loading, visible, requestKey, lastFetchedKey]);
 
   const baselineByCoefficient = useMemo(() => {
     const out = new Map<SensitivityCoefficient, number>();
@@ -119,7 +144,10 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
 
   if (loading || pending) {
     return (
-      <section className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-400">
+      <section
+        ref={viewportRef as React.Ref<HTMLElement>}
+        className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-400"
+      >
         Computing sensitivity ladder…
       </section>
     );
@@ -127,7 +155,10 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
 
   if (!data) {
     return (
-      <section className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500">
+      <section
+        ref={viewportRef as React.Ref<HTMLElement>}
+        className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500"
+      >
         Run a risk assessment to see coefficient sensitivity.
       </section>
     );
@@ -135,16 +166,33 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
 
   if (error) {
     return (
-      <section className="rounded-xl border border-price-dn/25 bg-price-dn/10 p-4 text-sm text-price-dn">
+      <section
+        ref={viewportRef as React.Ref<HTMLElement>}
+        className="rounded-xl border border-price-dn/25 bg-price-dn/10 p-4 text-sm text-price-dn"
+      >
         Sensitivity unavailable: {error}
       </section>
     );
   }
 
-  if (!sensitivity) return null;
+  if (!sensitivity) {
+    return (
+      <section
+        ref={viewportRef as React.Ref<HTMLElement>}
+        className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500"
+        aria-label="Risk sensitivity ladder"
+      >
+        Sensitivity ladder will load when this section comes into view.
+      </section>
+    );
+  }
 
   return (
-    <section className="rounded-xl border border-white/10 bg-zinc-950/60 p-4" aria-label="Risk sensitivity ladder">
+    <section
+      ref={viewportRef as React.Ref<HTMLElement>}
+      className="rounded-xl border border-white/10 bg-zinc-950/60 p-4"
+      aria-label="Risk sensitivity ladder"
+    >
       <header className="sticky-panel-header -mx-4 -mt-4 mb-3 flex flex-wrap items-baseline justify-between gap-2 rounded-t-xl bg-zinc-950 px-4 pb-3 pt-4">
         <div>
           <h3 className="text-sm font-semibold text-zinc-100">Sensitivity ladder</h3>

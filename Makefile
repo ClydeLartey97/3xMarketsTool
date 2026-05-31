@@ -1,26 +1,16 @@
-backend-install:
-	cd backend && python3 -m pip install -r requirements.txt
+.PHONY: run stop setup dev check
 
-frontend-install:
-	cd frontend && npm install
+run:
+	@bash scripts/run_it.sh
 
-backend-dev:
-	cd backend && uvicorn app.main:app --reload --port 8000
+stop:
+	@bash scripts/stop_local.sh
 
-frontend-dev:
-	cd frontend && npm run dev
+setup:
+	@bash scripts/bootstrap_local.sh
 
-seed:
-	cd backend && python3 scripts/seed.py
+dev:
+	@bash scripts/run_local.sh
 
-test:
-	cd backend && PYTHONPATH=. pytest
-
-deploy:
-	docker compose -f infrastructure/docker-compose.yml up --build -d
-
-deploy-logs:
-	docker compose -f infrastructure/docker-compose.yml logs -f
-
-deploy-down:
-	docker compose -f infrastructure/docker-compose.yml down
+check:
+	@bash scripts/check_local.sh
