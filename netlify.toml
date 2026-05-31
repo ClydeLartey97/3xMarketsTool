@@ -6,3 +6,6 @@
 [build.environment]
   NODE_VERSION = "22"
   NEXT_PUBLIC_API_BASE_URL = "/api/backend"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
