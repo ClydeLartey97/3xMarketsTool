@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: market-speculation-api
+    runtime: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEMO_USER_EMAIL
+        value: demo@3x.local
+      - key: DEMO_USER_PASSWORD
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DEMO_MODE
+        value: "true"
+      - key: EIA_API_KEY
+        value: ""
+      - key: LLM_SCORER_PROVIDER
+        value: heuristic
+      - key: ALLOW_REGISTRATION
+        value: "false"
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
