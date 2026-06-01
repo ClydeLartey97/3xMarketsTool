@@ -100,9 +100,11 @@ function buildMarketFilters(powerbi: PowerBIClientGlobal, config: PowerBIEmbedCo
 export function PowerBIReport({
   marketCode,
   compact = false,
+  initialConfig,
 }: {
   marketCode?: string;
   compact?: boolean;
+  initialConfig?: PowerBIEmbedConfig | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [config, setConfig] = useState<PowerBIEmbedConfig | null>(null);
@@ -114,6 +116,15 @@ export function PowerBIReport({
     setState("loading");
     setMessage("");
     setConfig(null);
+
+    if (initialConfig) {
+      setConfig(initialConfig);
+      setState(initialConfig.configured ? "embedding" : "setup");
+      setMessage(initialConfig.reason ?? "");
+      return () => {
+        cancelled = true;
+      };
+    }
 
     getPowerBIEmbedConfig(marketCode)
       .then((nextConfig) => {
@@ -134,7 +145,7 @@ export function PowerBIReport({
     return () => {
       cancelled = true;
     };
-  }, [marketCode]);
+  }, [initialConfig, marketCode]);
 
   useEffect(() => {
     if (!canEmbed(config) || !containerRef.current) {
@@ -212,16 +223,17 @@ export function PowerBIReport({
   const heightClass = compact ? "h-[520px]" : "h-[680px]";
   const setupHeightClass = compact ? "min-h-[120px]" : "min-h-[260px]";
   const setupMessage = compact
-    ? "Optional analytics are not connected for this local run."
-    : "Power BI is optional here. Add the Power BI environment variables when you want to connect a real embedded report.";
+    ? "No external report is configured for this market."
+    : "No Microsoft report workspace is configured for this environment. Native 3xMarkets analytics are still live.";
+  const setupDetail = message && !compact ? message : "";
 
   return (
     <section className="rounded-2xl border border-seam bg-surface p-4 shadow-panel sm:p-5">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-ink/35">Power BI</p>
+          <p className="font-mono text-[10px] uppercase tracking-widest text-ink/35">Power BI report</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">
-            {config?.report_name ?? "Embedded analytics"}
+            {config?.report_name ?? "External reporting"}
           </h2>
         </div>
         <span className="rounded-lg border border-seam bg-bg px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ink/45">
@@ -232,8 +244,11 @@ export function PowerBIReport({
       {state === "setup" ? (
         <div className={`${setupHeightClass} flex items-center justify-center rounded-xl border border-dashed border-seam bg-well p-6`}>
           <div className="max-w-xl text-center">
-            <p className="text-sm font-semibold text-ink">Power BI not connected</p>
+            <p className="text-sm font-semibold text-ink">Optional report not configured</p>
             <p className="mt-2 text-sm leading-6 text-ink/55">{setupMessage}</p>
+            {setupDetail ? (
+              <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-ink/35">{setupDetail}</p>
+            ) : null}
           </div>
         </div>
       ) : state === "error" ? (

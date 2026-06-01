@@ -23,14 +23,19 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getDashboard, getDashboardSummary, type DashboardSummary } from "@/lib/api";
+import {
+  getDashboard,
+  getDashboardSummary,
+  getPowerBIEmbedConfig,
+  type DashboardSummary,
+} from "@/lib/api";
 
 import { ClientErrorBoundary } from "@/components/client-error-boundary";
 import { DecisionGateStrip } from "@/components/decision-gate-strip";
 import { MarketHero } from "@/components/market-hero";
 import type { TradeInputState } from "@/components/trade-input-bar";
 import { useMarketStream } from "@/lib/use-market-stream";
-import { DashboardData, Market, RiskAssessment } from "@/types/domain";
+import { DashboardData, Market, PowerBIEmbedConfig, RiskAssessment } from "@/types/domain";
 
 /**
  * Below-the-fold panels are lazy-loaded so the hero (the three bubbles)
@@ -298,14 +303,7 @@ export function MarketWorkbench({
       </SectionFrame>
 
       {/* 8. Power BI */}
-      <SectionFrame
-        title="Power BI analytics"
-        subtitle="Embedded report scoped to this market."
-        collapsibleOnMobile
-        defaultOpen={false}
-      >
-        <PowerBIReport marketCode={market.code} compact />
-      </SectionFrame>
+      <MarketPowerBISection marketCode={market.code} />
 
       {/* 9. News + events */}
       <SectionFrame
@@ -359,6 +357,44 @@ export function MarketWorkbench({
         </div>
       </SectionFrame>
     </main>
+  );
+}
+
+function MarketPowerBISection({ marketCode }: { marketCode: string }) {
+  const [config, setConfig] = useState<PowerBIEmbedConfig | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setConfig(null);
+    getPowerBIEmbedConfig(marketCode)
+      .then((nextConfig) => {
+        if (!cancelled) {
+          setConfig(nextConfig.configured ? nextConfig : null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setConfig(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [marketCode]);
+
+  if (!config) {
+    return null;
+  }
+
+  return (
+    <SectionFrame
+      title="External report"
+      subtitle="Power BI report scoped to this market."
+      collapsibleOnMobile
+      defaultOpen={false}
+    >
+      <PowerBIReport marketCode={marketCode} compact initialConfig={config} />
+    </SectionFrame>
   );
 }
 
