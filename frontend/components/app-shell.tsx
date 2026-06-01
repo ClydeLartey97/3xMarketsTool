@@ -19,7 +19,7 @@ function BrandLogo() {
   // Compact inline wordmark — adapts to the page's ink colour so it works
   // in both light and dark themes without an extra asset.
   return (
-    <Link href="/" className="group flex items-center gap-3" aria-label="3x Intelligent Markets — home">
+    <Link href="/" className="group flex items-center gap-3" aria-label="3xMarkets home">
       {/* Mark: a stylised mini chart spark inside a rounded accent square */}
       <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-ink shadow-sm">
         <svg viewBox="0 0 32 32" className="h-5 w-5" aria-hidden="true">
@@ -34,11 +34,8 @@ function BrandLogo() {
           <circle cx="29" cy="7" r="2.2" fill="rgb(var(--accent))" />
         </svg>
       </span>
-      <span className="flex flex-col leading-none">
-        <span className="font-display text-lg font-bold tracking-tight text-ink">3x</span>
-        <span className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.28em] text-ink/55">
-          Intelligent Markets
-        </span>
+      <span className="flex items-baseline leading-none">
+        <span className="font-display text-lg font-bold tracking-tight text-ink">3xMarkets</span>
       </span>
     </Link>
   );
