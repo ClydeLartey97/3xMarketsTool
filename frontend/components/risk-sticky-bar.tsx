@@ -9,7 +9,7 @@
  * input bar. On mobile (< sm) we fall back to a slim top-bar collapsed
  * sheet because a side rail eats too much horizontal width on phones.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { RiskAssessment } from "@/lib/api";
 
@@ -44,6 +44,21 @@ export function RiskStickyBar({
   const [mobileExpandRequested, setMobileExpandRequested] = useState(false);
   const mobileExpanded = visible && mobileExpandRequested;
 
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const onScroll = () => {
+      setIsScrolling(true);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      scrollTimerRef.current = setTimeout(() => setIsScrolling(false), 150);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
+  }, []);
+
   const risk = data ? formatGbp(data.risk_gbp) : loading ? "…" : "—";
   const likely = data ? formatGbp(data.likely_gbp, true) : loading ? "…" : "—";
   const upside = data ? formatGbp(data.upside_gbp, true) : loading ? "…" : "—";
@@ -57,7 +72,7 @@ export function RiskStickyBar({
         aria-label="Risk read"
         className={`fixed right-4 z-40 hidden flex-col items-center gap-3 transition-all duration-300 ease-out sm:flex ${
           visible ? "translate-x-0 opacity-100" : "translate-x-[140%] opacity-0 pointer-events-none"
-        }`}
+        } ${isScrolling ? "scale-[0.82]" : "scale-100"}`}
         style={{ top: APP_NAV_HEIGHT_PX + 24 }}
       >
         <div className="mb-1 flex flex-col items-center gap-0.5">

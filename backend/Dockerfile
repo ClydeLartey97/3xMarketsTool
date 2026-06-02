@@ -14,4 +14,4 @@ COPY backend backend
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic -c /app/alembic.ini upgrade head && cd /app/backend && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "alembic -c /app/alembic.ini upgrade head && cd /app/backend && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 2"]

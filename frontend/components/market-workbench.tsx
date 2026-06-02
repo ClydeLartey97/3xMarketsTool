@@ -214,7 +214,7 @@ export function MarketWorkbench({
   );
 
   return (
-    <main className="space-y-8 pb-16">
+    <main className="space-y-8 pb-16 sm:pr-28">
       {/* 1. Identity strip */}
       <IdentityStrip
         market={market}
