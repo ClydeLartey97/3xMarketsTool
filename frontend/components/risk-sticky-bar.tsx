@@ -70,9 +70,9 @@ export function RiskStickyBar({
       <aside
         aria-hidden={!visible}
         aria-label="Risk read"
-        className={`fixed right-4 z-40 hidden flex-col items-center gap-3 transition-all duration-300 ease-out sm:flex ${
+        className={`fixed right-4 z-40 hidden flex-col items-center gap-3 origin-top-right transition-all duration-300 ease-out sm:flex ${
           visible ? "translate-x-0 opacity-100" : "translate-x-[140%] opacity-0 pointer-events-none"
-        } ${isScrolling ? "scale-[0.82]" : "scale-100"}`}
+        } ${isScrolling ? "scale-[0.65] opacity-70" : "scale-100 opacity-100"}`}
         style={{ top: APP_NAV_HEIGHT_PX + 24 }}
       >
         <div className="mb-1 flex flex-col items-center gap-0.5">
