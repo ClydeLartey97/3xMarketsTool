@@ -83,15 +83,30 @@ def _price_at_or_after(db: Session, market_id: int, timestamp: datetime) -> Pric
     )
 
 
-def fill_matured_risk_assessment_logs(db: Session, now: datetime | None = None) -> int:
+def fill_matured_risk_assessment_logs(
+    db: Session,
+    now: datetime | None = None,
+    *,
+    kind: str | None = None,
+    user_id: int | None = None,
+    market_id: int | None = None,
+    limit: int = 500,
+) -> int:
     now_utc = _as_utc(now or datetime.now(timezone.utc))
+    stmt = (
+        select(RiskAssessmentLog)
+        .where(RiskAssessmentLog.realized_pnl_gbp.is_(None))
+        .order_by(RiskAssessmentLog.timestamp.asc())
+        .limit(max(1, int(limit)))
+    )
+    if kind is not None:
+        stmt = stmt.where(RiskAssessmentLog.kind == kind)
+    if user_id is not None:
+        stmt = stmt.where(RiskAssessmentLog.user_id == user_id)
+    if market_id is not None:
+        stmt = stmt.where(RiskAssessmentLog.market_id == market_id)
     rows = list(
-        db.scalars(
-            select(RiskAssessmentLog)
-            .where(RiskAssessmentLog.realized_pnl_gbp.is_(None))
-            .order_by(RiskAssessmentLog.timestamp.asc())
-            .limit(2_000)
-        ).all()
+        db.scalars(stmt).all()
     )
     updated = 0
     for row in rows:

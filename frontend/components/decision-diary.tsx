@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { getDecisions, type DecisionItem } from "@/lib/api";
+import { useNearViewport } from "@/lib/use-near-viewport";
 
 function formatGbp(value: number) {
   const sign = value < 0 ? "-" : "";
@@ -20,10 +21,12 @@ export function DecisionDiary({
   refreshKey?: number;
 }) {
   const [items, setItems] = useState<DecisionItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>({ rootMargin: "600px" });
 
   useEffect(() => {
+    if (!visible) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -40,10 +43,10 @@ export function DecisionDiary({
     return () => {
       cancelled = true;
     };
-  }, [marketId, refreshKey]);
+  }, [marketId, refreshKey, visible]);
 
   return (
-    <section className="rounded-2xl border border-seam bg-surface p-5">
+    <section ref={viewportRef as React.Ref<HTMLElement>} className="rounded-2xl border border-seam bg-surface p-5">
       <div className="sticky-panel-header -mx-5 -mt-5 mb-3 flex items-baseline justify-between gap-2 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-ink/40">Decision diary</p>
@@ -52,9 +55,10 @@ export function DecisionDiary({
         <span className="font-mono text-[10px] tracking-wider text-ink/50">{items.length} reads</span>
       </div>
 
+      {!visible ? <p className="text-sm text-ink/45">Decision diary will load when opened.</p> : null}
       {loading ? <p className="text-sm text-ink/45">Loading decisions...</p> : null}
-      {error ? <p className="text-sm text-price-dn">{error}</p> : null}
-      {!loading && !error && items.length === 0 ? (
+      {error ? <p className="text-sm text-ink/45">Decision diary is temporarily unavailable.</p> : null}
+      {visible && !loading && !error && items.length === 0 ? (
         <p className="text-sm text-ink/45">No saved decisions yet.</p>
       ) : null}
 

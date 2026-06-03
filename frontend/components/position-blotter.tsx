@@ -10,6 +10,7 @@ import {
   type DecisionItem,
   type PortfolioRiskResponse,
 } from "@/lib/api";
+import { useNearViewport } from "@/lib/use-near-viewport";
 
 function formatGbp(value: number) {
   const sign = value < 0 ? "-" : "";
@@ -26,14 +27,16 @@ function directionOf(item: DecisionItem): "long" | "short" {
 export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
   const [items, setItems] = useState<DecisionItem[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioRiskResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
   const [mutatingId, setMutatingId] = useState<number | null>(null);
   const [localRefresh, setLocalRefresh] = useState(0);
+  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>({ rootMargin: "600px" });
 
   useEffect(() => {
+    if (!visible) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -50,11 +53,14 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey, localRefresh]);
+  }, [refreshKey, localRefresh, visible]);
 
   const openPositions = useMemo(() => items.filter((item) => item.is_open), [items]);
 
   useEffect(() => {
+    if (!visible) {
+      return;
+    }
     if (openPositions.length === 0) {
       setPortfolio(null);
       setPortfolioError(null);
@@ -89,7 +95,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
     return () => {
       cancelled = true;
     };
-  }, [openPositions]);
+  }, [openPositions, visible]);
 
   async function closePosition(decisionId: number) {
     setMutatingId(decisionId);
@@ -118,7 +124,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
   }
 
   return (
-    <section className="rounded-2xl border border-seam bg-surface p-5">
+    <section ref={viewportRef as React.Ref<HTMLElement>} className="rounded-2xl border border-seam bg-surface p-5">
       <div className="sticky-panel-header -mx-5 -mt-5 mb-3 flex items-baseline justify-between gap-2 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-ink/45">Position blotter</p>
@@ -129,9 +135,10 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
         </span>
       </div>
 
+      {!visible ? <p className="text-sm text-ink/45">Open risk book will load when opened.</p> : null}
       {loading ? <p className="text-sm text-ink/45">Loading positions...</p> : null}
-      {error ? <p className="text-sm text-price-dn">{error}</p> : null}
-      {!loading && !error && openPositions.length === 0 ? (
+      {error ? <p className="text-sm text-ink/45">Open risk book is temporarily unavailable.</p> : null}
+      {visible && !loading && !error && openPositions.length === 0 ? (
         <p className="text-sm text-ink/45">No open positions yet.</p>
       ) : null}
 

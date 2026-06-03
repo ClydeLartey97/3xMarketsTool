@@ -78,7 +78,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
         data.direction,
         data.horizon_hours,
         data.target_timestamp ?? "",
-        5000,
+        800,
         COEFFICIENTS.join(","),
       ].join("|")
     : null;
@@ -108,7 +108,8 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
       horizon_hours: data.horizon_hours,
       direction: data.direction === "short" ? "short" : "long",
       target_timestamp: data.target_timestamp,
-      n_paths: 5000,
+      n_paths: 800,
+      preview: true,
       scenarios: [],
       coefficients_to_perturb: COEFFICIENTS,
     })

@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models import Market, RiskAssessmentLog
 
@@ -86,6 +86,28 @@ def test_risk_assessment_endpoint(client, db_session) -> None:
     assert logged is not None
     assert logged.market_id is not None
     assert logged.risk_gbp == body["risk_gbp"]
+
+
+def test_preview_risk_assessment_endpoint_does_not_log(client, db_session) -> None:
+    before = db_session.scalar(select(func.count()).select_from(RiskAssessmentLog))
+    response = client.post(
+        "/api/risk-assessment",
+        json={
+            "market_code": "ERCOT_NORTH",
+            "position_gbp": 10000,
+            "horizon_hours": 24,
+            "direction": "long",
+            "n_paths": 500,
+            "preview": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["market_code"] == "ERCOT_NORTH"
+    assert body["n_paths"] == 500
+    after = db_session.scalar(select(func.count()).select_from(RiskAssessmentLog))
+    assert after == before
 
 
 def test_risk_assessment_solve_endpoint(client) -> None:

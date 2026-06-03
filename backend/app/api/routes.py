@@ -434,14 +434,15 @@ def post_risk_assessment(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
-    row = log_risk_assessment(db, result, user_id=user.id)
-    write_audit_log(
-        db,
-        actor=_actor(user),
-        action="risk.assessment",
-        target=f"risk_assessment:{row.id if row else result['market_code']}",
-        after={key: result.get(key) for key in ("market_code", "position_gbp", "direction", "horizon_hours", "risk_gbp", "likely_gbp", "upside_gbp")},
-    )
+    if not payload.preview:
+        row = log_risk_assessment(db, result, user_id=user.id)
+        write_audit_log(
+            db,
+            actor=_actor(user),
+            action="risk.assessment",
+            target=f"risk_assessment:{row.id if row else result['market_code']}",
+            after={key: result.get(key) for key in ("market_code", "position_gbp", "direction", "horizon_hours", "risk_gbp", "likely_gbp", "upside_gbp")},
+        )
     return RiskAssessmentResponse(**result)
 
 

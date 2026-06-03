@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 
 import numpy as np
 import pandas as pd
@@ -18,11 +19,16 @@ from app.services.event_service import events_as_feature_frame
 
 # ── In-process forecast cache (15-minute TTL) ─────────────────────────────────
 _forecast_cache: dict[tuple[str, str], tuple[list[Forecast], dict[str, float], datetime]] = {}
+_forecast_cache_lock = Lock()
+_forecast_build_locks: dict[tuple[str, str], Lock] = {}
 _CACHE_TTL_MINUTES = 15
+_FORECAST_TRAINING_LIMIT = 1_500
+_FORECAST_EVENT_LIMIT = 500
 
 
 def _cache_get(market_code: str, forecaster_name: str, horizon_hours: int) -> tuple[list[Forecast], dict[str, float]] | None:
-    entry = _forecast_cache.get((market_code, forecaster_name))
+    with _forecast_cache_lock:
+        entry = _forecast_cache.get((market_code, forecaster_name))
     if entry:
         forecasts, metrics, cached_at = entry
         if (
@@ -34,16 +40,28 @@ def _cache_get(market_code: str, forecaster_name: str, horizon_hours: int) -> tu
 
 
 def _cache_set(market_code: str, forecaster_name: str, forecasts: list[Forecast], metrics: dict[str, float]) -> None:
-    _forecast_cache[(market_code, forecaster_name)] = (forecasts, metrics, datetime.now(timezone.utc))
+    with _forecast_cache_lock:
+        _forecast_cache[(market_code, forecaster_name)] = (forecasts, metrics, datetime.now(timezone.utc))
 
 
 def invalidate_forecast_cache(market_code: str | None = None) -> None:
-    if market_code:
-        for key in list(_forecast_cache):
-            if key[0] == market_code:
-                _forecast_cache.pop(key, None)
-    else:
-        _forecast_cache.clear()
+    with _forecast_cache_lock:
+        if market_code:
+            for key in list(_forecast_cache):
+                if key[0] == market_code:
+                    _forecast_cache.pop(key, None)
+        else:
+            _forecast_cache.clear()
+
+
+def _build_lock_for(market_code: str, forecaster_name: str) -> Lock:
+    key = (market_code, forecaster_name)
+    with _forecast_cache_lock:
+        lock = _forecast_build_locks.get(key)
+        if lock is None:
+            lock = Lock()
+            _forecast_build_locks[key] = lock
+        return lock
 
 
 def _to_dataframe(records: list, mapping: dict[str, str] | None = None) -> pd.DataFrame:
@@ -159,24 +177,59 @@ def run_forecast_for_market(
             if forecasts and db.get(Forecast, forecasts[0].id):
                 return forecasts, metrics
 
+    build_lock = _build_lock_for(market.code, active_forecaster)
+    with build_lock:
+        if use_cache:
+            cached = _cache_get(market.code, active_forecaster, horizon_hours)
+            if cached:
+                forecasts, metrics = cached
+                if forecasts and db.get(Forecast, forecasts[0].id):
+                    return forecasts, metrics
+        return _build_forecast_for_market(db, market, horizon_hours, active_forecaster)
+
+
+def _build_forecast_for_market(
+    db: Session,
+    market: Market,
+    horizon_hours: int,
+    active_forecaster: str,
+) -> tuple[list[Forecast], dict[str, float]]:
     prices = list(
         db.scalars(
-            select(PricePoint).where(PricePoint.market_id == market.id).order_by(PricePoint.timestamp.asc())
+            select(PricePoint)
+            .where(PricePoint.market_id == market.id)
+            .order_by(PricePoint.timestamp.desc())
+            .limit(_FORECAST_TRAINING_LIMIT)
         ).all()
     )
+    prices = list(reversed(prices))
     weather = list(
         db.scalars(
-            select(WeatherPoint).where(WeatherPoint.market_id == market.id).order_by(WeatherPoint.timestamp.asc())
+            select(WeatherPoint)
+            .where(WeatherPoint.market_id == market.id)
+            .order_by(WeatherPoint.timestamp.desc())
+            .limit(_FORECAST_TRAINING_LIMIT)
         ).all()
     )
+    weather = list(reversed(weather))
     demand = list(
         db.scalars(
-            select(DemandPoint).where(DemandPoint.market_id == market.id).order_by(DemandPoint.timestamp.asc())
+            select(DemandPoint)
+            .where(DemandPoint.market_id == market.id)
+            .order_by(DemandPoint.timestamp.desc())
+            .limit(_FORECAST_TRAINING_LIMIT)
         ).all()
     )
+    demand = list(reversed(demand))
     events = list(
-        db.scalars(select(Event).where(Event.market_id == market.id).order_by(Event.created_at.asc())).all()
+        db.scalars(
+            select(Event)
+            .where(Event.market_id == market.id)
+            .order_by(Event.created_at.desc())
+            .limit(_FORECAST_EVENT_LIMIT)
+        ).all()
     )
+    events = list(reversed(events))
 
     price_df = _to_dataframe(prices)
     weather_df = _to_dataframe(weather)

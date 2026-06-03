@@ -244,6 +244,7 @@ export type RiskAssessmentRequest = {
   position_mwh?: number;
   hedge_ratio?: number;
   n_paths?: number;
+  preview?: boolean;
   scenarios?: { name: string; sigma_multiplier?: number; drift_shift?: number; spot_shock_pct?: number }[];
 };
 
@@ -404,6 +405,8 @@ export async function runRiskAssessment(
     body: JSON.stringify({
       ...payload,
       target_timestamp: payload.target_timestamp ?? null,
+      n_paths: payload.n_paths ?? 800,
+      preview: payload.preview ?? true,
     }),
     cache: "no-store",
     signal: options.signal,

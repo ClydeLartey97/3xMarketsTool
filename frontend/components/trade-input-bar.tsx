@@ -26,6 +26,7 @@ export type TradeInputState = {
 export type TradeInputBarProps = {
   marketCode: string;
   marketName: string;
+  marketId?: number;
   /** Fires whenever inputs settle. Parent uses this to drive the assessment. */
   onChange: (next: TradeInputState) => void;
   /** Optional compact mode for tight layouts. */
@@ -77,6 +78,7 @@ function formatGbpDisplay(value: number) {
 export function TradeInputBar({
   marketCode,
   marketName,
+  marketId,
   onChange,
   compact = false,
 }: TradeInputBarProps) {
@@ -84,67 +86,60 @@ export function TradeInputBar({
   const [direction, setDirection] = useState<"long" | "short">(DEFAULT_STATE.direction);
   const [horizon, setHorizon] = useState<number>(DEFAULT_STATE.horizon);
   const [autoPopulated, setAutoPopulated] = useState<"diary" | "storage" | null>(null);
-  const hasMountedRef = useRef(false);
+  const [readyMarketCode, setReadyMarketCode] = useState<string | null>(null);
+  const userEditedRef = useRef(false);
 
   // On market change: prefer open diary position, fall back to localStorage,
   // fall back to defaults. We only do this once per market change so the user
   // is free to override.
   useEffect(() => {
-    hasMountedRef.current = false;
+    setReadyMarketCode(null);
+    userEditedRef.current = false;
     let cancelled = false;
 
-    (async () => {
-      let next: TradeInputState | null = null;
-      try {
-        const decisions = await getDecisions();
-        if (cancelled) return;
+    const stored = readStored(marketCode);
+    const initial = stored ?? DEFAULT_STATE;
+    setPosition(initial.position);
+    setDirection(initial.direction);
+    setHorizon(initial.horizon);
+    setAutoPopulated(stored ? "storage" : null);
+    setReadyMarketCode(marketCode);
+
+    getDecisions(marketId)
+      .then((decisions) => {
+        if (cancelled || userEditedRef.current) return;
         const openForMarket = decisions
           .filter((d: DecisionItem) => d.is_open && d.market_code === marketCode)
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-        if (openForMarket) {
-          next = {
-            position: openForMarket.position_gbp,
-            direction: openForMarket.direction === "short" ? "short" : "long",
-            horizon: openForMarket.horizon_hours,
-          };
-          setAutoPopulated("diary");
-        }
-      } catch {
-        /* getDecisions may 404 in early dev — fall through */
-      }
-
-      if (!next) {
-        const stored = readStored(marketCode);
-        if (stored) {
-          next = stored;
-          setAutoPopulated("storage");
-        }
-      }
-
-      if (!next) {
-        next = DEFAULT_STATE;
-        setAutoPopulated(null);
-      }
-
-      if (cancelled) return;
-      setPosition(next.position);
-      setDirection(next.direction);
-      setHorizon(next.horizon);
-      hasMountedRef.current = true;
-    })();
+        if (!openForMarket) return;
+        const next = {
+          position: openForMarket.position_gbp,
+          direction: openForMarket.direction === "short" ? "short" : "long",
+          horizon: openForMarket.horizon_hours,
+        } satisfies TradeInputState;
+        if (cancelled) return;
+        setPosition(next.position);
+        setDirection(next.direction);
+        setHorizon(next.horizon);
+        setAutoPopulated("diary");
+        setReadyMarketCode(marketCode);
+      })
+      .catch(() => {
+        /* The saved-position hint is non-blocking; keep the local/default input. */
+      });
 
     return () => {
       cancelled = true;
     };
-  }, [marketCode]);
+  }, [marketCode, marketId]);
 
   // Persist + propagate on every settle.
   useEffect(() => {
-    if (!hasMountedRef.current) return;
+    if (readyMarketCode !== marketCode) return;
     const next: TradeInputState = { position, direction, horizon };
     writeStored(marketCode, next);
     onChange(next);
-  }, [marketCode, position, direction, horizon, onChange]);
+  }, [marketCode, position, direction, horizon, onChange, readyMarketCode]);
 
   const sentenceSummary = useMemo(() => {
     const horizonLabel =
@@ -171,7 +166,10 @@ export function TradeInputBar({
               min={100}
               step={100}
               value={position}
-              onChange={(e) => setPosition(Math.max(100, Number(e.target.value) || 0))}
+              onChange={(e) => {
+                userEditedRef.current = true;
+                setPosition(Math.max(100, Number(e.target.value) || 0));
+              }}
               className="w-full bg-transparent font-mono text-xl font-medium tabular-nums text-ink outline-none"
               aria-label="Position size in GBP"
             />
@@ -181,7 +179,10 @@ export function TradeInputBar({
               <button
                 key={preset}
                 type="button"
-                onClick={() => setPosition(preset)}
+                onClick={() => {
+                  userEditedRef.current = true;
+                  setPosition(preset);
+                }}
                 className={`rounded-md px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition ${
                   position === preset
                     ? "bg-ink/10 text-ink"
@@ -214,7 +215,10 @@ export function TradeInputBar({
                 <button
                   key={dir}
                   type="button"
-                  onClick={() => setDirection(dir)}
+                  onClick={() => {
+                    userEditedRef.current = true;
+                    setDirection(dir);
+                  }}
                   className={`min-w-[64px] rounded-lg px-3 py-2 font-mono text-xs uppercase tracking-wider transition ${tone}`}
                 >
                   {dir}
@@ -236,7 +240,10 @@ export function TradeInputBar({
                 <button
                   key={h}
                   type="button"
-                  onClick={() => setHorizon(h)}
+                  onClick={() => {
+                    userEditedRef.current = true;
+                    setHorizon(h);
+                  }}
                   className={`min-w-[44px] rounded-lg px-2.5 py-2 font-mono text-xs tabular-nums transition ${
                     active
                       ? "bg-ink/10 text-ink"

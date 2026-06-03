@@ -263,6 +263,7 @@ class RiskAssessmentRequest(BaseModel):
     target_timestamp: Optional[datetime] = None
     scenarios: list[ScenarioOverride] = Field(default_factory=list)
     n_paths: int = Field(default=5000, ge=500, le=20000)
+    preview: bool = False
     # E.3 — cross-zone basis trades. When `basis_against_market_code` is
     # set, the simulator runs paired paths against the second market and
     # P&L is the spread (with `basis_direction` applied to the spread).

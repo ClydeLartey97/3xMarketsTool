@@ -51,7 +51,7 @@ export function RiskPathFan({
         data.direction,
         data.horizon_hours,
         data.target_timestamp ?? "",
-        5000,
+        1500,
       ].join("|")
     : null;
   const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
@@ -79,7 +79,8 @@ export function RiskPathFan({
       horizon_hours: data.horizon_hours,
       direction: data.direction === "short" ? "short" : "long",
       target_timestamp: data.target_timestamp,
-      n_paths: 5000,
+      n_paths: 1500,
+      preview: true,
       scenarios: [],
     })
       .then((result) => {

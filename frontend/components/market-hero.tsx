@@ -39,6 +39,7 @@ export function MarketHero({
     direction: "long",
     horizon: 24,
   });
+  const [readyMarketCode, setReadyMarketCode] = useState<string | null>(null);
   const [stickyVisible, setStickyVisible] = useState(false);
   const heroRef = useRef<HTMLDivElement | null>(null);
   const inputAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -50,7 +51,7 @@ export function MarketHero({
     direction: inputs.direction,
     horizon: inputs.horizon,
     cursorTimestampMs,
-    paused: isDegraded,
+    paused: isDegraded || readyMarketCode !== marketCode,
   });
 
   // Hand the assessment back up so the parent can drive the evidence zone.
@@ -88,6 +89,14 @@ export function MarketHero({
     }, 350);
   }, []);
 
+  const handleInputChange = useCallback(
+    (next: TradeInputState) => {
+      setInputs(next);
+      setReadyMarketCode(marketCode);
+    },
+    [marketCode],
+  );
+
   return (
     <>
       <RiskStickyBar
@@ -102,9 +111,10 @@ export function MarketHero({
       <section ref={heroRef} className="space-y-5">
         <div ref={inputAnchorRef}>
           <TradeInputBar
+            marketId={marketId}
             marketCode={marketCode}
             marketName={marketName}
-            onChange={setInputs}
+            onChange={handleInputChange}
           />
         </div>
 

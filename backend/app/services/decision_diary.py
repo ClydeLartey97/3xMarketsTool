@@ -77,7 +77,13 @@ def create_decision(db: Session, payload: Any, user_id: int) -> dict[str, Any]:
 
 
 def list_decisions(db: Session, market_id: int | None = None, user_id: int | None = None) -> list[dict[str, Any]]:
-    fill_matured_risk_assessment_logs(db)
+    fill_matured_risk_assessment_logs(
+        db,
+        kind="diary",
+        market_id=market_id,
+        user_id=user_id,
+        limit=200,
+    )
     stmt = (
         select(RiskAssessmentLog, Market)
         .join(Market, Market.id == RiskAssessmentLog.market_id)

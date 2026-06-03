@@ -149,22 +149,35 @@ export function MarketWorkbench({
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   useEffect(() => {
     let cancelled = false;
+    let dashboardTimer: ReturnType<typeof setTimeout> | null = null;
+    setSummary(null);
+    setDashboard(null);
+
+    const loadDashboard = () => {
+      getDashboard(market.code)
+        .then((result) => {
+          if (!cancelled) setDashboard(result);
+        })
+        .catch(() => {
+          if (!cancelled) setDashboard(null);
+        });
+    };
+
     getDashboardSummary(market.code)
       .then((result) => {
         if (!cancelled) setSummary(result);
       })
       .catch(() => {
         if (!cancelled) setSummary(null);
-      });
-    getDashboard(market.code)
-      .then((result) => {
-        if (!cancelled) setDashboard(result);
       })
-      .catch(() => {
-        if (!cancelled) setDashboard(null);
+      .finally(() => {
+        if (!cancelled) {
+          dashboardTimer = setTimeout(loadDashboard, 250);
+        }
       });
     return () => {
       cancelled = true;
+      if (dashboardTimer) clearTimeout(dashboardTimer);
     };
   }, [market.code]);
 
