@@ -28,6 +28,13 @@ function pnlToPrice(data: RiskAssessment, pnlGbp: number) {
   return data.spot_price * (1 + pnlGbp / (sign * Math.max(1, data.position_gbp)));
 }
 
+function hoverHourFromPointer(clientX: number, rect: DOMRect, horizonHours: number) {
+  const viewBoxX = ((clientX - rect.left) / Math.max(rect.width, 1)) * WIDTH;
+  const plotRatio = (viewBoxX - PAD_X) / Math.max(WIDTH - PAD_X * 2, 1);
+  const clamped = Math.min(1, Math.max(0, plotRatio));
+  return Math.round(clamped * horizonHours);
+}
+
 export function RiskPathFan({
   data,
   loading = false,
@@ -195,12 +202,11 @@ export function RiskPathFan({
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           className="h-[280px] w-full"
           role="img"
-          onMouseMove={(event) => {
+          onPointerMove={(event) => {
             const rect = event.currentTarget.getBoundingClientRect();
-            const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-            setHoverHour(Math.round(ratio * fan.horizon_hours));
+            setHoverHour(hoverHourFromPointer(event.clientX, rect, fan.horizon_hours));
           }}
-          onMouseLeave={() => setHoverHour(null)}
+          onPointerLeave={() => setHoverHour(null)}
         >
           <rect x="0" y="0" width={WIDTH} height={HEIGHT} rx="10" className="fill-black/20" />
           {chart.paths.map((points, index) => (
@@ -226,8 +232,14 @@ export function RiskPathFan({
             <line x1={hoverX} x2={hoverX} y1={PAD_Y} y2={HEIGHT - PAD_Y} className="stroke-white/30" strokeWidth="1" />
           ) : null}
         </svg>
-        {hoverHour !== null && hoverValues.length > 0 ? (
-          <div className="absolute left-3 top-3 rounded-lg border border-white/10 bg-black/80 px-3 py-2 font-mono text-[11px] text-zinc-100">
+        {hoverHour !== null && hoverX !== null && hoverValues.length > 0 ? (
+          <div
+            className="pointer-events-none absolute top-3 rounded-lg border border-white/10 bg-black/80 px-3 py-2 font-mono text-[11px] text-zinc-100 shadow-lg"
+            style={{
+              left: `${(hoverX / WIDTH) * 100}%`,
+              transform: hoverX > WIDTH * 0.72 ? "translateX(-100%)" : "translateX(12px)",
+            }}
+          >
             <p>h+{hoverHour}</p>
             <p>p10 {formatPrice(percentile(hoverValues, 10), data.price_currency)}</p>
             <p>p50 {formatPrice(percentile(hoverValues, 50), data.price_currency)}</p>
