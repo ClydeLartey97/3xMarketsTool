@@ -9,6 +9,7 @@
 </div>
 
 ---
+3x is now LIVE at 3xmarketstool.netlify.app
 
 3x is power-market intelligence software for monitoring wholesale electricity markets, forecasting near-term price risk, and translating market news into structured trading context. It covers ERCOT (North + Houston), PJM Western Hub, NYISO Zone J, ISO-NE Mass Hub, Great Britain, EPEX Germany, EPEX France, and Nord Pool SE3.
 
