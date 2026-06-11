@@ -113,11 +113,18 @@ def list_forecasts(db: Session, market_id: int, limit: int = 48) -> list[Forecas
 
 def _metrics_from_forecast(forecast: Forecast | None) -> dict[str, float]:
     snapshot = (forecast.feature_snapshot_json if forecast else None) or {}
+    def finite_metric(key: str, default: float) -> float:
+        try:
+            value = float(snapshot.get(key, default))
+        except (TypeError, ValueError):
+            return default
+        return value if np.isfinite(value) else default
+
     return {
-        "mae": float(snapshot.get("model_mae", 0.0) or 0.0),
-        "rmse": float(snapshot.get("model_rmse", 0.0) or 0.0),
-        "directional_accuracy": float(snapshot.get("model_directional_accuracy", 0.5) or 0.5),
-        "spike_precision": float(snapshot.get("model_spike_precision", 0.0) or 0.0),
+        "mae": finite_metric("model_mae", 0.0),
+        "rmse": finite_metric("model_rmse", 0.0),
+        "directional_accuracy": finite_metric("model_directional_accuracy", 0.5),
+        "spike_precision": finite_metric("model_spike_precision", 0.0),
     }
 
 

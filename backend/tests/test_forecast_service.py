@@ -80,3 +80,33 @@ def test_run_forecast_uses_stored_curve_when_rebuild_fails(db_session, monkeypat
 
     assert len(forecasts) == 12
     assert metrics["directional_accuracy"] >= 0
+
+
+def test_stored_forecast_metrics_are_json_safe(db_session) -> None:
+    market = db_session.scalar(select(Market).where(Market.code == "ERCOT_NORTH"))
+    assert market is not None
+    forecast = db_session.scalar(
+        select(Forecast)
+        .where(Forecast.market_id == market.id)
+        .order_by(Forecast.forecast_for_timestamp.asc())
+        .limit(1)
+    )
+    assert forecast is not None
+    forecast.feature_snapshot_json = {
+        **(forecast.feature_snapshot_json or {}),
+        "model_mae": float("nan"),
+        "model_rmse": float("inf"),
+        "model_directional_accuracy": float("nan"),
+        "model_spike_precision": float("-inf"),
+    }
+    db_session.commit()
+    invalidate_forecast_cache(market.code)
+
+    _forecasts, metrics = run_forecast_for_market(db_session, market, horizon_hours=12, use_cache=True)
+
+    assert metrics == {
+        "mae": 0.0,
+        "rmse": 0.0,
+        "directional_accuracy": 0.5,
+        "spike_precision": 0.0,
+    }
