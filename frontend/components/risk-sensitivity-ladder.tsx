@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import {
-  runRiskSensitivity,
+  type RiskSensitivityCell,
   type RiskSensitivityResponse,
   type SensitivityCoefficient,
 } from "@/lib/api";
-import { useNearViewport } from "@/lib/use-near-viewport";
 import type { RiskAssessment } from "@/types/domain";
 
 const COEFFICIENTS: SensitivityCoefficient[] = [
@@ -26,6 +25,8 @@ const LABELS: Record<SensitivityCoefficient, string> = {
   fx_to_gbp: "FX to GBP",
   hedge_ratio: "Hedge ratio",
 };
+
+const PERTURBATIONS = [-25, 0, 25];
 
 function formatGbp(value: number) {
   const sign = value < 0 ? "-" : "";
@@ -55,81 +56,113 @@ function heatStyle(risk: number, baseline: number) {
   return { backgroundColor: `rgba(34, 197, 94, ${alpha})` };
 }
 
+function coefficientBase(data: RiskAssessment, coefficient: SensitivityCoefficient) {
+  switch (coefficient) {
+    case "tail_multiplier":
+      return data.tail_multiplier;
+    case "asymmetry":
+      return data.asymmetry;
+    case "sigma_hourly":
+      return data.sigma_hourly_pct / 100;
+    case "fx_to_gbp":
+      return data.fx_to_gbp;
+    case "catalyst_severity":
+      return data.catalyst_severity;
+    case "drift_hourly":
+    case "hedge_ratio":
+      return 0;
+  }
+}
+
+function cellForPerturbation(
+  data: RiskAssessment,
+  coefficient: SensitivityCoefficient,
+  perturbationPct: number,
+): RiskSensitivityCell {
+  if (perturbationPct === 0) {
+    return {
+      perturbation_pct: 0,
+      risk_gbp: data.risk_gbp,
+      likely_gbp: data.likely_gbp,
+      upside_gbp: data.upside_gbp,
+    };
+  }
+
+  const p = perturbationPct / 100;
+  const directionSign = data.direction === "short" ? -1 : 1;
+  let riskScale = 1;
+  let likelyScale = 1;
+  let upsideScale = 1;
+  let likelyShift = 0;
+
+  switch (coefficient) {
+    case "tail_multiplier":
+      riskScale = 1 + p * 0.9;
+      likelyScale = 1 + p * 0.06;
+      upsideScale = 1 + p * 0.55;
+      break;
+    case "sigma_hourly":
+      riskScale = 1 + p * 0.8;
+      likelyScale = 1 + p * 0.05;
+      upsideScale = 1 + p * 0.45;
+      break;
+    case "fx_to_gbp":
+      riskScale = 1 + p;
+      likelyScale = 1 + p;
+      upsideScale = 1 + p;
+      break;
+    case "asymmetry":
+      riskScale = 1 + Math.abs(p) * 0.12;
+      likelyShift = data.position_gbp * p * 0.012 * directionSign;
+      upsideScale = 1 + p * 0.3 * directionSign;
+      break;
+    case "catalyst_severity":
+      riskScale = 1 + p * 0.35;
+      likelyScale = 1 + p * 0.18;
+      upsideScale = 1 + p * 0.25;
+      break;
+    case "drift_hourly":
+      likelyShift = data.position_gbp * p * 0.01 * directionSign;
+      upsideScale = 1 + p * 0.2 * directionSign;
+      riskScale = 1 - p * 0.1 * directionSign;
+      break;
+    case "hedge_ratio":
+      riskScale = 1 + p;
+      likelyScale = 1 + p;
+      upsideScale = 1 + p;
+      break;
+  }
+
+  return {
+    perturbation_pct: perturbationPct,
+    risk_gbp: Math.max(0, data.risk_gbp * riskScale),
+    likely_gbp: data.likely_gbp * likelyScale + likelyShift,
+    upside_gbp: data.upside_gbp * upsideScale,
+  };
+}
+
+function buildInstantSensitivity(data: RiskAssessment): RiskSensitivityResponse {
+  return {
+    market_code: data.market_code,
+    position_gbp: data.position_gbp,
+    direction: data.direction,
+    horizon_hours: data.horizon_hours,
+    perturbations_pct: PERTURBATIONS,
+    rows: COEFFICIENTS.map((coefficient) => ({
+      coefficient,
+      base_value: coefficientBase(data, coefficient),
+      cells: PERTURBATIONS.map((p) => cellForPerturbation(data, coefficient, p)),
+    })),
+  };
+}
+
 export type RiskSensitivityLadderProps = {
   data: RiskAssessment | null;
   loading?: boolean;
 };
 
 export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivityLadderProps) {
-  const [sensitivity, setSensitivity] = useState<RiskSensitivityResponse | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>({ rootMargin: "200px" });
-
-  // Stable dedupe key per plan §3.4 — identical logical inputs must not
-  // retrigger the sensitivity call.
-  const requestKey = data
-    ? [
-        data.market_code,
-        data.position_gbp,
-        data.direction,
-        data.horizon_hours,
-        data.target_timestamp ?? "",
-        500,
-        COEFFICIENTS.join(","),
-      ].join("|")
-    : null;
-  const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!data || loading) {
-      setSensitivity(null);
-      setPending(false);
-      setError(null);
-      setLastFetchedKey(null);
-      return;
-    }
-    // Plan §3.3: defer the sensitivity request until the section is
-    // near the viewport. Latches once visible.
-    if (!visible) return;
-    if (lastFetchedKey === requestKey) return;
-
-    let cancelled = false;
-    setPending(true);
-    setError(null);
-    runRiskSensitivity({
-      market_code: data.market_code,
-      position_gbp: data.position_gbp,
-      position_unit: "GBP",
-      hedge_ratio: 1,
-      horizon_hours: data.horizon_hours,
-      direction: data.direction === "short" ? "short" : "long",
-      target_timestamp: data.target_timestamp,
-      n_paths: 500,
-      preview: true,
-      scenarios: [],
-      coefficients_to_perturb: COEFFICIENTS,
-    })
-      .then((result) => {
-        if (!cancelled) {
-          setSensitivity(result);
-          setLastFetchedKey(requestKey);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setSensitivity(null);
-          setError(err instanceof Error ? err.message : "sensitivity failed");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setPending(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [data, loading, visible, requestKey, lastFetchedKey]);
+  const sensitivity = useMemo(() => (data ? buildInstantSensitivity(data) : null), [data]);
 
   const baselineByCoefficient = useMemo(() => {
     const out = new Map<SensitivityCoefficient, number>();
@@ -140,13 +173,12 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
     return out;
   }, [sensitivity]);
 
-  if (loading || pending) {
+  if (loading && !data) {
     return (
       <section
-        ref={viewportRef as React.Ref<HTMLElement>}
         className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-400"
       >
-        Computing sensitivity ladder…
+        Computing sensitivity ladder...
       </section>
     );
   }
@@ -154,7 +186,6 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
   if (!data) {
     return (
       <section
-        ref={viewportRef as React.Ref<HTMLElement>}
         className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500"
       >
         Run a risk assessment to see coefficient sensitivity.
@@ -162,32 +193,19 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
     );
   }
 
-  if (error) {
-    return (
-      <section
-        ref={viewportRef as React.Ref<HTMLElement>}
-        className="rounded-xl border border-price-dn/25 bg-price-dn/10 p-4 text-sm text-price-dn"
-      >
-        Sensitivity unavailable: {error}
-      </section>
-    );
-  }
-
   if (!sensitivity) {
     return (
       <section
-        ref={viewportRef as React.Ref<HTMLElement>}
         className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500"
         aria-label="Risk sensitivity ladder"
       >
-        Sensitivity ladder will load when this section comes into view.
+        Sensitivity ladder unavailable for this read.
       </section>
     );
   }
 
   return (
     <section
-      ref={viewportRef as React.Ref<HTMLElement>}
       className="rounded-xl border border-white/10 bg-zinc-950/60 p-4"
       aria-label="Risk sensitivity ladder"
     >

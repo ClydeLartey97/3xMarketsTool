@@ -477,6 +477,7 @@ def post_risk_assessment(
                 ],
                 basis_against_market_code=payload.basis_against_market_code,
                 basis_direction=payload.basis_direction,
+                path_sample_size=payload.path_sample_size or None,
             ),
         )
     except ValueError as exc:

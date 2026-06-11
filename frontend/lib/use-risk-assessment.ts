@@ -80,6 +80,7 @@ function scaledPositionPreview(data: RiskAssessment, position: number): RiskAsse
     upside_gbp: scaleMoney(data.upside_gbp, ratio),
     var95_gbp: scaleMoney(data.var95_gbp, ratio),
     max_drawdown_gbp: scaleMoney(data.max_drawdown_gbp, ratio),
+    price_paths: data.price_paths,
     scenarios: data.scenarios.map((scenario) => ({
       ...scenario,
       risk_gbp: scaleMoney(scenario.risk_gbp, ratio),
@@ -160,6 +161,7 @@ export function useRiskAssessment(inputs: RiskInputs): RiskAssessmentState {
           horizon_hours: inputs.horizon,
           direction: inputs.direction,
           target_timestamp: target,
+          path_sample_size: 80,
         },
         { signal: controller.signal },
       )

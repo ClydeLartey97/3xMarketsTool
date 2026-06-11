@@ -263,6 +263,7 @@ class RiskAssessmentRequest(BaseModel):
     target_timestamp: Optional[datetime] = None
     scenarios: list[ScenarioOverride] = Field(default_factory=list)
     n_paths: int = Field(default=5000, ge=500, le=20000)
+    path_sample_size: int = Field(default=0, ge=0, le=200)
     preview: bool = False
     # E.3 — cross-zone basis trades. When `basis_against_market_code` is
     # set, the simulator runs paired paths against the second market and
@@ -350,6 +351,7 @@ class RiskAssessmentResponse(BaseModel):
     scorer_provider: str
     rationale: str
     scenarios: list[ScenarioOutcome] = Field(default_factory=list)
+    price_paths: list[list[float]] = Field(default_factory=list)
     coefficients: CoefficientBlock = Field(default_factory=CoefficientBlock)
     decision_gate: DecisionGate
     basis: Optional[dict[str, Any]] = None

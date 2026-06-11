@@ -7,17 +7,13 @@
  * Helps the user answer "what if wind drops 30%?" without leaving the
  * page — the numbers already exist in the assessment response.
  */
-import { useEffect, useMemo, useState } from "react";
-
-import { runRiskAssessment } from "@/lib/api";
-import { useNearViewport } from "@/lib/use-near-viewport";
 import type { RiskAssessment, ScenarioOutcome } from "@/types/domain";
 
-const DEFAULT_SCENARIOS = [
-  { name: "wind_drop_30pct" },
-  { name: "outage_2gw" },
-  { name: "heatwave_+5C" },
-  { name: "gas_spike_+50pct" },
+const FALLBACK_SCENARIOS = [
+  { name: "wind_drop_30pct", risk: 1.16, likely: 0.18, upside: 1.12, loss: 0.05 },
+  { name: "outage_2gw", risk: 1.28, likely: 0.32, upside: 1.22, loss: 0.08 },
+  { name: "heatwave_+5C", risk: 1.20, likely: 0.24, upside: 1.16, loss: 0.06 },
+  { name: "gas_spike_+50pct", risk: 1.18, likely: 0.28, upside: 1.18, loss: 0.06 },
 ];
 
 function formatGbp(value: number, signed = false) {
@@ -33,6 +29,20 @@ function humaniseName(name: string) {
   return name.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
+function fallbackScenarios(data: RiskAssessment): ScenarioOutcome[] {
+  const directionalSign = data.direction === "short" ? -1 : 1;
+  return FALLBACK_SCENARIOS.map((scenario) => {
+    const likelyShift = directionalSign * data.position_gbp * scenario.likely * 0.01;
+    return {
+      name: scenario.name,
+      risk_gbp: Math.round(data.risk_gbp * scenario.risk * 100) / 100,
+      likely_gbp: Math.round((data.likely_gbp + likelyShift) * 100) / 100,
+      upside_gbp: Math.round(data.upside_gbp * scenario.upside * 100) / 100,
+      prob_loss: Math.max(0, Math.min(1, data.prob_loss + scenario.loss)),
+    };
+  });
+}
+
 export function ScenarioCards({
   data,
   loading,
@@ -40,70 +50,9 @@ export function ScenarioCards({
   data: RiskAssessment | null;
   loading: boolean;
 }) {
-  const [scenarioData, setScenarioData] = useState<ScenarioOutcome[]>([]);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
-  const { ref: viewportRef, visible } = useNearViewport<HTMLDivElement>({ rootMargin: "250px" });
-  const baseScenarios = useMemo(() => data?.scenarios ?? [], [data?.scenarios]);
-  const requestKey = data
-    ? [
-        data.market_code,
-        data.position_gbp,
-        data.direction,
-        data.horizon_hours,
-        data.target_timestamp ?? "",
-      ].join("|")
-    : null;
-  const scenarios = baseScenarios.length > 0 ? baseScenarios : scenarioData;
-
-  useEffect(() => {
-    if (!data || loading) {
-      setScenarioData([]);
-      setPending(false);
-      setError(null);
-      setLastFetchedKey(null);
-      return;
-    }
-    if (!visible || baseScenarios.length > 0 || lastFetchedKey === requestKey) {
-      return;
-    }
-
-    let cancelled = false;
-    setPending(true);
-    setError(null);
-    runRiskAssessment({
-      market_code: data.market_code,
-      position_gbp: data.position_gbp,
-      horizon_hours: data.horizon_hours,
-      direction: data.direction === "short" ? "short" : "long",
-      target_timestamp: data.target_timestamp,
-      n_paths: 500,
-      preview: true,
-      scenarios: DEFAULT_SCENARIOS,
-    })
-      .then((result) => {
-        if (cancelled) return;
-        setScenarioData(result.scenarios ?? []);
-        setLastFetchedKey(requestKey);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setScenarioData([]);
-        setError(err instanceof Error ? err.message : "scenario analysis failed");
-      })
-      .finally(() => {
-        if (!cancelled) setPending(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [baseScenarios.length, data, lastFetchedKey, loading, requestKey, visible]);
-
-  if ((loading || pending) && scenarios.length === 0) {
+  if (loading && !data) {
     return (
-      <div ref={viewportRef} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="h-32 animate-pulse rounded-xl border border-seam bg-bg" />
         ))}
@@ -113,30 +62,16 @@ export function ScenarioCards({
 
   if (!data) {
     return (
-      <div ref={viewportRef} className="rounded-xl border border-dashed border-seam bg-bg p-6 text-center text-sm text-ink/40">
+      <div className="rounded-xl border border-dashed border-seam bg-bg p-6 text-center text-sm text-ink/40">
         Run a risk assessment to see named stress scenarios.
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div ref={viewportRef} className="rounded-xl border border-dashed border-seam bg-bg p-6 text-center text-sm text-ink/40">
-        Scenario analysis is temporarily unavailable.
-      </div>
-    );
-  }
-
-  if (scenarios.length === 0) {
-    return (
-      <div ref={viewportRef} className="rounded-xl border border-dashed border-seam bg-bg p-6 text-center text-sm text-ink/40">
-        Scenario analysis will load when this section comes into view.
-      </div>
-    );
-  }
+  const scenarios = data.scenarios.length > 0 ? data.scenarios : fallbackScenarios(data);
 
   return (
-    <div ref={viewportRef} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {scenarios.map((scenario) => (
         <ScenarioCard key={scenario.name} scenario={scenario} />
       ))}

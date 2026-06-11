@@ -218,6 +218,7 @@ export type RiskAssessment = {
   scorer_provider: string;
   rationale: string;
   scenarios: ScenarioOutcome[];
+  price_paths?: number[][];
   coefficients: CoefficientBlock;
   decision_gate: DecisionGate;
 };

@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  createDecision,
   getDashboard,
   getDashboardSummary,
   getPowerBIEmbedConfig,
@@ -31,17 +32,22 @@ import {
 } from "@/lib/api";
 
 import { ClientErrorBoundary } from "@/components/client-error-boundary";
+import { DecisionDiary } from "@/components/decision-diary";
 import { DecisionGateStrip } from "@/components/decision-gate-strip";
 import { MarketHero } from "@/components/market-hero";
+import { PositionBlotter } from "@/components/position-blotter";
+import { RiskDecompositionPanel } from "@/components/risk-decomposition-panel";
+import { RiskPathFan } from "@/components/risk-path-fan";
+import { RiskSensitivityLadder } from "@/components/risk-sensitivity-ladder";
+import { ScenarioCards } from "@/components/scenario-cards";
 import type { TradeInputState } from "@/components/trade-input-bar";
 import { useMarketStream } from "@/lib/use-market-stream";
 import { DashboardData, Market, PowerBIEmbedConfig, RiskAssessment } from "@/types/domain";
 
 /**
- * Below-the-fold panels are lazy-loaded so the hero (the three bubbles)
- * paints first and the heavier chart / audit / news / blotter chunks only
- * fetch their JS when the user actually scrolls toward them. Massively
- * shrinks the initial bundle on every page load.
+ * Only genuinely secondary integrations stay lazy. The risk evidence and
+ * book panels are imported up front so they can render as soon as the main
+ * risk result arrives.
  */
 const PanelSkeleton = ({ height = 200 }: { height?: number }) => (
   <div
@@ -50,36 +56,12 @@ const PanelSkeleton = ({ height = 200 }: { height?: number }) => (
   />
 );
 
-const ScenarioCards = dynamic(
-  () => import("@/components/scenario-cards").then((m) => m.ScenarioCards),
-  { ssr: false, loading: () => <PanelSkeleton height={140} /> },
-);
-const RiskPathFan = dynamic(
-  () => import("@/components/risk-path-fan").then((m) => m.RiskPathFan),
-  { ssr: false, loading: () => <PanelSkeleton height={260} /> },
-);
-const RiskDecompositionPanel = dynamic(
-  () => import("@/components/risk-decomposition-panel").then((m) => m.RiskDecompositionPanel),
-  { ssr: false, loading: () => <PanelSkeleton height={300} /> },
-);
-const RiskSensitivityLadder = dynamic(
-  () => import("@/components/risk-sensitivity-ladder").then((m) => m.RiskSensitivityLadder),
-  { ssr: false, loading: () => <PanelSkeleton height={300} /> },
-);
 const NewsBriefs = dynamic(
   () => import("@/components/news-briefs").then((m) => m.NewsBriefs),
   { ssr: false, loading: () => <PanelSkeleton height={200} /> },
 );
 const EventFeed = dynamic(
   () => import("@/components/event-feed").then((m) => m.EventFeed),
-  { ssr: false, loading: () => <PanelSkeleton height={200} /> },
-);
-const PositionBlotter = dynamic(
-  () => import("@/components/position-blotter").then((m) => m.PositionBlotter),
-  { ssr: false, loading: () => <PanelSkeleton height={200} /> },
-);
-const DecisionDiary = dynamic(
-  () => import("@/components/decision-diary").then((m) => m.DecisionDiary),
   { ssr: false, loading: () => <PanelSkeleton height={200} /> },
 );
 const CalibrationPanel = dynamic(
@@ -136,7 +118,10 @@ export function MarketWorkbench({
   const [cursorTs, setCursorTs] = useState<number | null>(null);
   const [risk, setRisk] = useState<RiskAssessment | null>(null);
   const [riskLoading, setRiskLoading] = useState(false);
-  const [decisionRefresh] = useState(0);
+  const [decisionRefresh, setDecisionRefresh] = useState(0);
+  const [bookSaving, setBookSaving] = useState(false);
+  const [bookError, setBookError] = useState<string | null>(null);
+  const [bookSavedAt, setBookSavedAt] = useState<number | null>(null);
 
   // Plan §5.4 — split the workbench load:
   //   1. `summary` (lightweight, no alert refresh, no news/events) lands
@@ -222,9 +207,37 @@ export function MarketWorkbench({
     (next: { data: RiskAssessment | null; loading: boolean; inputs: TradeInputState }) => {
       setRisk(next.data);
       setRiskLoading(next.loading);
+      setBookError(null);
+      setBookSavedAt(null);
     },
     [],
   );
+
+  const handleAddToBook = useCallback(async () => {
+    if (!risk || bookSaving) return;
+    setBookSaving(true);
+    setBookError(null);
+    try {
+      const decisionLabel = risk.decision_gate?.label ?? "Saved read";
+      await createDecision({
+        market_code: risk.market_code,
+        position_gbp: risk.position_gbp,
+        direction: risk.direction === "short" ? "short" : "long",
+        horizon_hours: risk.horizon_hours,
+        risk_gbp: risk.risk_gbp,
+        likely_gbp: risk.likely_gbp,
+        upside_gbp: risk.upside_gbp,
+        thesis_text: `${decisionLabel}: ${risk.rationale}`.slice(0, 4000),
+        is_open: true,
+      });
+      setBookSavedAt(Date.now());
+      setDecisionRefresh((value) => value + 1);
+    } catch (err) {
+      setBookError(err instanceof Error ? err.message : "Could not add this read to the book");
+    } finally {
+      setBookSaving(false);
+    }
+  }, [risk, bookSaving]);
 
   return (
     <main className="space-y-8 pb-16">
@@ -252,6 +265,13 @@ export function MarketWorkbench({
       {risk ? (
         <SectionFrame title="Decision gate" subtitle="Should you put this trade on?">
           <DecisionGateStrip data={risk} loading={riskLoading} />
+          <BookActionStrip
+            data={risk}
+            saving={bookSaving}
+            saved={bookSavedAt !== null}
+            error={bookError}
+            onSave={handleAddToBook}
+          />
         </SectionFrame>
       ) : null}
 
@@ -493,6 +513,48 @@ function MiniStat({
     <div className="hidden rounded-lg border border-seam bg-bg px-3 py-1.5 text-right sm:block">
       <p className="font-mono text-[9px] uppercase tracking-widest text-ink/40">{label}</p>
       <p className={`mt-0.5 font-mono text-sm font-semibold tabular-nums ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function formatGbp(value: number) {
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `${sign}£${(abs / 1_000_000).toFixed(2)}m`;
+  if (abs >= 10_000) return `${sign}£${(abs / 1000).toFixed(1)}k`;
+  return `${sign}£${abs.toFixed(0)}`;
+}
+
+function BookActionStrip({
+  data,
+  saving,
+  saved,
+  error,
+  onSave,
+}: {
+  data: RiskAssessment;
+  saving: boolean;
+  saved: boolean;
+  error: string | null;
+  onSave: () => void;
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-seam bg-bg px-4 py-3">
+      <div className="min-w-0">
+        <p className="font-mono text-[10px] uppercase tracking-widest text-ink/45">Your book</p>
+        <p className="mt-1 text-sm text-ink/75">
+          Save this {data.direction} {formatGbp(data.position_gbp)} read so it appears in open positions and the diary.
+        </p>
+        {error ? <p className="mt-1 text-xs text-price-dn">{error}</p> : null}
+      </div>
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving || saved}
+        className="shrink-0 rounded-lg border border-seam bg-ink px-4 py-2 text-xs font-semibold uppercase tracking-wider text-bg transition hover:bg-ink/85 disabled:cursor-not-allowed disabled:border-seam disabled:bg-ink/20 disabled:text-ink/45"
+      >
+        {saving ? "Adding..." : saved ? "Added" : "Add to book"}
+      </button>
     </div>
   );
 }

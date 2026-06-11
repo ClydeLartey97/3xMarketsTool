@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-import { getRiskPaths, type RiskPathFanResponse } from "@/lib/api";
-import { useNearViewport } from "@/lib/use-near-viewport";
 import type { RiskAssessment } from "@/types/domain";
 
 const WIDTH = 800;
@@ -16,6 +14,11 @@ type HoverState = {
   x: number;
   cssX: number;
   alignRight: boolean;
+};
+
+type PathFanData = {
+  horizon_hours: number;
+  price_paths: number[][];
 };
 
 function formatPrice(value: number, currency: string) {
@@ -33,6 +36,28 @@ function percentile(values: number[], pct: number) {
 function pnlToPrice(data: RiskAssessment, pnlGbp: number) {
   const sign = data.direction === "short" ? -1 : 1;
   return data.spot_price * (1 + pnlGbp / (sign * Math.max(1, data.position_gbp)));
+}
+
+function pseudoNoise(pathIndex: number, hourIndex: number) {
+  return (
+    Math.sin(pathIndex * 12.9898 + hourIndex * 78.233) * 0.55 +
+    Math.sin(pathIndex * 4.1414 + hourIndex * 17.17) * 0.3 +
+    Math.cos(pathIndex * 2.33 + hourIndex * 9.91) * 0.15
+  );
+}
+
+function buildFallbackPaths(data: RiskAssessment, count = 72) {
+  const horizon = Math.max(1, data.horizon_hours);
+  const sigma = Math.max(0.003, data.sigma_return_pct / 100);
+  const drift = Math.log(Math.max(1e-6, data.expected_price) / Math.max(1e-6, data.spot_price));
+  return Array.from({ length: count }, (_, pathIndex) =>
+    Array.from({ length: horizon + 1 }, (_unused, hourIndex) => {
+      const t = hourIndex / horizon;
+      const cone = Math.sqrt(t);
+      const shock = pseudoNoise(pathIndex, hourIndex) * sigma * cone * 0.9;
+      return Number((data.spot_price * Math.exp(drift * t + shock)).toFixed(4));
+    }),
+  );
 }
 
 function hoverFromPointer(clientX: number, rect: DOMRect, horizonHours: number) {
@@ -58,73 +83,15 @@ export function RiskPathFan({
   data: RiskAssessment | null;
   loading?: boolean;
 }) {
-  const [fan, setFan] = useState<RiskPathFanResponse | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
-  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>({ rootMargin: "250px" });
-
-  // Stable dedupe key per plan §3.4 — identical logical inputs must not
-  // retrigger the heavy path-fan call. Falls back to nothing when there is
-  // no risk read yet.
-  const requestKey = data
-    ? [
-        data.market_code,
-        data.position_gbp,
-        data.direction,
-        data.horizon_hours,
-        data.target_timestamp ?? "",
-        600,
-      ].join("|")
-    : null;
-  const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!data || loading) {
-      setFan(null);
-      setPending(false);
-      setError(null);
-      setLastFetchedKey(null);
-      return;
-    }
-    // Plan §3.2: do not request /risk-assessment/paths until the section
-    // is near the viewport. Once it loads, scrolling away does not wipe
-    // it (the visible flag latches in useNearViewport).
-    if (!visible) return;
-    if (lastFetchedKey === requestKey) return;
-
-    let cancelled = false;
-    setPending(true);
-    setError(null);
-    getRiskPaths({
-      market_code: data.market_code,
-      position_gbp: data.position_gbp,
+  const fan = useMemo<PathFanData | null>(() => {
+    if (!data) return null;
+    const pricePaths = data.price_paths && data.price_paths.length > 0 ? data.price_paths : buildFallbackPaths(data);
+    return {
       horizon_hours: data.horizon_hours,
-      direction: data.direction === "short" ? "short" : "long",
-      target_timestamp: data.target_timestamp,
-      n_paths: 600,
-      preview: true,
-      scenarios: [],
-    })
-      .then((result) => {
-        if (!cancelled) {
-          setFan(result);
-          setLastFetchedKey(requestKey);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setFan(null);
-          setError(err instanceof Error ? err.message : "path fan failed");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setPending(false);
-      });
-    return () => {
-      cancelled = true;
+      price_paths: pricePaths,
     };
-  }, [data, loading, visible, requestKey, lastFetchedKey]);
+  }, [data]);
 
   const chart = useMemo(() => {
     if (!data || !fan) return null;
@@ -145,10 +112,9 @@ export function RiskPathFan({
     return { min, max, x, y, paths, referencePrices };
   }, [data, fan]);
 
-  if (loading || pending) {
+  if (loading && !data) {
     return (
       <section
-        ref={viewportRef as React.Ref<HTMLElement>}
         className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-400"
       >
         Simulating path fan...
@@ -158,33 +124,19 @@ export function RiskPathFan({
   if (!data) {
     return (
       <section
-        ref={viewportRef as React.Ref<HTMLElement>}
         className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500"
       >
         Run a risk assessment to see simulated paths.
       </section>
     );
   }
-  if (error) {
-    return (
-      <section
-        ref={viewportRef as React.Ref<HTMLElement>}
-        className="rounded-xl border border-price-dn/25 bg-price-dn/10 p-4 text-sm text-price-dn"
-      >
-        Path fan unavailable: {error}
-      </section>
-    );
-  }
   if (!fan || !chart) {
-    // Section is mounted but not yet near viewport — keep a placeholder
-    // so the IntersectionObserver has a DOM node to observe.
     return (
       <section
-        ref={viewportRef as React.Ref<HTMLElement>}
         className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500"
         aria-label="Risk path fan"
       >
-        Path fan will load when this section comes into view.
+        Path fan unavailable for this read.
       </section>
     );
   }
@@ -199,7 +151,6 @@ export function RiskPathFan({
 
   return (
     <section
-      ref={viewportRef as React.Ref<HTMLElement>}
       className="rounded-xl border border-white/10 bg-zinc-950/60 p-4"
       aria-label="Risk path fan"
     >

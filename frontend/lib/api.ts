@@ -244,6 +244,7 @@ export type RiskAssessmentRequest = {
   position_mwh?: number;
   hedge_ratio?: number;
   n_paths?: number;
+  path_sample_size?: number;
   preview?: boolean;
   scenarios?: { name: string; sigma_multiplier?: number; drift_shift?: number; spot_shock_pct?: number }[];
 };

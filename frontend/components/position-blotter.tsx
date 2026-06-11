@@ -10,7 +10,6 @@ import {
   type DecisionItem,
   type PortfolioRiskResponse,
 } from "@/lib/api";
-import { useNearViewport } from "@/lib/use-near-viewport";
 
 function formatGbp(value: number) {
   const sign = value < 0 ? "-" : "";
@@ -33,10 +32,8 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
   const [mutatingId, setMutatingId] = useState<number | null>(null);
   const [localRefresh, setLocalRefresh] = useState(0);
-  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>({ rootMargin: "250px" });
 
   useEffect(() => {
-    if (!visible) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -53,14 +50,11 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey, localRefresh, visible]);
+  }, [refreshKey, localRefresh]);
 
   const openPositions = useMemo(() => items.filter((item) => item.is_open), [items]);
 
   useEffect(() => {
-    if (!visible) {
-      return;
-    }
     if (openPositions.length === 0) {
       setPortfolio(null);
       setPortfolioError(null);
@@ -95,7 +89,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
     return () => {
       cancelled = true;
     };
-  }, [openPositions, visible]);
+  }, [openPositions]);
 
   async function closePosition(decisionId: number) {
     setMutatingId(decisionId);
@@ -124,7 +118,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
   }
 
   return (
-    <section ref={viewportRef as React.Ref<HTMLElement>} className="rounded-2xl border border-seam bg-surface p-5">
+    <section className="rounded-2xl border border-seam bg-surface p-5">
       <div className="sticky-panel-header -mx-5 -mt-5 mb-3 flex items-baseline justify-between gap-2 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-ink/45">Position blotter</p>
@@ -135,10 +129,9 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
         </span>
       </div>
 
-      {!visible ? <p className="text-sm text-ink/45">Open risk book will load when opened.</p> : null}
       {loading ? <p className="text-sm text-ink/45">Loading positions...</p> : null}
       {error ? <p className="text-sm text-ink/45">Open risk book is temporarily unavailable.</p> : null}
-      {visible && !loading && !error && openPositions.length === 0 ? (
+      {!loading && !error && openPositions.length === 0 ? (
         <p className="text-sm text-ink/45">No open positions yet.</p>
       ) : null}
 
