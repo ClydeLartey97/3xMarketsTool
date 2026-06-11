@@ -15,7 +15,7 @@ function serverAutoLoginEnabled(): boolean {
   if (configured !== undefined) {
     return configured === "true";
   }
-  return process.env.NODE_ENV !== "production";
+  return process.env.NODE_ENV !== "production" || Boolean(process.env.DEMO_USER_PASSWORD);
 }
 
 async function getAccessToken(): Promise<string | null> {

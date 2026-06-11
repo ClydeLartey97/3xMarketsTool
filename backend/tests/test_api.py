@@ -110,6 +110,33 @@ def test_preview_risk_assessment_endpoint_does_not_log(client, db_session) -> No
     assert after == before
 
 
+def test_risk_assessment_endpoint_degrades_when_engine_fails(client, monkeypatch) -> None:
+    from app.services import risk_engine
+
+    def fail_assessment(*args, **kwargs):
+        raise RuntimeError("simulator unavailable")
+
+    monkeypatch.setattr(risk_engine, "assess_risk", fail_assessment)
+
+    response = client.post(
+        "/api/risk-assessment",
+        json={
+            "market_code": "ERCOT_NORTH",
+            "position_gbp": 10000,
+            "horizon_hours": 24,
+            "direction": "long",
+            "n_paths": 500,
+            "preview": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["market_code"] == "ERCOT_NORTH"
+    assert body["risk_metric"] == "fast_stored_forecast"
+    assert body["risk_gbp"] >= 0
+
+
 def test_risk_assessment_solve_endpoint(client) -> None:
     response = client.post(
         "/api/risk-assessment/solve",

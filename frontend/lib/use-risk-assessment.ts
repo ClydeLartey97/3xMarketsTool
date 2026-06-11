@@ -161,7 +161,6 @@ export function useRiskAssessment(inputs: RiskInputs): RiskAssessmentState {
           horizon_hours: inputs.horizon,
           direction: inputs.direction,
           target_timestamp: target,
-          path_sample_size: 80,
         },
         { signal: controller.signal },
       )

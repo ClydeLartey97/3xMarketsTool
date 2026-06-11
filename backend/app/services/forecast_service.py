@@ -145,6 +145,24 @@ def _stored_forecasts_if_current(
     return forecasts, _metrics_from_forecast(forecasts[0])
 
 
+def _stored_forecasts_if_available(
+    db: Session,
+    market: Market,
+    horizon_hours: int,
+) -> tuple[list[Forecast], dict[str, float]] | None:
+    forecasts = list(
+        db.scalars(
+            select(Forecast)
+            .where(Forecast.market_id == market.id)
+            .order_by(Forecast.forecast_for_timestamp.asc())
+            .limit(horizon_hours)
+        ).all()
+    )
+    if not forecasts:
+        return None
+    return forecasts, _metrics_from_forecast(forecasts[0])
+
+
 def _hourly_anchor(frame: pd.DataFrame, column: str, hour: int, fallback: float) -> float:
     same_hour = frame.loc[frame["hour"] == hour, column].tail(5)
     if same_hour.empty:
@@ -211,6 +229,11 @@ def run_forecast_for_market(
             if forecasts and db.get(Forecast, forecasts[0].id):
                 return forecasts, metrics
         stored = _stored_forecasts_if_current(db, market, horizon_hours)
+        if stored:
+            forecasts, metrics = stored
+            _cache_set(market.code, active_forecaster, forecasts, metrics)
+            return forecasts, metrics
+        stored = _stored_forecasts_if_available(db, market, horizon_hours)
         if stored:
             forecasts, metrics = stored
             _cache_set(market.code, active_forecaster, forecasts, metrics)

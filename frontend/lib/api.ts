@@ -44,7 +44,8 @@ function serverAutoLoginEnabled(): boolean {
   return (
     process.env.NODE_ENV !== "production" ||
     SERVER_API_BASE_URL.includes("127.0.0.1") ||
-    SERVER_API_BASE_URL.includes("localhost")
+    SERVER_API_BASE_URL.includes("localhost") ||
+    Boolean(process.env.DEMO_USER_PASSWORD)
   );
 }
 

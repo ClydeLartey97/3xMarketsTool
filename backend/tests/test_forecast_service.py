@@ -1,7 +1,11 @@
+from datetime import timedelta
+
+import pytest
 from sqlalchemy import select
 
-from app.models import Market
-from app.services.forecast_service import run_forecast_for_market
+from app.models import Forecast, Market, PricePoint
+from app.services import forecast_service
+from app.services.forecast_service import invalidate_forecast_cache, run_forecast_for_market
 
 
 def test_run_forecast_for_market(db_session) -> None:
@@ -41,3 +45,38 @@ def test_forecast_cache_respects_requested_horizon(db_session) -> None:
     assert len(short_forecasts) == 12
     assert len(longer_forecasts) == 24
     assert len(repeated_short) == 12
+
+
+def test_run_forecast_uses_stored_curve_when_rebuild_fails(db_session, monkeypatch: pytest.MonkeyPatch) -> None:
+    market = db_session.scalar(select(Market).where(Market.code == "ERCOT_NORTH"))
+    assert market is not None
+    latest_price_ts = db_session.scalar(
+        select(PricePoint.timestamp)
+        .where(PricePoint.market_id == market.id)
+        .order_by(PricePoint.timestamp.desc())
+        .limit(1)
+    )
+    assert latest_price_ts is not None
+    stored = list(
+        db_session.scalars(
+            select(Forecast)
+            .where(Forecast.market_id == market.id)
+            .order_by(Forecast.forecast_for_timestamp.asc())
+            .limit(12)
+        ).all()
+    )
+    assert len(stored) == 12
+    for index, forecast in enumerate(stored):
+        forecast.forecast_for_timestamp = latest_price_ts - timedelta(hours=12 - index)
+    db_session.commit()
+    invalidate_forecast_cache(market.code)
+
+    def fail_rebuild(*args, **kwargs):
+        raise RuntimeError("forecast rebuild unavailable")
+
+    monkeypatch.setattr(forecast_service, "_build_forecast_for_market", fail_rebuild)
+
+    forecasts, metrics = run_forecast_for_market(db_session, market, horizon_hours=12, use_cache=True)
+
+    assert len(forecasts) == 12
+    assert metrics["directional_accuracy"] >= 0

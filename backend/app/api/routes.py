@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import datetime, timedelta, timezone
 from threading import Lock
 from typing import Any, Optional
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.core.rate_limit import RISK_ASSESSMENT_LIMIT, SENSITIVITY_LIMIT, limiter
-from app.models import DemandPoint, Event, Forecast, User, WeatherPoint
+from app.models import DemandPoint, Event, Forecast, PricePoint, User, WeatherPoint
 from app.schemas.domain import (
     AlertRead,
     ArticleIngestRequest,
@@ -164,6 +165,180 @@ def _price_provenance_metrics(prices: list) -> dict[str, float]:
         "data_freshness_minutes": round(float(freshness_minutes), 2),
         "synthetic_share_24h": round(float(synthetic_share), 4),
     }
+
+
+def _normal_cdf(value: float) -> float:
+    return 0.5 * (1.0 + math.erf(value / math.sqrt(2.0)))
+
+
+def _fallback_risk_assessment(
+    db: Session,
+    payload: RiskAssessmentRequest,
+    *,
+    reason: str,
+) -> RiskAssessmentResponse:
+    market = get_market_by_code(db, payload.market_code)
+    if not market:
+        raise ValueError(f"unknown market {payload.market_code}")
+
+    recent_desc = list(
+        db.scalars(
+            select(PricePoint)
+            .where(PricePoint.market_id == market.id)
+            .order_by(PricePoint.timestamp.desc())
+            .limit(168)
+        ).all()
+    )
+    prices = list(reversed(recent_desc))
+    latest_price = prices[-1] if prices else None
+    latest_price_ts = _price_ts(latest_price.timestamp) if latest_price else None
+
+    forecast_stmt = select(Forecast).where(Forecast.market_id == market.id)
+    if payload.target_timestamp is not None:
+        target_utc = _price_ts(payload.target_timestamp)
+        forecasts = list(
+            db.scalars(
+                forecast_stmt.order_by(Forecast.forecast_for_timestamp.asc()).limit(168)
+            ).all()
+        )
+        forecast = min(
+            forecasts,
+            key=lambda item: abs((_price_ts(item.forecast_for_timestamp) - target_utc).total_seconds()),
+            default=None,
+        )
+    else:
+        if latest_price_ts is not None:
+            forecast_stmt = forecast_stmt.where(Forecast.forecast_for_timestamp > latest_price_ts)
+        forecast = db.scalar(forecast_stmt.order_by(Forecast.forecast_for_timestamp.asc()).limit(1))
+        if forecast is None:
+            forecast = db.scalar(
+                select(Forecast)
+                .where(Forecast.market_id == market.id)
+                .order_by(Forecast.forecast_for_timestamp.desc())
+                .limit(1)
+            )
+
+    spot = float(latest_price.price_value) if latest_price else float(forecast.point_estimate if forecast else 1.0)
+    if spot <= 0:
+        spot = max(float(forecast.point_estimate if forecast else 1.0), 1.0)
+    point = float(forecast.point_estimate) if forecast else spot
+    target_timestamp = (
+        _price_ts(forecast.forecast_for_timestamp)
+        if forecast
+        else datetime.now(timezone.utc) + timedelta(hours=payload.horizon_hours)
+    )
+    currency = (
+        getattr(latest_price, "currency", None)
+        or getattr(forecast, "currency", None)
+        or "USD"
+    )
+    try:
+        from app.services.fx import fx_to_gbp
+
+        fx = float(fx_to_gbp(currency))
+    except Exception:  # noqa: BLE001 - fallback must never fail on FX
+        fx = 1.0 if currency == "GBP" else 0.85 if currency == "EUR" else 0.79
+
+    log_returns: list[float] = []
+    for left, right in zip(prices, prices[1:]):
+        left_price = float(left.price_value)
+        right_price = float(right.price_value)
+        if left_price > 0 and right_price > 0:
+            log_returns.append(math.log(right_price / left_price))
+    if len(log_returns) >= 2:
+        mean_return = sum(log_returns) / len(log_returns)
+        variance = sum((value - mean_return) ** 2 for value in log_returns) / (len(log_returns) - 1)
+        sigma_hourly = math.sqrt(max(variance, 0.0))
+    else:
+        sigma_hourly = 0.03
+    horizon = max(1, int(payload.horizon_hours))
+    sigma_return = max(0.02, min(2.0, sigma_hourly * math.sqrt(horizon)))
+    expected_return = (point - spot) / max(spot, 1e-9)
+    direction_sign = 1.0 if payload.direction == "long" else -1.0
+    likely_gbp = direction_sign * float(payload.position_gbp) * expected_return
+    pnl_sigma = max(1.0, float(payload.position_gbp) * sigma_return)
+    var95_gbp = max(0.0, -(likely_gbp - 1.65 * pnl_sigma))
+    risk_gbp = max(var95_gbp, 0.25 * pnl_sigma)
+    upside_gbp = likely_gbp + 1.65 * pnl_sigma
+    prob_loss = min(1.0, max(0.0, _normal_cdf(-likely_gbp / pnl_sigma)))
+    edge = likely_gbp / risk_gbp if risk_gbp > 0 else 0.0
+    action = "clear" if likely_gbp > 0 and prob_loss < 0.45 else "watch" if prob_loss < 0.7 else "block"
+
+    return RiskAssessmentResponse(
+        market_code=market.code,
+        market_name=market.name,
+        as_of=datetime.now(timezone.utc),
+        position_gbp=float(payload.position_gbp),
+        direction=payload.direction,
+        horizon_hours=horizon,
+        target_timestamp=target_timestamp,
+        spot_price=round(spot, 2),
+        forecast_price=round(point, 2),
+        expected_price=round(point, 2),
+        sigma_price=round(spot * sigma_return, 2),
+        sigma_hourly_pct=round(sigma_hourly * 100.0, 3),
+        expected_return_pct=round(direction_sign * expected_return * 100.0, 3),
+        sigma_return_pct=round(sigma_return * 100.0, 3),
+        risk_gbp=round(risk_gbp, 2),
+        likely_gbp=round(likely_gbp, 2),
+        upside_gbp=round(upside_gbp, 2),
+        risk_metric="fast_stored_forecast",
+        var95_gbp=round(var95_gbp, 2),
+        prob_loss=round(prob_loss, 4),
+        max_drawdown_gbp=round(risk_gbp * 0.8, 2),
+        fx_to_gbp=round(fx, 6),
+        price_currency=currency,
+        n_paths=0,
+        edge_score=round(float(max(-2.0, min(2.0, edge))), 3),
+        confidence=0.35,
+        regime="fallback",
+        catalyst_severity=0.0,
+        asymmetry=0.0,
+        tail_multiplier=1.0,
+        scorer_provider="stored-forecast-fallback",
+        rationale=f"Fast stored-forecast fallback used because full risk calculation was unavailable: {reason[:160]}",
+        scenarios=[],
+        price_paths=[],
+        coefficients={
+            "items": [
+                {
+                    "key": "spot_price",
+                    "label": "Spot price",
+                    "value": round(spot, 4),
+                    "unit": f"{currency}/MWh",
+                    "group": "forecast",
+                    "description": "Latest stored market price used by fallback risk.",
+                },
+                {
+                    "key": "forecast_price",
+                    "label": "Stored forecast",
+                    "value": round(point, 4),
+                    "unit": f"{currency}/MWh",
+                    "group": "forecast",
+                    "description": "Nearest stored forecast point used by fallback risk.",
+                },
+                {
+                    "key": "sigma_return",
+                    "label": "Fallback sigma",
+                    "value": round(sigma_return, 6),
+                    "unit": "return",
+                    "group": "realised_vol",
+                    "description": "Recent realised volatility scaled to the chosen horizon.",
+                },
+            ],
+            "equation_summary": "Fallback P&L uses stored forecast return plus recent realised volatility.",
+        },
+        decision_gate={
+            "action": action,
+            "score": round(float(max(0.0, min(100.0, 50.0 + edge * 25.0 - prob_loss * 20.0))), 1),
+            "label": "Fallback read",
+            "reasons": ["Full Monte Carlo unavailable; using stored forecast fallback."],
+            "checks": [
+                {"label": "Fallback reason", "status": "warn", "value": reason[:80]},
+                {"label": "Loss probability", "status": "warn" if prob_loss < 0.7 else "fail", "value": f"{prob_loss * 100:.1f}%"},
+            ],
+        },
+    )
 
 
 @public_router.get("/health", response_model=HealthResponse)
@@ -482,6 +657,9 @@ def post_risk_assessment(
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:  # noqa: BLE001 - risk endpoint should degrade, not fail the page
+        logger.warning("risk assessment fallback for %s: %s", payload.market_code, exc)
+        result = _fallback_risk_assessment(db, payload, reason=str(exc)).model_dump()
     if not payload.preview:
         row = log_risk_assessment(db, result, user_id=user.id)
         write_audit_log(
