@@ -22,7 +22,7 @@ def refresh_all_markets() -> dict[str, Any]:
     from app.ingestion.real_data import populate_market_real_data
     from app.models import Market, PricePoint
     from app.services.alert_service import refresh_alerts_for_market
-    from app.services.forecast_service import invalidate_forecast_cache
+    from app.services.forecast_service import invalidate_forecast_cache, run_forecast_for_market
 
     require_database_schema(engine)
     failures: list[str] = []
@@ -40,6 +40,7 @@ def refresh_all_markets() -> dict[str, Any]:
                     days=1,
                 )
                 invalidate_forecast_cache(market.code)
+                run_forecast_for_market(db, market, horizon_hours=48, use_cache=False)
                 latest_price = db.scalar(
                     select(PricePoint)
                     .where(PricePoint.market_id == market.id)

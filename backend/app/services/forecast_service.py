@@ -111,6 +111,40 @@ def list_forecasts(db: Session, market_id: int, limit: int = 48) -> list[Forecas
     return list(db.scalars(stmt).all())
 
 
+def _metrics_from_forecast(forecast: Forecast | None) -> dict[str, float]:
+    snapshot = (forecast.feature_snapshot_json if forecast else None) or {}
+    return {
+        "mae": float(snapshot.get("model_mae", 0.0) or 0.0),
+        "rmse": float(snapshot.get("model_rmse", 0.0) or 0.0),
+        "directional_accuracy": float(snapshot.get("model_directional_accuracy", 0.5) or 0.5),
+        "spike_precision": float(snapshot.get("model_spike_precision", 0.0) or 0.0),
+    }
+
+
+def _stored_forecasts_if_current(
+    db: Session,
+    market: Market,
+    horizon_hours: int,
+) -> tuple[list[Forecast], dict[str, float]] | None:
+    latest_price_ts = db.scalar(
+        select(PricePoint.timestamp)
+        .where(PricePoint.market_id == market.id)
+        .order_by(desc(PricePoint.timestamp))
+        .limit(1)
+    )
+    stmt = select(Forecast).where(Forecast.market_id == market.id)
+    if latest_price_ts is not None:
+        stmt = stmt.where(Forecast.forecast_for_timestamp > latest_price_ts)
+    forecasts = list(
+        db.scalars(
+            stmt.order_by(Forecast.forecast_for_timestamp.asc()).limit(horizon_hours)
+        ).all()
+    )
+    if len(forecasts) < horizon_hours:
+        return None
+    return forecasts, _metrics_from_forecast(forecasts[0])
+
+
 def _hourly_anchor(frame: pd.DataFrame, column: str, hour: int, fallback: float) -> float:
     same_hour = frame.loc[frame["hour"] == hour, column].tail(5)
     if same_hour.empty:
@@ -176,6 +210,11 @@ def run_forecast_for_market(
             # Check DB still has these forecasts (could have been cleared)
             if forecasts and db.get(Forecast, forecasts[0].id):
                 return forecasts, metrics
+        stored = _stored_forecasts_if_current(db, market, horizon_hours)
+        if stored:
+            forecasts, metrics = stored
+            _cache_set(market.code, active_forecaster, forecasts, metrics)
+            return forecasts, metrics
 
     build_lock = _build_lock_for(market.code, active_forecaster)
     with build_lock:
@@ -185,6 +224,11 @@ def run_forecast_for_market(
                 forecasts, metrics = cached
                 if forecasts and db.get(Forecast, forecasts[0].id):
                     return forecasts, metrics
+            stored = _stored_forecasts_if_current(db, market, horizon_hours)
+            if stored:
+                forecasts, metrics = stored
+                _cache_set(market.code, active_forecaster, forecasts, metrics)
+                return forecasts, metrics
         return _build_forecast_for_market(db, market, horizon_hours, active_forecaster)
 
 
@@ -389,6 +433,13 @@ def _build_forecast_for_market(
         snapshot = {key: round(float(row[key]), 4) for key in FEATURE_COLUMNS if key in row}
         snapshot["sigma_price"] = round(sigma_price, 4)
         snapshot["regime"] = str(dist.get("regime", classify_regime(row)))
+        snapshot["model_mae"] = round(float(metrics.get("mae", 0.0) or 0.0), 4)
+        snapshot["model_rmse"] = round(float(metrics.get("rmse", 0.0) or 0.0), 4)
+        snapshot["model_directional_accuracy"] = round(
+            float(metrics.get("directional_accuracy", 0.0) or 0.0),
+            4,
+        )
+        snapshot["model_spike_precision"] = round(float(metrics.get("spike_precision", 0.0) or 0.0), 4)
         forecast = Forecast(
             market_id=market.id,
             forecast_for_timestamp=pd.Timestamp(row["timestamp"]).to_pydatetime(),

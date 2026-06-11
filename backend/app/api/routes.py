@@ -58,12 +58,12 @@ from app.services.market_service import (
 logger = logging.getLogger(__name__)
 public_router = APIRouter()
 router = APIRouter(dependencies=[Depends(current_user)])
-_NEWS_REFRESH_LOCK = Lock()
-_NEWS_REFRESH_DUE_AFTER: datetime | None = None
-_NEWS_REFRESH_RUNNING = False
+_DATA_REFRESH_LOCK = Lock()
+_DATA_REFRESH_DUE_AFTER: datetime | None = None
+_DATA_REFRESH_RUNNING = False
 
 
-def _should_schedule_news_refresh() -> bool:
+def _should_schedule_data_refresh() -> bool:
     from app.core.config import get_settings
 
     settings = get_settings()
@@ -73,36 +73,34 @@ def _should_schedule_news_refresh() -> bool:
     interval_minutes = max(15, int(settings.data_refresh_interval_minutes or 30))
     now = datetime.now(timezone.utc)
 
-    global _NEWS_REFRESH_DUE_AFTER, _NEWS_REFRESH_RUNNING
-    with _NEWS_REFRESH_LOCK:
-        if _NEWS_REFRESH_RUNNING:
+    global _DATA_REFRESH_DUE_AFTER, _DATA_REFRESH_RUNNING
+    with _DATA_REFRESH_LOCK:
+        if _DATA_REFRESH_RUNNING:
             return False
-        if _NEWS_REFRESH_DUE_AFTER and now < _NEWS_REFRESH_DUE_AFTER:
+        if _DATA_REFRESH_DUE_AFTER and now < _DATA_REFRESH_DUE_AFTER:
             return False
-        _NEWS_REFRESH_RUNNING = True
-        _NEWS_REFRESH_DUE_AFTER = now + timedelta(minutes=interval_minutes)
+        _DATA_REFRESH_RUNNING = True
+        _DATA_REFRESH_DUE_AFTER = now + timedelta(minutes=interval_minutes)
         return True
 
 
-def _refresh_news_from_health_ping() -> None:
-    from app.db.session import SessionLocal
-    from app.ingestion.news_rss import ingest_rss_feeds
+def _refresh_data_from_health_ping() -> None:
+    from app.workers.jobs import refresh_all_markets
 
-    global _NEWS_REFRESH_RUNNING
+    global _DATA_REFRESH_RUNNING
     try:
-        with SessionLocal() as db:
-            inserted = ingest_rss_feeds(db, max_per_feed=3)
-            logger.info("Health-triggered RSS refresh inserted %d article(s)", inserted)
+        result = refresh_all_markets()
+        logger.info("Health-triggered data refresh complete: %s", result)
     except Exception as exc:  # noqa: BLE001 - health-triggered refresh must never break health checks
-        logger.warning("Health-triggered RSS refresh failed: %s", exc)
+        logger.warning("Health-triggered data refresh failed: %s", exc)
     finally:
-        with _NEWS_REFRESH_LOCK:
-            _NEWS_REFRESH_RUNNING = False
+        with _DATA_REFRESH_LOCK:
+            _DATA_REFRESH_RUNNING = False
 
 
-def _schedule_news_refresh(background_tasks: BackgroundTasks) -> None:
-    if _should_schedule_news_refresh():
-        background_tasks.add_task(_refresh_news_from_health_ping)
+def _schedule_data_refresh(background_tasks: BackgroundTasks) -> None:
+    if _should_schedule_data_refresh():
+        background_tasks.add_task(_refresh_data_from_health_ping)
 
 
 def _market_data_status(market) -> str:
@@ -171,7 +169,7 @@ def _price_provenance_metrics(prices: list) -> dict[str, float]:
 @public_router.get("/health", response_model=HealthResponse)
 @limiter.exempt
 def health(background_tasks: BackgroundTasks) -> HealthResponse:
-    _schedule_news_refresh(background_tasks)
+    _schedule_data_refresh(background_tasks)
     return HealthResponse(status="ok", timestamp=datetime.now(timezone.utc), database="configured")
 
 

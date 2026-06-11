@@ -49,11 +49,12 @@ def _latest_prices(db: Session, market_id: int, limit: int = 25) -> list[PricePo
     return list(reversed(list(rows)))
 
 
-def _first_forecast(db: Session, market_id: int) -> Forecast | None:
+def _first_forecast(db: Session, market_id: int, after_timestamp=None) -> Forecast | None:
+    stmt = select(Forecast).where(Forecast.market_id == market_id)
+    if after_timestamp is not None:
+        stmt = stmt.where(Forecast.forecast_for_timestamp > after_timestamp)
     return db.scalar(
-        select(Forecast)
-        .where(Forecast.market_id == market_id)
-        .order_by(Forecast.forecast_for_timestamp.asc())
+        stmt.order_by(Forecast.forecast_for_timestamp.asc())
         .limit(1)
     )
 
@@ -71,7 +72,7 @@ def build_markets_overview(db: Session) -> list[MarketOverviewEntry]:
             if last_day
             else None
         )
-        forecast = _first_forecast(db, market.id)
+        forecast = _first_forecast(db, market.id, latest.timestamp if latest else None)
         change: float | None = None
         if latest is not None and previous is not None:
             change = round(float(latest.price_value) - float(previous.price_value), 4)

@@ -453,10 +453,19 @@ def seed_database(db: Session) -> None:
         has_data = db.scalar(
             select(func.count()).select_from(PricePoint).where(PricePoint.market_id == market.id)
         )
-        if has_data and has_data >= 48:
+        latest_price_ts = db.scalar(
+            select(PricePoint.timestamp)
+            .where(PricePoint.market_id == market.id)
+            .order_by(PricePoint.timestamp.desc())
+            .limit(1)
+        )
+        if latest_price_ts and latest_price_ts.tzinfo is None:
+            latest_price_ts = latest_price_ts.replace(tzinfo=timezone.utc)
+        data_is_fresh = bool(latest_price_ts and latest_price_ts >= now - timedelta(hours=2))
+        if has_data and has_data >= 48 and data_is_fresh:
             continue  # already populated from a previous run
 
-        # Clear any legacy synthetic seed data before re-populating with real data
+        # Clear stale/legacy synthetic seed data before re-populating with real data.
         db.execute(delete(PricePoint).where(PricePoint.market_id == market.id, PricePoint.source.like("synthetic_seed%")))
         db.execute(delete(WeatherPoint).where(WeatherPoint.market_id == market.id, WeatherPoint.source.like("synthetic_seed%")))
         db.execute(delete(DemandPoint).where(DemandPoint.market_id == market.id, DemandPoint.source.like("synthetic_seed%")))
