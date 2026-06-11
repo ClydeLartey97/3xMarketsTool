@@ -61,10 +61,154 @@ ENERGY_RSS_FEEDS = [
 ]
 
 _STRIP_TAGS = re.compile(r"<[^>]+>")
+_NON_WORDS = re.compile(r"[^a-z0-9]+")
+
+MARKET_ALIASES: dict[str, tuple[str, ...]] = {
+    "ERCOT_NORTH": (
+        "ercot north",
+        "north hub",
+        "hb north",
+        "texas grid",
+        "texas power",
+        "ercot",
+    ),
+    "ERCOT_HOUSTON": (
+        "ercot houston",
+        "houston hub",
+        "hb houston",
+        "houston",
+    ),
+    "PJM_WESTERN_HUB": (
+        "pjm western hub",
+        "pjm western",
+        "pjm west",
+        "pjm",
+        "mid atlantic",
+        "pennsylvania jersey maryland",
+    ),
+    "NYISO_ZONE_J": (
+        "nyiso zone j",
+        "zone j",
+        "new york city",
+        "new york power",
+        "nyiso",
+        "nyc",
+    ),
+    "ISONE_MASS_HUB": (
+        "iso ne mass hub",
+        "iso new england",
+        "isone mass hub",
+        "mass hub",
+        "new england power",
+        "massachusetts power",
+        "iso ne",
+        "isone",
+    ),
+    "GB_POWER": (
+        "great britain power",
+        "british power",
+        "uk power",
+        "united kingdom power",
+        "national grid eso",
+        "national energy system operator",
+        "neso",
+        "ofgem",
+        "britain",
+        "gb power",
+    ),
+    "EPEX_DE": (
+        "epex germany",
+        "epex de",
+        "epex de lu",
+        "german power",
+        "germany power",
+        "german day ahead",
+        "germany day ahead",
+        "de lu",
+    ),
+    "EPEX_FR": (
+        "epex france",
+        "epex fr",
+        "french power",
+        "france power",
+        "french day ahead",
+        "france day ahead",
+        "rte france",
+        "rte",
+    ),
+    "NORDPOOL_SE3": (
+        "nord pool se3",
+        "nordpool se3",
+        "se3",
+        "sweden se3",
+        "swedish power",
+        "nordic power",
+        "nord pool",
+        "nordpool",
+        "nordics",
+    ),
+}
 
 
 def _strip_html(text: str) -> str:
     return _STRIP_TAGS.sub("", text or "").strip()
+
+
+def _normalise_text(text: str) -> str:
+    lowered = (text or "").lower().replace("&", " and ")
+    return " " + _NON_WORDS.sub(" ", lowered).strip() + " "
+
+
+def _normalise_alias(text: str) -> str:
+    return _normalise_text(text).strip()
+
+
+def _market_aliases(market: Any) -> tuple[str, ...]:
+    metadata = getattr(market, "metadata_json", None) or {}
+    aliases = {
+        str(getattr(market, "name", "")),
+        str(getattr(market, "region", "")),
+        str(getattr(market, "code", "")),
+        str(getattr(market, "code", "")).replace("_", " "),
+    }
+    aliases.update(MARKET_ALIASES.get(str(getattr(market, "code", "")), ()))
+    if metadata.get("market_family"):
+        aliases.add(str(metadata["market_family"]))
+    for node in metadata.get("nodes") or []:
+        aliases.add(str(node).replace("_", " "))
+
+    normalised = {
+        _normalise_alias(alias)
+        for alias in aliases
+        if alias and len(_normalise_alias(alias)) >= 2
+    }
+    return tuple(sorted(normalised, key=len, reverse=True))
+
+
+def _match_market_for_article(
+    market_aliases: dict[str, tuple[Any, tuple[str, ...]]],
+    title: str,
+    body: str,
+) -> Any | None:
+    haystack = _normalise_text(f"{title} {body}")
+    best_market = None
+    best_score = 0
+    best_specificity = 0
+    for _code, (market, aliases) in market_aliases.items():
+        score = 0
+        specificity = 0
+        for alias in aliases:
+            if f" {alias} " not in haystack:
+                continue
+            alias_words = alias.count(" ") + 1
+            weight = 1 + min(4, len(alias) // 8) + max(0, alias_words - 1)
+            score += weight
+            specificity = max(specificity, len(alias))
+        if score > best_score or (score == best_score and specificity > best_specificity):
+            best_market = market
+            best_score = score
+            best_specificity = specificity
+    return best_market if best_score > 0 else None
 
 
 def _parse_entry_time(entry: Any) -> datetime | None:
@@ -159,13 +303,7 @@ def ingest_rss_feeds(db: Any, max_per_feed: int = 6) -> int:
     markets = list(db.scalars(select(Market)).all())
     market_keywords: dict[str, Any] = {}
     for m in markets:
-        keywords = [
-            m.region.lower(),
-            m.name.lower(),
-            m.code.lower().replace("_", " "),
-            m.code.lower(),
-        ]
-        market_keywords[m.code] = (m, keywords)
+        market_keywords[m.code] = (m, _market_aliases(m))
 
     total_inserted = 0
 
@@ -175,6 +313,10 @@ def ingest_rss_feeds(db: Any, max_per_feed: int = 6) -> int:
         for art in raw_articles:
             if art["source_url"] in existing_urls:
                 continue
+            matched_market = _match_market_for_article(market_keywords, art["title"], art["body"])
+            raw_json = dict(art["raw_json"])
+            if matched_market:
+                raw_json["market_code"] = matched_market.code
 
             article = NewsArticle(
                 title=art["title"],
@@ -182,7 +324,7 @@ def ingest_rss_feeds(db: Any, max_per_feed: int = 6) -> int:
                 source_name=art["source_name"],
                 source_url=art["source_url"],
                 published_at=art["published_at"],
-                raw_json=art["raw_json"],
+                raw_json=raw_json,
                 processed_status="pending",
             )
             db.add(article)
@@ -194,14 +336,6 @@ def ingest_rss_feeds(db: Any, max_per_feed: int = 6) -> int:
             if extracted:
                 impact_pct = estimate_price_impact_pct(extracted)
                 from app.services.event_analogues import populate_event_analogues
-
-                # Match article text to a known market
-                haystack = (art["title"] + " " + art["body"]).lower()
-                matched_market = None
-                for code, (mkt, kws) in market_keywords.items():
-                    if any(kw in haystack for kw in kws):
-                        matched_market = mkt
-                        break
 
                 event = Event(
                     article_id=article.id,

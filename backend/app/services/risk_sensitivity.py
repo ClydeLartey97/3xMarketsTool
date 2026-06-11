@@ -18,7 +18,13 @@ SENSITIVITY_COEFFICIENTS = (
     "fx_to_gbp",
     "hedge_ratio",
 )
-SENSITIVITY_PERTURBATIONS = (-0.50, -0.25, 0.0, 0.25, 0.50)
+DEFAULT_SENSITIVITY_COEFFICIENTS = (
+    "tail_multiplier",
+    "asymmetry",
+    "sigma_hourly",
+    "fx_to_gbp",
+)
+SENSITIVITY_PERTURBATIONS = (-0.25, 0.0, 0.25)
 SENSITIVITY_SEED = 260511
 
 AssessmentFn = Callable[[Session | None, RiskInputs], dict[str, Any]]
@@ -57,7 +63,7 @@ def run_risk_sensitivity(
     *,
     assess_fn: AssessmentFn = assess_risk,
 ) -> dict[str, Any]:
-    coefficients = coefficients_to_perturb or list(SENSITIVITY_COEFFICIENTS)
+    coefficients = coefficients_to_perturb or list(DEFAULT_SENSITIVITY_COEFFICIENTS)
     unknown = sorted(set(coefficients) - set(SENSITIVITY_COEFFICIENTS))
     if unknown:
         raise ValueError(f"unsupported sensitivity coefficient(s): {', '.join(unknown)}")

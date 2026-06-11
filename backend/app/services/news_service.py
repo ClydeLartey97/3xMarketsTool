@@ -14,7 +14,7 @@ def list_news_sources() -> list[NewsSourceRead]:
     return [NewsSourceRead(**source) for source in NEWS_SOURCES]
 
 
-def list_news_articles(db: Session, market_id: int | None = None, hours: int = 168, limit: int = 20) -> list[NewsArticleRead]:
+def list_news_articles(db: Session, market_id: int | None = None, hours: int = 720, limit: int = 20) -> list[NewsArticleRead]:
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     stmt = select(NewsArticle).where(NewsArticle.published_at >= since).order_by(desc(NewsArticle.published_at)).limit(limit * 3)
     articles = list(db.scalars(stmt).all())
@@ -38,10 +38,11 @@ def list_news_articles(db: Session, market_id: int | None = None, hours: int = 1
         raw = article.raw_json or {}
         raw_market = markets_by_code.get(raw.get("market_code")) if raw.get("market_code") else None
         is_direct_match = True
-        if market_id is not None and event and event.market_id != market_id:
-            is_direct_match = False
-        if market_id is not None and not event and (not selected_market or raw.get("market_code") != selected_market.code):
-            is_direct_match = False
+        if market_id is not None:
+            if event and event.market_id is not None:
+                is_direct_match = event.market_id == market_id
+            else:
+                is_direct_match = bool(selected_market and raw.get("market_code") == selected_market.code)
 
         source_key = raw.get("source_key")
         source_meta = NEWS_SOURCE_MAP.get(source_key)

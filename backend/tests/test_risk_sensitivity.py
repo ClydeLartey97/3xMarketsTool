@@ -42,6 +42,7 @@ def test_sensitivity_tail_multiplier_is_monotonic() -> None:
 
     row = result["rows"][0]
     risks = [cell["risk_gbp"] for cell in row["cells"]]
+    baseline_index = result["perturbations_pct"].index(0.0)
     assert row["coefficient"] == "tail_multiplier"
     assert risks == sorted(risks)
-    assert risks[0] < risks[2] < risks[-1]
+    assert risks[0] < risks[baseline_index] < risks[-1]

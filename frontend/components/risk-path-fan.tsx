@@ -62,7 +62,7 @@ export function RiskPathFan({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
-  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>();
+  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>({ rootMargin: "250px" });
 
   // Stable dedupe key per plan §3.4 — identical logical inputs must not
   // retrigger the heavy path-fan call. Falls back to nothing when there is
@@ -74,7 +74,7 @@ export function RiskPathFan({
         data.direction,
         data.horizon_hours,
         data.target_timestamp ?? "",
-        1500,
+        600,
       ].join("|")
     : null;
   const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
@@ -102,7 +102,7 @@ export function RiskPathFan({
       horizon_hours: data.horizon_hours,
       direction: data.direction === "short" ? "short" : "long",
       target_timestamp: data.target_timestamp,
-      n_paths: 1500,
+      n_paths: 600,
       preview: true,
       scenarios: [],
     })

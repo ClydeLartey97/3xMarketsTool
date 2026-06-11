@@ -1,7 +1,9 @@
+import logging
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -53,8 +55,54 @@ from app.services.market_service import (
     market_overview_to_dict,
 )
 
+logger = logging.getLogger(__name__)
 public_router = APIRouter()
 router = APIRouter(dependencies=[Depends(current_user)])
+_NEWS_REFRESH_LOCK = Lock()
+_NEWS_REFRESH_DUE_AFTER: datetime | None = None
+_NEWS_REFRESH_RUNNING = False
+
+
+def _should_schedule_news_refresh() -> bool:
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    if settings.environment.lower() not in {"production", "prod"}:
+        return False
+
+    interval_minutes = max(15, int(settings.data_refresh_interval_minutes or 30))
+    now = datetime.now(timezone.utc)
+
+    global _NEWS_REFRESH_DUE_AFTER, _NEWS_REFRESH_RUNNING
+    with _NEWS_REFRESH_LOCK:
+        if _NEWS_REFRESH_RUNNING:
+            return False
+        if _NEWS_REFRESH_DUE_AFTER and now < _NEWS_REFRESH_DUE_AFTER:
+            return False
+        _NEWS_REFRESH_RUNNING = True
+        _NEWS_REFRESH_DUE_AFTER = now + timedelta(minutes=interval_minutes)
+        return True
+
+
+def _refresh_news_from_health_ping() -> None:
+    from app.db.session import SessionLocal
+    from app.ingestion.news_rss import ingest_rss_feeds
+
+    global _NEWS_REFRESH_RUNNING
+    try:
+        with SessionLocal() as db:
+            inserted = ingest_rss_feeds(db, max_per_feed=3)
+            logger.info("Health-triggered RSS refresh inserted %d article(s)", inserted)
+    except Exception as exc:  # noqa: BLE001 - health-triggered refresh must never break health checks
+        logger.warning("Health-triggered RSS refresh failed: %s", exc)
+    finally:
+        with _NEWS_REFRESH_LOCK:
+            _NEWS_REFRESH_RUNNING = False
+
+
+def _schedule_news_refresh(background_tasks: BackgroundTasks) -> None:
+    if _should_schedule_news_refresh():
+        background_tasks.add_task(_refresh_news_from_health_ping)
 
 
 def _market_data_status(market) -> str:
@@ -122,7 +170,8 @@ def _price_provenance_metrics(prices: list) -> dict[str, float]:
 
 @public_router.get("/health", response_model=HealthResponse)
 @limiter.exempt
-def health() -> HealthResponse:
+def health(background_tasks: BackgroundTasks) -> HealthResponse:
+    _schedule_news_refresh(background_tasks)
     return HealthResponse(status="ok", timestamp=datetime.now(timezone.utc), database="configured")
 
 
@@ -862,7 +911,7 @@ def get_dashboard(
     latest_forecast = forecasts[0] if forecasts else None
     prices = list_recent_prices(db, market.id, history_hours)
     events = list_events(db, market.id, 72)
-    news = list_news_articles(db, market.id, 168, 20)
+    news = list_news_articles(db, market.id, 720, 20)
     alerts = list_alerts(db, market.id, 72)
 
     avg_price = round(sum(point.price_value for point in prices[-24:]) / max(len(prices[-24:]), 1), 2)

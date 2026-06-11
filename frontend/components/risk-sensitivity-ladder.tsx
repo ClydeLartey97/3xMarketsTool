@@ -13,11 +13,8 @@ import type { RiskAssessment } from "@/types/domain";
 const COEFFICIENTS: SensitivityCoefficient[] = [
   "tail_multiplier",
   "asymmetry",
-  "catalyst_severity",
   "sigma_hourly",
-  "drift_hourly",
   "fx_to_gbp",
-  "hedge_ratio",
 ];
 
 const LABELS: Record<SensitivityCoefficient, string> = {
@@ -67,7 +64,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
   const [sensitivity, setSensitivity] = useState<RiskSensitivityResponse | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>();
+  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>({ rootMargin: "200px" });
 
   // Stable dedupe key per plan §3.4 — identical logical inputs must not
   // retrigger the sensitivity call.
@@ -78,7 +75,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
         data.direction,
         data.horizon_hours,
         data.target_timestamp ?? "",
-        800,
+        500,
         COEFFICIENTS.join(","),
       ].join("|")
     : null;
@@ -108,7 +105,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
       horizon_hours: data.horizon_hours,
       direction: data.direction === "short" ? "short" : "long",
       target_timestamp: data.target_timestamp,
-      n_paths: 800,
+      n_paths: 500,
       preview: true,
       scenarios: [],
       coefficients_to_perturb: COEFFICIENTS,

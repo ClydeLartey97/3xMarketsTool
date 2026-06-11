@@ -33,7 +33,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
   const [mutatingId, setMutatingId] = useState<number | null>(null);
   const [localRefresh, setLocalRefresh] = useState(0);
-  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>({ rootMargin: "600px" });
+  const { ref: viewportRef, visible } = useNearViewport<HTMLElement>({ rootMargin: "250px" });
 
   useEffect(() => {
     if (!visible) return;
@@ -73,7 +73,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
     setPortfolioError(null);
     runPortfolioRisk({
       horizon_hours: horizonHours,
-      n_paths: 1000,
+      n_paths: 500,
       positions: openPositions.map((item) => ({
         market_code: item.market_code,
         position_gbp: item.position_gbp,

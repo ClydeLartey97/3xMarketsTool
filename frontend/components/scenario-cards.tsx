@@ -44,7 +44,7 @@ export function ScenarioCards({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFetchedKey, setLastFetchedKey] = useState<string | null>(null);
-  const { ref: viewportRef, visible } = useNearViewport<HTMLDivElement>({ rootMargin: "700px" });
+  const { ref: viewportRef, visible } = useNearViewport<HTMLDivElement>({ rootMargin: "250px" });
   const baseScenarios = useMemo(() => data?.scenarios ?? [], [data?.scenarios]);
   const requestKey = data
     ? [
@@ -78,7 +78,7 @@ export function ScenarioCards({
       horizon_hours: data.horizon_hours,
       direction: data.direction === "short" ? "short" : "long",
       target_timestamp: data.target_timestamp,
-      n_paths: 600,
+      n_paths: 500,
       preview: true,
       scenarios: DEFAULT_SCENARIOS,
     })
