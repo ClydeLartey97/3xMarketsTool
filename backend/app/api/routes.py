@@ -215,6 +215,16 @@ def _forecast_read(item: Forecast) -> ForecastRead:
     )
 
 
+def _forecast_metrics_from_stored(forecasts: list[Forecast]) -> dict[str, float]:
+    snapshot = (forecasts[0].feature_snapshot_json if forecasts else None) or {}
+    return {
+        "mae": _finite_float(snapshot.get("model_mae")),
+        "rmse": _finite_float(snapshot.get("model_rmse")),
+        "directional_accuracy": _finite_float(snapshot.get("model_directional_accuracy"), 0.5),
+        "spike_precision": _finite_float(snapshot.get("model_spike_precision")),
+    }
+
+
 def _safe_json_response(payload: Any) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(_json_safe(payload)))
 
@@ -1131,19 +1141,15 @@ def get_dashboard(
     from app.services.alert_service import list_alerts, refresh_alerts_for_market
     from app.services.backtest_reports import dashboard_backtest_metrics
     from app.services.event_service import list_events
-    from app.services.forecast_service import list_forecasts, list_recent_prices, run_forecast_for_market
+    from app.services.forecast_service import list_forecasts, list_recent_prices
     from app.services.news_service import list_news_articles, list_news_sources
 
     market = get_market_by_code(db, market_code)
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
 
-    try:
-        forecasts, metrics = run_forecast_for_market(db, market, horizon_hours=48)
-    except Exception as exc:  # noqa: BLE001 - dashboard should degrade, not fail the page
-        logger.warning("dashboard forecast fallback for %s: %s", market.code, exc)
-        forecasts = list_forecasts(db, market.id, 48)
-        metrics = {"mae": 0.0, "rmse": 0.0, "directional_accuracy": 0.5, "spike_precision": 0.0}
+    forecasts = list_forecasts(db, market.id, 48)
+    metrics = _forecast_metrics_from_stored(forecasts)
     refresh_alerts_for_market(db, market.id)
     latest_forecast = forecasts[0] if forecasts else None
     prices = list_recent_prices(db, market.id, history_hours)
@@ -1188,7 +1194,7 @@ def get_dashboard_summary(
     history_hours: int = Query(default=168, ge=1, le=8760),
     db: Session = Depends(get_db),
 ) -> DashboardSummaryResponse:
-    from app.services.forecast_service import list_forecasts, list_recent_prices, run_forecast_for_market
+    from app.services.forecast_service import list_forecasts, list_recent_prices
 
     """Lightweight first-screen payload for the market workbench.
 
@@ -1201,12 +1207,8 @@ def get_dashboard_summary(
     if not market:
         raise HTTPException(status_code=404, detail="Market not found")
 
-    try:
-        forecasts, metrics = run_forecast_for_market(db, market, horizon_hours=48)
-    except Exception as exc:  # noqa: BLE001 - first-screen payload should degrade, not fail
-        logger.warning("dashboard summary forecast fallback for %s: %s", market.code, exc)
-        forecasts = list_forecasts(db, market.id, 48)
-        metrics = {"mae": 0.0, "rmse": 0.0, "directional_accuracy": 0.5, "spike_precision": 0.0}
+    forecasts = list_forecasts(db, market.id, 48)
+    metrics = _forecast_metrics_from_stored(forecasts)
     latest_forecast = forecasts[0] if forecasts else None
     prices = list_recent_prices(db, market.id, history_hours)
 

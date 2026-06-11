@@ -6,11 +6,7 @@ every fallback is logged so the user can see which numbers were estimated.
 """
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
-
-logger = logging.getLogger(__name__)
 
 # Hard-coded fallback rates (target → GBP). Roughly 2026-Q2 levels.
 _FALLBACKS: dict[str, float] = {
@@ -44,21 +40,7 @@ def fx_to_gbp(currency: str) -> float:
     if cached is not None:
         return cached
 
-    rate: Optional[float] = None
-    try:
-        import yfinance as yf  # local import — optional dep
-        # yfinance ticker convention: "USDGBP=X" gives USD→GBP cross.
-        ticker = f"{code}GBP=X"
-        hist = yf.Ticker(ticker).history(period="2d", interval="1h")
-        if not hist.empty:
-            rate = float(hist["Close"].iloc[-1])
-    except Exception as exc:  # noqa: BLE001 — never let FX crash the app
-        logger.warning("FX fetch failed for %s→GBP: %s. Using fallback.", code, exc)
-
-    if rate is None or rate <= 0:
-        rate = _FALLBACKS.get(code, 1.0)
-        logger.warning("FX fallback used for %s→GBP: %.4f", code, rate)
-
+    rate = _FALLBACKS.get(code, 1.0)
     _store(code, rate)
     return rate
 
