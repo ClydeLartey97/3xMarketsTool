@@ -1,6 +1,6 @@
 from sqlalchemy import func, select
 
-from app.models import Market, RiskAssessmentLog
+from app.models import Forecast, Market, RiskAssessmentLog
 
 
 def test_health(client) -> None:
@@ -19,6 +19,30 @@ def test_dashboard_endpoint(client) -> None:
     assert len(body["tracked_sources"]) >= 20
     assert "avg_price_24h" in body["key_metrics"]
     assert "backtest_rmse_model" in body["key_metrics"]
+
+
+def test_dashboard_summary_sanitizes_non_finite_forecasts(client, db_session) -> None:
+    market = db_session.scalar(select(Market).where(Market.code == "ERCOT_NORTH"))
+    assert market is not None
+    forecast = db_session.scalar(
+        select(Forecast)
+        .where(Forecast.market_id == market.id)
+        .order_by(Forecast.forecast_for_timestamp.asc())
+        .limit(1)
+    )
+    assert forecast is not None
+    forecast.feature_snapshot_json = {
+        **(forecast.feature_snapshot_json or {}),
+        "model_mae": float("nan"),
+    }
+    db_session.commit()
+
+    response = client.get("/api/dashboard/ERCOT_NORTH/summary")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["forecasts"][0]["feature_snapshot_json"]["model_mae"] == 0.0
+    assert body["key_metrics"]["model_mae"] == 0.0
 
 
 def test_latest_backtest_endpoint_returns_seeded_report_fixture(client, db_session, tmp_path, monkeypatch) -> None:

@@ -171,6 +171,55 @@ def _normal_cdf(value: float) -> float:
     return 0.5 * (1.0 + math.erf(value / math.sqrt(2.0)))
 
 
+def _finite_float(value: Any, default: float = 0.0) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    return number if math.isfinite(number) else default
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, float):
+        return value if math.isfinite(value) else 0.0
+    return value
+
+
+def _forecast_read(item: Forecast) -> ForecastRead:
+    point = _finite_float(item.point_estimate)
+    lower = _finite_float(item.lower_bound, point)
+    upper = _finite_float(item.upper_bound, point)
+    if lower > upper:
+        lower, upper = upper, lower
+    return ForecastRead(
+        id=item.id,
+        market_id=item.market_id,
+        forecast_for_timestamp=item.forecast_for_timestamp,
+        generated_at=item.generated_at,
+        point_estimate=point,
+        lower_bound=lower,
+        upper_bound=upper,
+        currency=item.currency or "USD",
+        spike_probability=max(0.0, min(1.0, _finite_float(item.spike_probability))),
+        model_version=item.model_version,
+        rationale_summary=item.rationale_summary,
+        feature_snapshot_json=_json_safe(item.feature_snapshot_json or {}),
+    )
+
+
+def _mean_finite(values: list[Any], default: float = 0.0) -> float:
+    finite = [_finite_float(value) for value in values if math.isfinite(_finite_float(value, float("nan")))]
+    if not finite:
+        return default
+    return sum(finite) / len(finite)
+
+
 def _fallback_risk_assessment(
     db: Session,
     payload: RiskAssessmentRequest,
@@ -465,7 +514,7 @@ def get_market_forecast(market_id: int, limit: int = Query(default=48, le=168), 
     if not get_market_by_id(db, market_id):
         raise HTTPException(status_code=404, detail="Market not found")
     forecasts = list_forecasts(db, market_id, limit)
-    return [ForecastRead.model_validate(item) for item in forecasts]
+    return [_forecast_read(item) for item in forecasts]
 
 
 @router.post("/forecasts/run", response_model=ForecastRunResponse)
@@ -492,7 +541,7 @@ def run_forecast(
     )
     return ForecastRunResponse(
         market=_market_read(market),
-        forecast_points=[ForecastRead.model_validate(item) for item in forecasts],
+        forecast_points=[_forecast_read(item) for item in forecasts],
         metrics=metrics,
     )
 
@@ -1091,14 +1140,14 @@ def get_dashboard(
     news = list_news_articles(db, market.id, 720, 20)
     alerts = list_alerts(db, market.id, 72)
 
-    avg_price = round(sum(point.price_value for point in prices[-24:]) / max(len(prices[-24:]), 1), 2)
-    avg_spike_probability = round(sum(f.spike_probability for f in forecasts[:12]) / max(len(forecasts[:12]), 1), 3)
+    avg_price = round(_mean_finite([point.price_value for point in prices[-24:]]), 2)
+    avg_spike_probability = round(_mean_finite([f.spike_probability for f in forecasts[:12]]), 3)
     high_severity_events = float(sum(1 for event in events if event.severity == "high"))
 
     return DashboardResponse(
         market=_market_read(market),
-        latest_forecast=ForecastRead.model_validate(latest_forecast) if latest_forecast else None,
-        forecasts=[ForecastRead.model_validate(item) for item in forecasts],
+        latest_forecast=_forecast_read(latest_forecast) if latest_forecast else None,
+        forecasts=[_forecast_read(item) for item in forecasts],
         recent_prices=[PricePointRead.model_validate(item) for item in prices],
         recent_events=[EventRead.model_validate(item) for item in events],
         recent_news=news,
@@ -1108,10 +1157,10 @@ def get_dashboard(
             "avg_price_24h": avg_price,
             "avg_spike_probability_12h": avg_spike_probability,
             "high_severity_events": high_severity_events,
-            "model_mae": metrics["mae"],
-            "model_rmse": metrics["rmse"],
-            "directional_accuracy": metrics["directional_accuracy"],
-            "spike_precision": metrics["spike_precision"],
+            "model_mae": _finite_float(metrics.get("mae")),
+            "model_rmse": _finite_float(metrics.get("rmse")),
+            "directional_accuracy": _finite_float(metrics.get("directional_accuracy"), 0.5),
+            "spike_precision": _finite_float(metrics.get("spike_precision")),
             **dashboard_backtest_metrics(market.code),
             **_price_provenance_metrics(prices),
         },
@@ -1144,27 +1193,21 @@ def get_dashboard_summary(
     latest_forecast = forecasts[0] if forecasts else None
     prices = list_recent_prices(db, market.id, history_hours)
 
-    avg_price = round(
-        sum(point.price_value for point in prices[-24:]) / max(len(prices[-24:]), 1),
-        2,
-    )
-    avg_spike_probability = round(
-        sum(f.spike_probability for f in forecasts[:12]) / max(len(forecasts[:12]), 1),
-        3,
-    )
+    avg_price = round(_mean_finite([point.price_value for point in prices[-24:]]), 2)
+    avg_spike_probability = round(_mean_finite([f.spike_probability for f in forecasts[:12]]), 3)
 
     return DashboardSummaryResponse(
         market=_market_read(market),
-        latest_forecast=ForecastRead.model_validate(latest_forecast) if latest_forecast else None,
-        forecasts=[ForecastRead.model_validate(item) for item in forecasts],
+        latest_forecast=_forecast_read(latest_forecast) if latest_forecast else None,
+        forecasts=[_forecast_read(item) for item in forecasts],
         recent_prices=[PricePointRead.model_validate(item) for item in prices],
         key_metrics={
             "avg_price_24h": avg_price,
             "avg_spike_probability_12h": avg_spike_probability,
-            "model_mae": metrics["mae"],
-            "model_rmse": metrics["rmse"],
-            "directional_accuracy": metrics["directional_accuracy"],
-            "spike_precision": metrics["spike_precision"],
+            "model_mae": _finite_float(metrics.get("mae")),
+            "model_rmse": _finite_float(metrics.get("rmse")),
+            "directional_accuracy": _finite_float(metrics.get("directional_accuracy"), 0.5),
+            "spike_precision": _finite_float(metrics.get("spike_precision")),
             **_price_provenance_metrics(prices),
         },
         data_status=_market_data_status(market),
