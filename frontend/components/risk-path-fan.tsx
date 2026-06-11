@@ -11,6 +11,13 @@ const HEIGHT = 260;
 const PAD_X = 24;
 const PAD_Y = 18;
 
+type HoverState = {
+  hour: number;
+  x: number;
+  cssX: number;
+  alignRight: boolean;
+};
+
 function formatPrice(value: number, currency: string) {
   const prefix = currency === "GBP" ? "£" : currency === "EUR" ? "€" : "$";
   return `${prefix}${value.toFixed(2)}`;
@@ -28,11 +35,20 @@ function pnlToPrice(data: RiskAssessment, pnlGbp: number) {
   return data.spot_price * (1 + pnlGbp / (sign * Math.max(1, data.position_gbp)));
 }
 
-function hoverHourFromPointer(clientX: number, rect: DOMRect, horizonHours: number) {
-  const viewBoxX = ((clientX - rect.left) / Math.max(rect.width, 1)) * WIDTH;
-  const plotRatio = (viewBoxX - PAD_X) / Math.max(WIDTH - PAD_X * 2, 1);
+function hoverFromPointer(clientX: number, rect: DOMRect, horizonHours: number) {
+  const scale = Math.min(rect.width / WIDTH, rect.height / HEIGHT);
+  const renderedWidth = WIDTH * scale;
+  const offsetX = (rect.width - renderedWidth) / 2;
+  const viewBoxX = (clientX - rect.left - offsetX) / Math.max(scale, 1e-6);
+  const clampedX = Math.min(WIDTH - PAD_X, Math.max(PAD_X, viewBoxX));
+  const plotRatio = (clampedX - PAD_X) / Math.max(WIDTH - PAD_X * 2, 1);
   const clamped = Math.min(1, Math.max(0, plotRatio));
-  return Math.round(clamped * horizonHours);
+  return {
+    x: clampedX,
+    cssX: offsetX + clampedX * scale,
+    alignRight: offsetX + clampedX * scale > rect.width * 0.72,
+    hour: Math.round(clamped * horizonHours),
+  };
 }
 
 export function RiskPathFan({
@@ -45,7 +61,7 @@ export function RiskPathFan({
   const [fan, setFan] = useState<RiskPathFanResponse | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hoverHour, setHoverHour] = useState<number | null>(null);
+  const [hover, setHover] = useState<HoverState | null>(null);
   const { ref: viewportRef, visible } = useNearViewport<HTMLElement>();
 
   // Stable dedupe key per plan §3.4 — identical logical inputs must not
@@ -173,8 +189,8 @@ export function RiskPathFan({
     );
   }
 
-  const hoverValues = hoverHour === null ? [] : fan.price_paths.map((path) => path[hoverHour]).filter(Number.isFinite);
-  const hoverX = hoverHour === null ? null : chart.x(hoverHour);
+  const hoverValues = hover === null ? [] : fan.price_paths.map((path) => path[hover.hour]).filter(Number.isFinite);
+  const hoverX = hover?.x ?? null;
   const references = [
     { label: "Risk", price: chart.referencePrices[0], className: "stroke-price-dn" },
     { label: "Likely", price: chart.referencePrices[1], className: "stroke-amber-300" },
@@ -204,9 +220,9 @@ export function RiskPathFan({
           role="img"
           onPointerMove={(event) => {
             const rect = event.currentTarget.getBoundingClientRect();
-            setHoverHour(hoverHourFromPointer(event.clientX, rect, fan.horizon_hours));
+            setHover(hoverFromPointer(event.clientX, rect, fan.horizon_hours));
           }}
-          onPointerLeave={() => setHoverHour(null)}
+          onPointerLeave={() => setHover(null)}
         >
           <rect x="0" y="0" width={WIDTH} height={HEIGHT} rx="10" className="fill-black/20" />
           {chart.paths.map((points, index) => (
@@ -232,15 +248,15 @@ export function RiskPathFan({
             <line x1={hoverX} x2={hoverX} y1={PAD_Y} y2={HEIGHT - PAD_Y} className="stroke-white/30" strokeWidth="1" />
           ) : null}
         </svg>
-        {hoverHour !== null && hoverX !== null && hoverValues.length > 0 ? (
+        {hover !== null && hoverX !== null && hoverValues.length > 0 ? (
           <div
             className="pointer-events-none absolute top-3 rounded-lg border border-white/10 bg-black/80 px-3 py-2 font-mono text-[11px] text-zinc-100 shadow-lg"
             style={{
-              left: `${(hoverX / WIDTH) * 100}%`,
-              transform: hoverX > WIDTH * 0.72 ? "translateX(-100%)" : "translateX(12px)",
+              left: `${hover.cssX}px`,
+              transform: hover.alignRight ? "translateX(-100%)" : "translateX(12px)",
             }}
           >
-            <p>h+{hoverHour}</p>
+            <p>h+{hover.hour}</p>
             <p>p10 {formatPrice(percentile(hoverValues, 10), data.price_currency)}</p>
             <p>p50 {formatPrice(percentile(hoverValues, 50), data.price_currency)}</p>
             <p>p90 {formatPrice(percentile(hoverValues, 90), data.price_currency)}</p>
