@@ -41,8 +41,54 @@ export type RiskAssessmentState = {
   error: string | null;
 };
 
-const DEBOUNCE_MS = 220;
+const DEBOUNCE_MS = 120;
 const PAUSED_STATE: RiskAssessmentState = { data: null, loading: false, error: null };
+
+function sameTargetTimestamp(left?: string | null, right?: string | null) {
+  if (!left && !right) return true;
+  if (!left || !right) return false;
+  return new Date(left).getTime() === new Date(right).getTime();
+}
+
+function scaleMoney(value: number, ratio: number) {
+  return Math.round(value * ratio * 100) / 100;
+}
+
+function scaledPositionPreview(data: RiskAssessment, position: number): RiskAssessment | null {
+  if (data.position_gbp <= 0 || position <= 0) return null;
+  const ratio = position / data.position_gbp;
+  const coefficients = data.coefficients
+    ? {
+        ...data.coefficients,
+        items: data.coefficients.items.map((item) => {
+          if (item.key === "position_gbp") {
+            return { ...item, value: position };
+          }
+          if (item.key === "position_native") {
+            return { ...item, value: item.value * ratio };
+          }
+          return item;
+        }),
+      }
+    : data.coefficients;
+
+  return {
+    ...data,
+    position_gbp: position,
+    risk_gbp: scaleMoney(data.risk_gbp, ratio),
+    likely_gbp: scaleMoney(data.likely_gbp, ratio),
+    upside_gbp: scaleMoney(data.upside_gbp, ratio),
+    var95_gbp: scaleMoney(data.var95_gbp, ratio),
+    max_drawdown_gbp: scaleMoney(data.max_drawdown_gbp, ratio),
+    scenarios: data.scenarios.map((scenario) => ({
+      ...scenario,
+      risk_gbp: scaleMoney(scenario.risk_gbp, ratio),
+      likely_gbp: scaleMoney(scenario.likely_gbp, ratio),
+      upside_gbp: scaleMoney(scenario.upside_gbp, ratio),
+    })),
+    coefficients,
+  };
+}
 
 export function useRiskAssessment(inputs: RiskInputs): RiskAssessmentState {
   const [state, setState] = useState<RiskAssessmentState>(PAUSED_STATE);
@@ -73,6 +119,25 @@ export function useRiskAssessment(inputs: RiskInputs): RiskAssessmentState {
       return;
     }
 
+    const target = inputs.cursorTimestampMs
+      ? new Date(inputs.cursorTimestampMs).toISOString()
+      : null;
+    setState((previous) => {
+      const current = previous.data;
+      if (
+        !current ||
+        current.market_code !== inputs.marketCode ||
+        current.direction !== inputs.direction ||
+        current.horizon_hours !== inputs.horizon ||
+        !sameTargetTimestamp(current.target_timestamp, target) ||
+        current.position_gbp === inputs.position
+      ) {
+        return previous;
+      }
+      const scaled = scaledPositionPreview(current, inputs.position);
+      return scaled ? { data: scaled, loading: true, error: null } : previous;
+    });
+
     if (timerRef.current) clearTimeout(timerRef.current);
     let cancelled = false;
 
@@ -88,9 +153,6 @@ export function useRiskAssessment(inputs: RiskInputs): RiskAssessmentState {
 
       // Async — safe to set state here.
       setState((s) => ({ ...s, loading: true, error: null }));
-      const target = inputs.cursorTimestampMs
-        ? new Date(inputs.cursorTimestampMs).toISOString()
-        : null;
       runRiskAssessment(
         {
           market_code: inputs.marketCode,
