@@ -5,6 +5,8 @@ from threading import Lock
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, Request, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -211,6 +213,10 @@ def _forecast_read(item: Forecast) -> ForecastRead:
         rationale_summary=item.rationale_summary,
         feature_snapshot_json=_json_safe(item.feature_snapshot_json or {}),
     )
+
+
+def _safe_json_response(payload: Any) -> JSONResponse:
+    return JSONResponse(content=jsonable_encoder(_json_safe(payload)))
 
 
 def _mean_finite(values: list[Any], default: float = 0.0) -> float:
@@ -1144,7 +1150,7 @@ def get_dashboard(
     avg_spike_probability = round(_mean_finite([f.spike_probability for f in forecasts[:12]]), 3)
     high_severity_events = float(sum(1 for event in events if event.severity == "high"))
 
-    return DashboardResponse(
+    payload = DashboardResponse(
         market=_market_read(market),
         latest_forecast=_forecast_read(latest_forecast) if latest_forecast else None,
         forecasts=[_forecast_read(item) for item in forecasts],
@@ -1165,6 +1171,7 @@ def get_dashboard(
             **_price_provenance_metrics(prices),
         },
     )
+    return _safe_json_response(payload.model_dump())
 
 
 @router.get(
@@ -1196,7 +1203,7 @@ def get_dashboard_summary(
     avg_price = round(_mean_finite([point.price_value for point in prices[-24:]]), 2)
     avg_spike_probability = round(_mean_finite([f.spike_probability for f in forecasts[:12]]), 3)
 
-    return DashboardSummaryResponse(
+    payload = DashboardSummaryResponse(
         market=_market_read(market),
         latest_forecast=_forecast_read(latest_forecast) if latest_forecast else None,
         forecasts=[_forecast_read(item) for item in forecasts],
@@ -1212,3 +1219,4 @@ def get_dashboard_summary(
         },
         data_status=_market_data_status(market),
     )
+    return _safe_json_response(payload.model_dump())
