@@ -52,12 +52,12 @@ export default async function HomePage() {
             Power Market Intelligence
           </h1>
           <p className="mb-3 text-2xl font-semibold tracking-tight text-ink/80">
-            by{" "}
+            By{" "}
             <a
               href="https://www.linkedin.com/in/clydelartey/"
               target="_blank"
               rel="noreferrer"
-              className="text-blue-800 underline decoration-blue-800/30 underline-offset-4 transition-colors hover:text-blue-600 hover:decoration-blue-600 dark:text-blue-300 dark:decoration-blue-300/40 dark:hover:text-blue-200"
+              className="text-blue-800 transition-colors hover:text-blue-600 dark:text-blue-300 dark:hover:text-blue-200"
             >
               Clyde Lartey
             </a>
