@@ -51,6 +51,23 @@ export default async function HomePage() {
           <h1 className="mb-2 text-4xl font-bold tracking-tight text-ink">
             Power Market Intelligence
           </h1>
+          <p className="mb-3 text-2xl font-semibold tracking-tight text-ink/80">
+            by{" "}
+            <a
+              href="https://www.linkedin.com/in/clydelartey/"
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-800 underline decoration-blue-800/30 underline-offset-4 transition-colors hover:text-blue-600 hover:decoration-blue-600 dark:text-blue-300 dark:decoration-blue-300/40 dark:hover:text-blue-200"
+            >
+              Clyde Lartey
+            </a>
+          </p>
+          <a
+            href="mailto:clyde.lartey@nyu.edu"
+            className="mb-4 inline-block text-sm font-medium text-ink/55 transition-colors hover:text-accent"
+          >
+            clyde.lartey@nyu.edu
+          </a>
           <p className="max-w-xl text-base text-ink/50">
             Real-time prices, forward curves, and event-driven signals for wholesale electricity
             markets.

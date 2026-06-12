@@ -91,18 +91,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Page content */}
       <div className="mx-auto max-w-[1440px] px-6 py-6">{children}</div>
-
-      <footer className="mx-auto max-w-[1440px] px-6 pb-6 text-[11px] text-ink/35">
-        <span>Power Market Intelligence created by </span>
-        <a
-          href="https://www.linkedin.com/in/clydelartey/"
-          target="_blank"
-          rel="noreferrer"
-          className="font-medium text-ink/50 transition-colors hover:text-accent"
-        >
-          Clyde Lartey
-        </a>
-      </footer>
     </div>
   );
 }
