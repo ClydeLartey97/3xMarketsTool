@@ -173,13 +173,10 @@ export function RadarPanel() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-semibold text-ink">Radar</h2>
-          <p className="text-xs text-ink/40">
-            Ranked across {data?.universe_count ?? "—"} markets
-            {data ? ` · ${data.horizon_hours}h horizon` : ""}
-          </p>
-        </div>
+        <p className="text-xs text-ink/40">
+          Ranked across {data?.universe_count ?? "—"} markets
+          {data ? ` · ${data.horizon_hours}h horizon` : ""}
+        </p>
         {data?.stale ? (
           <span className="rounded-lg bg-ink/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-ink/40">
             Computing first scan…

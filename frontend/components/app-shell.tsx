@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { href: "/", label: "Markets" },
+  { href: "/radar", label: "Radar" },
   { href: "/grid", label: "Grid" },
   { href: "/events", label: "Events" },
   { href: "/power-bi", label: "Reports" },
