@@ -424,7 +424,17 @@ needs a live full-stack run to confirm end-to-end · [ ] not yet.
       message. Needs a live socket to confirm the round-trip in a browser.)
 - [x] Worker cron maintains the global snapshot; endpoint degrades to on-demand compute.
       (cron registered; endpoint cold-cache path returns stale=true — test_radar_api.)
-- [x] All new tests green (5/5). Existing suite: see Progress log when the full run lands.
+- [x] All new tests green (5/5). Existing suite: 146 passed, 2 skipped, 4 failed. One
+      failure (`test_workers::test_worker_settings_register_expected_jobs`) was mine — the
+      radar job/cron extends the asserted set — and is fixed (3876d08). The other 3 are
+      PRE-EXISTING and unrelated to the radar (verified: they fail identically on the
+      pristine pre-me commit a1271f3, and the radar diff touches none of that source):
+        - test_forecast_distribution.py::test_sigma_price_is_persisted_in_snapshot
+        - test_risk_engine.py::test_band_to_sigma_round_trip_via_snapshot
+        - test_rate_limit.py::test_rate_limits_are_per_user_and_route_specific
+      They fail even run individually (~2s each), so they're environmental, not pollution —
+      likely this local SQLite/no-Docker setup (consistent with FRONTIER's note that full
+      local verification was blocked). Worth a separate fix pass (see Deferred).
 - **Commit (when live run done):** `radar-G.acceptance: radar live end-to-end`
 
 #### Remaining: live full-stack run (the only [~] items)
@@ -464,11 +474,22 @@ Format: `cleanup-0.N / radar-G.N (sha) — one-line result.`
 - radar-G.7 (8c0c33b) — /radar route (hero + panel) + Radar nav item (2nd). tsc clean. NOTE: full runtime "page loads" check deferred to acceptance gate (needs FE+BE up).
 - radar-G.8 (4ddb43d) — live refresh: RadarPanel subscribes to ALL channel, refetches on radar_updated, 60s poll floor; `radar_updated` added to stream type union. tsc clean.
 - radar-G.9 (2e47f00) — book-aware threat test + 2 endpoint tests; all 5 radar tests green. (First pytest run warms the ML import ~17min; later runs ~4s.)
+- radar-G.9 (3876d08) — fixed test_workers expected-job set for the radar job/cron.
+- regression check — full suite 146 passed / 4 failed; 3 failures confirmed PRE-EXISTING (fail on pristine a1271f3 too). Radar introduced no regressions.
 
 ## Blockers
 Format: `radar-G.N — short description. To unblock: …`
 
 - (none yet)
+
+## Pre-existing failures (NOT radar — found during G.acceptance)
+These fail on the pristine pre-radar commit too; likely environmental (local SQLite, no
+Docker/Postgres). Each fails in <3s, individually, so they're deterministic, not flaky.
+- `test_forecast_distribution.py::test_sigma_price_is_persisted_in_snapshot`
+- `test_risk_engine.py::test_band_to_sigma_round_trip_via_snapshot`
+- `test_rate_limit.py::test_rate_limits_are_per_user_and_route_specific`
+To diagnose: run one with `-x -vv` and inspect the assertion; check whether they assume a
+Postgres-only behaviour or seeded data this env lacks.
 
 ## Deferred (revisit after Phase G)
 - Split `backend/app/api/routes.py` (1,234 lines) into domain routers
