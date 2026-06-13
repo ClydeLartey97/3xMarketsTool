@@ -9,9 +9,15 @@ def test_worker_settings_register_expected_jobs() -> None:
         "refresh_all_markets_job",
         "fill_risk_assessment_pnl_job",
         "nightly_backtest_job",
+        "compute_radar_snapshot_job",
     }
     cron_names = {job.name for job in WorkerSettings.cron_jobs}
-    assert cron_names == {"market_refresh", "risk_assessment_pnl_fill", "nightly_backtest"}
+    assert cron_names == {
+        "market_refresh",
+        "risk_assessment_pnl_fill",
+        "nightly_backtest",
+        "radar_snapshot",
+    }
 
 
 def test_worker_schedule_and_retry_backoff() -> None:
