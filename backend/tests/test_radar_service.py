@@ -105,3 +105,56 @@ def test_compute_radar_isolates_a_failing_market(db_session, monkeypatch):
     seeded = {m.code for m in db_session.scalars(select(Market)).all()}
     if "GB_POWER" in seeded:
         assert "GB_POWER" in snap["failed"]
+
+
+def test_compute_radar_surfaces_open_book_threat(db_session, auth_user, monkeypatch):
+    from datetime import datetime, timezone
+
+    from app.models import RiskAssessmentLog
+
+    market = db_session.scalars(select(Market)).first()
+    assert market is not None, "seed should provide at least one market"
+
+    # Book an open position with a small recorded risk.
+    db_session.add(
+        RiskAssessmentLog(
+            timestamp=datetime.now(timezone.utc),
+            market_id=market.id,
+            user_id=auth_user.id,
+            position_gbp=100_000.0,
+            direction="long",
+            horizon_hours=24,
+            risk_gbp=1_000.0,
+            likely_gbp=500.0,
+            upside_gbp=2_000.0,
+            kind="diary",
+            is_open=True,
+            thesis_text="open test position",
+        )
+    )
+    db_session.commit()
+
+    base = _canned_assess()
+
+    def risk_grew_assess(db, *, market_code, position_gbp, direction, horizon_hours):
+        result = base(
+            db,
+            market_code=market_code,
+            position_gbp=position_gbp,
+            direction=direction,
+            horizon_hours=horizon_hours,
+        )
+        if market_code == market.code:
+            result["risk_gbp"] = 50_000.0  # >> booked 1,000 * 1.15 -> risk grew
+        return result
+
+    monkeypatch.setattr(rs, "_assess", risk_grew_assess)
+    monkeypatch.setattr(rs, "risk_calibration_for_market", _honest_cal)
+
+    snap = rs.compute_radar(db_session, user_id=auth_user.id, horizon_hours=24)
+
+    book = [t for t in snap["threats"] if t["market_code"] == market.code]
+    assert book, "an open position whose risk grew should surface as a threat"
+    assert "risk rose" in book[0]["reason"].lower()
+    # The book threat supersedes any generic read for that market in opportunities.
+    assert all(o["market_code"] != market.code for o in snap["opportunities"])
