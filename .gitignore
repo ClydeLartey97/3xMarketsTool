@@ -24,3 +24,7 @@ backend/test_gridsense.db
 backend/gridsense.db
 backend/test_threex.db
 backend/threex.db
+
+# accidental copies (e.g. "routes 2.py", "Makefile 2") from bulk file operations
+* 2.*
+* 2
