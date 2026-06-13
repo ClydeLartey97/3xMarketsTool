@@ -36,6 +36,7 @@ from app.schemas.domain import (
     PortfolioRiskResponse,
     PowerBIEmbedConfig,
     PricePointRead,
+    RadarResponse,
     RiskAssessmentRequest,
     RiskAssessmentResponse,
     RiskCalibrationResponse,
@@ -426,6 +427,31 @@ def get_markets_overview(db: Session = Depends(get_db)) -> list[MarketOverviewIt
     """
     entries = build_markets_overview(db)
     return [MarketOverviewItem.model_validate(market_overview_to_dict(entry)) for entry in entries]
+
+
+@router.get("/radar", response_model=RadarResponse)
+def get_radar(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> RadarResponse:
+    """Proactive cross-market opportunity & threat board.
+
+    Prefers a per-user (book-aware) snapshot, then the worker-maintained global
+    snapshot, computing on demand only on a cold cache. `stale` flags an
+    on-demand compute so the UI can show a 'first scan' state.
+    """
+    from app.services.radar_service import (
+        cache_radar_snapshot,
+        compute_radar,
+        read_radar_snapshot,
+    )
+
+    snapshot = read_radar_snapshot(user_id=user.id) or read_radar_snapshot()
+    stale = snapshot is None
+    if snapshot is None:
+        snapshot = compute_radar(db, user_id=user.id)
+        cache_radar_snapshot(snapshot, user_id=user.id)
+    return RadarResponse(stale=stale, **snapshot)
 
 
 @router.get("/markets/{market_id}", response_model=MarketRead)

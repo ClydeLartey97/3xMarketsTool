@@ -553,3 +553,40 @@ class DashboardSummaryResponse(BaseModel):
     recent_prices: list[PricePointRead]
     key_metrics: dict[str, float]
     data_status: str = "ready"
+
+
+class RadarItem(BaseModel):
+    """One ranked market on the Radar board (opportunity or threat)."""
+
+    market_code: str
+    market_name: str
+    direction: str
+    risk_gbp: float
+    likely_gbp: float
+    upside_gbp: float
+    edge_score: float
+    confidence: float
+    regime: str
+    catalyst_severity: float
+    calibration_status: str
+    hours_to_catalyst: Optional[float] = None
+    radar_score: float
+    kind: str
+    reason: str
+
+
+class RadarResponse(BaseModel):
+    """Proactive cross-market scan: ranked opportunities and threats.
+
+    `stale` is true when the response was computed on demand against a cold
+    cache (the worker had not yet produced a snapshot), so the UI can show a
+    'first scan' state.
+    """
+
+    generated_at: datetime
+    horizon_hours: int
+    universe_count: int
+    failed: list[str] = []
+    opportunities: list[RadarItem] = []
+    threats: list[RadarItem] = []
+    stale: bool = False
