@@ -14,7 +14,7 @@ titled `radar-G.N: short description` (cleanup commits use `cleanup-0.N`).
 ## ▶ RESUME HERE
 
 ```
-NEXT STEP: G.8  (cleanup + G.1–G.7 committed on main)
+NEXT STEP: G.acceptance  (G.1–G.9 committed; only the live browser run remains)
 ```
 
 Note: the two foundational service tests (ranking/determinism + failure isolation)
@@ -411,13 +411,39 @@ Frontend
 - **Commit:** `radar-G.9: radar service + endpoint tests`
 
 ### Phase G acceptance gate
-- [ ] `/radar` shows ranked Opportunities and Threats across the 9 markets.
-- [ ] Cards deep-link into the correct market workbench.
-- [ ] An open blotter position surfaces as a Threat with a readable reason.
-- [ ] Panel updates live when the worker publishes `radar_updated`.
-- [ ] Worker cron maintains the global snapshot; endpoint degrades to on-demand compute.
-- [ ] All new tests green; existing suite still green.
-- **Commit:** `radar-G.acceptance: radar live end-to-end`
+Status key: [x] verified by test/static check · [~] verified at component/unit level,
+needs a live full-stack run to confirm end-to-end · [ ] not yet.
+
+- [~] `/radar` shows ranked Opportunities and Threats across the 9 markets.
+      (Panel + route + endpoint all unit/static-verified; needs a browser run.)
+- [x] Cards deep-link into the correct market workbench. (`Link href={/markets/${code}}`.)
+- [x] An open blotter position surfaces as a Threat with a readable reason.
+      (test_radar_service::test_compute_radar_surfaces_open_book_threat)
+- [~] Panel updates live when the worker publishes `radar_updated`.
+      (Wiring verified: worker publishes to ALL; hook subscribes to ALL; refetch on
+      message. Needs a live socket to confirm the round-trip in a browser.)
+- [x] Worker cron maintains the global snapshot; endpoint degrades to on-demand compute.
+      (cron registered; endpoint cold-cache path returns stale=true — test_radar_api.)
+- [x] All new tests green (5/5). Existing suite: see Progress log when the full run lands.
+- **Commit (when live run done):** `radar-G.acceptance: radar live end-to-end`
+
+#### Remaining: live full-stack run (the only [~] items)
+Run the stack and open `/radar`:
+```
+make deploy           # or: backend uvicorn + `arq app.workers.worker.WorkerSettings` + frontend `npm run dev`
+```
+Confirm: the board renders ranked cards; a card click lands on `/markets/<code>`; with
+the worker running, a fresh `radar_snapshot` cron tick flips the panel without reload.
+
+#### FINDING — cold-cache first load is slow without the worker
+`GET /api/radar` on a cold cache computes synchronously: `compute_radar` runs the engine
+across 9 markets, and the forecast path reaches out to live data providers (EIA/Open-Meteo/
+yfinance) with network timeouts. With no Redis/worker pre-warming the cache (e.g. a bare
+local backend), the FIRST `/radar` hit can hang for tens of seconds before synthetic
+fallbacks kick in. In production this is a non-issue — the `radar_snapshot` cron pre-warms
+the global snapshot every refresh cycle, so the endpoint serves from cache. **Possible
+follow-up (deferred):** have the cold-cache endpoint return `stale=true` with empty lists
+immediately and trigger the compute in the background, instead of blocking the request.
 
 ---
 
@@ -436,6 +462,8 @@ Format: `cleanup-0.N / radar-G.N (sha) — one-line result.`
 - radar-G.5 (195e73d) — RadarItem/RadarResponse TS types + getRadar() in lib/api.ts; `tsc --noEmit` clean.
 - radar-G.6 (319547c) — radar-panel.tsx: two-column Opportunities/Threats board, deep-links to workbench; loading/empty/error/stale states; GBP formatting; tsc clean.
 - radar-G.7 (8c0c33b) — /radar route (hero + panel) + Radar nav item (2nd). tsc clean. NOTE: full runtime "page loads" check deferred to acceptance gate (needs FE+BE up).
+- radar-G.8 (4ddb43d) — live refresh: RadarPanel subscribes to ALL channel, refetches on radar_updated, 60s poll floor; `radar_updated` added to stream type union. tsc clean.
+- radar-G.9 (2e47f00) — book-aware threat test + 2 endpoint tests; all 5 radar tests green. (First pytest run warms the ML import ~17min; later runs ~4s.)
 
 ## Blockers
 Format: `radar-G.N — short description. To unblock: …`
