@@ -156,6 +156,38 @@ export function getMarketsOverview(): Promise<MarketOverviewItem[]> {
   return fetchJson<MarketOverviewItem[]>("/markets/overview");
 }
 
+export type RadarItem = {
+  market_code: string;
+  market_name: string;
+  direction: string;
+  risk_gbp: number;
+  likely_gbp: number;
+  upside_gbp: number;
+  edge_score: number;
+  confidence: number;
+  regime: string;
+  catalyst_severity: number;
+  calibration_status: string;
+  hours_to_catalyst: number | null;
+  radar_score: number;
+  kind: "opportunity" | "threat";
+  reason: string;
+};
+
+export type RadarResponse = {
+  generated_at: string;
+  horizon_hours: number;
+  universe_count: number;
+  failed: string[];
+  opportunities: RadarItem[];
+  threats: RadarItem[];
+  stale: boolean;
+};
+
+export function getRadar(): Promise<RadarResponse> {
+  return fetchJson<RadarResponse>("/radar");
+}
+
 export function getDashboard(marketCode: string): Promise<DashboardData> {
   return fetchJson<DashboardData>(`/dashboard/${marketCode}`);
 }
