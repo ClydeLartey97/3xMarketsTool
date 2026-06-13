@@ -14,7 +14,13 @@ export type MarketStreamMessage =
       source?: string;
     }
   | {
-      type: "forecast_revision" | "new_event" | "alert" | "risk_recomputed" | "connected";
+      type:
+        | "forecast_revision"
+        | "new_event"
+        | "alert"
+        | "risk_recomputed"
+        | "radar_updated"
+        | "connected";
       market_code?: string;
       [key: string]: unknown;
     };

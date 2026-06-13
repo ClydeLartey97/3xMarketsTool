@@ -10,9 +10,13 @@
  */
 import type { Route } from "next";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getRadar, type RadarItem, type RadarResponse } from "@/lib/api";
+import { useMarketStream } from "@/lib/use-market-stream";
+
+// Poll floor: refresh even if the live stream is unavailable.
+const RADAR_POLL_MS = 60_000;
 
 function fmtGbp(value: number): string {
   const sign = value < 0 ? "−" : "";
@@ -143,24 +147,39 @@ export function RadarPanel() {
   const [data, setData] = useState<RadarResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const mounted = useRef(true);
 
-  useEffect(() => {
-    let cancelled = false;
-    getRadar()
-      .then((d) => {
-        if (cancelled) return;
-        setData(d);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setError(true);
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  const refresh = useCallback(async () => {
+    try {
+      const d = await getRadar();
+      if (!mounted.current) return;
+      setData(d);
+      setError(false);
+    } catch {
+      if (mounted.current) setError(true);
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
   }, []);
+
+  // Initial fetch + interval poll floor.
+  useEffect(() => {
+    mounted.current = true;
+    refresh();
+    const id = setInterval(refresh, RADAR_POLL_MS);
+    return () => {
+      mounted.current = false;
+      clearInterval(id);
+    };
+  }, [refresh]);
+
+  // Live: the worker publishes `radar_updated` on the ALL channel after each scan.
+  const { lastMessage } = useMarketStream("ALL");
+  useEffect(() => {
+    if (lastMessage?.type === "radar_updated") {
+      refresh();
+    }
+  }, [lastMessage, refresh]);
 
   if (error) {
     return (
