@@ -14,8 +14,13 @@ titled `radar-G.N: short description` (cleanup commits use `cleanup-0.N`).
 ## ▶ RESUME HERE
 
 ```
-NEXT STEP: G.1  (Phase 0 cleanup complete; uncommitted in working tree)
+NEXT STEP: G.8  (cleanup + G.1–G.7 committed on main)
 ```
+
+Note: the two foundational service tests (ranking/determinism + failure isolation)
+were brought forward into G.1 as its verification gate. G.9 still owns the
+book-aware test and the endpoint test. Also: `radar_service` lazy-imports
+`risk_engine` inside `_assess` (module stays light; mirrors the route handlers).
 
 Update this block after every commit: set `NEXT STEP` to the first unchecked item and
 add a one-line entry to the **Progress log** at the bottom. That is the single source of
@@ -140,15 +145,20 @@ anywhere). Still, run the VERIFY gate after.
 - **VERIFY:** create a throwaway `foo 2.py`, run `git status`, confirm it is ignored, delete it.
 - **Commit:** `cleanup-0.3: gitignore accidental-copy filename patterns`
 
-### 0.4 — Retire the superseded chart component (DONE — correction below)
-- **CORRECTION (applied):** `price-chart.tsx` was NOT a Recharts chart. It imports from
-  `klinecharts` (`init, dispose, CandleType, …`). `recharts` is not a dependency at all
-  (absent from `package.json`, imported nowhere). So there is no legacy Recharts to retire;
-  there were simply two KLineCharts components and `price-chart.tsx` was the older,
-  unreferenced one. Confirmed zero references across `app/components/lib/types`, then
-  deleted. It was git-tracked, so it's recoverable from history if ever needed.
-- **Original (wrong) framing for reference:** "`price-chart.tsx` (Recharts) is superseded by
-  `kline-price-chart.tsx`."
+### 0.4 — Retire the superseded chart component (REVERTED — was a mistake)
+- **OUTCOME: deletion reverted.** `price-chart.tsx` is the ACTIVE KLineCharts implementation:
+  it exports `PriceChart` + the chart types (`ChartHistoryPoint`/`ChartForecastPoint`/
+  `RiskOverlay`), and `kline-price-chart.tsx` is a thin wrapper that imports them. It was NOT
+  dead code. The detection grep used `grep -v "kline-price-chart"`, which excluded the one
+  file that imports `price-chart` — hiding the dependency. The deletion broke the frontend
+  typecheck (`TS2307` in `kline-price-chart.tsx`), caught at the G.5 typecheck gate, and was
+  restored verbatim from history (commit 11b6e10).
+- **Lessons for future cleanup:** never exclude the sibling/wrapper file when grepping for
+  references; and run `tsc --noEmit` as part of any frontend deletion's VERIFY, not just at
+  feature time.
+- **Also wrong in the earlier note:** there are not "two redundant charts" — `price-chart.tsx`
+  (impl) and `kline-price-chart.tsx` (data-fetching wrapper) are both live and complementary.
+  `recharts` genuinely is not a dependency; that part stands.
 - **How (exact, do NOT delete blind):**
   ```bash
   grep -rn "price-chart" frontend/app frontend/components frontend/lib --include=*.tsx --include=*.ts | grep -v "kline-price-chart"
@@ -417,7 +427,15 @@ Format: `cleanup-0.N / radar-G.N (sha) — one-line result.`
 - cleanup-0.1 (uncommitted) — removed 150 accidental " 2" duplicate files; backend source compiles clean (`compileall` EXIT 0).
 - cleanup-0.2 (uncommitted) — removed dead `frontend/.next_broken_1780232986/`; KEPT `threex.db`/`test_threex.db` (active dev + test DBs per `backend/.env`).
 - cleanup-0.3 (uncommitted) — added `* 2.*` / `* 2` accidental-copy guards to `.gitignore`; verified they ignore throwaway dups.
-- cleanup-0.4 (uncommitted) — deleted unreferenced superseded KLineCharts `price-chart.tsx` (no Recharts existed; not a dependency).
+- cleanup-0.1..0.4 (42af785) — dup files, dead build dir, gitignore guards, superseded chart removed.
+- radar-G.1 (9af061e) — cross-market scan + composite ranking service; 2 foundational tests green (engine/calibration stubbed). DBs kept; `price-chart.tsx` was KLineCharts not Recharts (corrected in steps above).
+- radar-G.2 (34e8d67) — redis snapshot cache + memory fallback; global/user scopes; verified hermetically (Redis forced down).
+- radar-G.3 (bd8b240) — arq `radar_snapshot` cron + `compute_radar_snapshot` job; publishes `radar_updated` on ALL channel; registration verified.
+- radar-G.4 (57a3c0f) — `GET /api/radar` + RadarItem/RadarResponse schemas; route registered, schema validates cache-shaped payload. (Note: app import needs env vars DEMO_MODE/EIA_API_KEY/RATE_LIMIT_ENABLED set or it blocks on a socket.)
+- fix (11b6e10) — restored price-chart.tsx; cleanup-0.4 had wrongly deleted the live chart impl (broke tsc). See corrected 0.4 above.
+- radar-G.5 (195e73d) — RadarItem/RadarResponse TS types + getRadar() in lib/api.ts; `tsc --noEmit` clean.
+- radar-G.6 (319547c) — radar-panel.tsx: two-column Opportunities/Threats board, deep-links to workbench; loading/empty/error/stale states; GBP formatting; tsc clean.
+- radar-G.7 (8c0c33b) — /radar route (hero + panel) + Radar nav item (2nd). tsc clean. NOTE: full runtime "page loads" check deferred to acceptance gate (needs FE+BE up).
 
 ## Blockers
 Format: `radar-G.N — short description. To unblock: …`
