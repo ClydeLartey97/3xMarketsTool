@@ -131,6 +131,37 @@ def fill_risk_assessment_pnl() -> dict[str, Any]:
     return result
 
 
+def compute_radar_snapshot() -> dict[str, Any]:
+    """Recompute the global cross-market radar snapshot and cache it.
+
+    Runs just after a market refresh so it scores on fresh data. Per-user
+    (book-aware) snapshots are computed lazily by the API, not here.
+    """
+    from app.services.radar_service import cache_radar_snapshot, compute_radar
+
+    require_database_schema(engine)
+    with SessionLocal() as db:
+        snapshot = compute_radar(db)
+    cache_radar_snapshot(snapshot)
+    publish_market_message_sync(
+        "ALL",
+        {
+            "type": "radar_updated",
+            "generated_at": snapshot["generated_at"],
+            "opportunities": len(snapshot["opportunities"]),
+            "threats": len(snapshot["threats"]),
+        },
+    )
+    result = {
+        "opportunities": len(snapshot["opportunities"]),
+        "threats": len(snapshot["threats"]),
+        "failed": snapshot["failed"],
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    logger.info("Radar snapshot computed: %s", result)
+    return result
+
+
 def run_nightly_backtest() -> dict[str, Any]:
     from scripts.backtest import run_backtest_reports
 

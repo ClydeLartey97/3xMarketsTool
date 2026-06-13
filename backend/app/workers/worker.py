@@ -10,7 +10,12 @@ from arq.connections import RedisSettings
 
 from app.core.config import get_settings
 from app.core.observability import configure_logging
-from app.workers.jobs import fill_risk_assessment_pnl, refresh_all_markets, run_nightly_backtest
+from app.workers.jobs import (
+    compute_radar_snapshot,
+    fill_risk_assessment_pnl,
+    refresh_all_markets,
+    run_nightly_backtest,
+)
 
 settings = get_settings()
 configure_logging(settings)
@@ -50,9 +55,18 @@ async def nightly_backtest_job(ctx: dict[str, Any]) -> Any:
     return await _run_with_retry(ctx, "nightly_backtest", run_nightly_backtest)
 
 
+async def compute_radar_snapshot_job(ctx: dict[str, Any]) -> Any:
+    return await _run_with_retry(ctx, "radar_snapshot", compute_radar_snapshot)
+
+
 class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
-    functions = [refresh_all_markets_job, fill_risk_assessment_pnl_job, nightly_backtest_job]
+    functions = [
+        refresh_all_markets_job,
+        fill_risk_assessment_pnl_job,
+        nightly_backtest_job,
+        compute_radar_snapshot_job,
+    ]
     cron_jobs = [
         cron(
             refresh_all_markets_job,
@@ -78,6 +92,14 @@ class WorkerSettings:
             second=0,
             timeout=2 * 60 * 60,
             max_tries=5,
+        ),
+        cron(
+            compute_radar_snapshot_job,
+            name="radar_snapshot",
+            minute=_minute_schedule(settings.data_refresh_interval_minutes),
+            second=30,  # just after the market refresh on the same minute cadence
+            timeout=10 * 60,
+            max_tries=3,
         ),
     ]
     max_jobs = 2
