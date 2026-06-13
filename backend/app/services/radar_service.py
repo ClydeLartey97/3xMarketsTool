@@ -21,6 +21,7 @@ to the same glass-box standard as the rest of the product (see ``_score_item``).
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
@@ -29,6 +30,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models import Event, Market
 from app.services.decision_diary import list_decisions
 from app.services.risk_calibration import risk_calibration_for_market
@@ -396,3 +398,58 @@ def compute_radar(
         "opportunities": [asdict(i) for i in opportunities[:RADAR_TOP_N]],
         "threats": [asdict(i) for i in threats[:RADAR_TOP_N]],
     }
+
+
+# --- Snapshot cache ---------------------------------------------------------
+# The worker computes the global snapshot on a cron and writes it here; the API
+# reads it (and lazily computes a per-user, book-aware snapshot on a miss).
+# Redis is the cross-process store (worker -> api). An in-process dict is the
+# fallback so the feature still works in dev without Redis.
+
+RADAR_CACHE_KEY = "radar:latest"
+RADAR_CACHE_USER_KEY = "radar:latest:user:{user_id}"
+RADAR_CACHE_TTL_S = 15 * 60
+
+_MEMORY_SNAPSHOT: dict[str, dict[str, Any]] = {}
+
+
+def _cache_scope_key(user_id: int | None) -> str:
+    if user_id is None:
+        return RADAR_CACHE_KEY
+    return RADAR_CACHE_USER_KEY.format(user_id=user_id)
+
+
+def _redis_client():
+    from redis import Redis  # local import keeps redis optional at module load
+
+    return Redis.from_url(get_settings().redis_url, decode_responses=True)
+
+
+def cache_radar_snapshot(snapshot: dict[str, Any], *, user_id: int | None = None) -> None:
+    """Persist a snapshot to Redis (TTL-bounded) and the in-memory fallback."""
+    key = _cache_scope_key(user_id)
+    _MEMORY_SNAPSHOT[key] = snapshot
+    try:
+        client = _redis_client()
+        try:
+            client.set(key, json.dumps(snapshot, default=str), ex=RADAR_CACHE_TTL_S)
+        finally:
+            client.close()
+    except Exception as exc:  # noqa: BLE001 - Redis is optional; memory is the floor
+        logger.debug("radar cache write fell back to memory (%s): %s", key, exc)
+
+
+def read_radar_snapshot(*, user_id: int | None = None) -> dict[str, Any] | None:
+    """Read the latest snapshot for the scope; None if nothing cached yet."""
+    key = _cache_scope_key(user_id)
+    try:
+        client = _redis_client()
+        try:
+            raw = client.get(key)
+        finally:
+            client.close()
+        if raw:
+            return json.loads(raw)
+    except Exception as exc:  # noqa: BLE001 - fall back to the in-memory copy
+        logger.debug("radar cache read fell back to memory (%s): %s", key, exc)
+    return _MEMORY_SNAPSHOT.get(key)
