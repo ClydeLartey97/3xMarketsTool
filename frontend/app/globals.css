@@ -97,12 +97,6 @@ a { color: inherit; text-decoration: none; }
 .dark-scroll::-webkit-scrollbar-thumb:hover { background: rgba(var(--ink) / 0.22); }
 
 /* ─── Animations ─── */
-@keyframes live-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.45; }
-}
-.live-dot { animation: live-pulse 2s ease-in-out infinite; }
-
 @keyframes price-flash {
   0%   { color: #6ee7b7; }
   100% { color: inherit; }

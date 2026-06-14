@@ -50,12 +50,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Top nav — 3-column grid keeps the brand dead-centre regardless of side content width */}
       <header className="sticky top-0 z-50 border-b border-seam bg-well/95 backdrop-blur-md">
         <div className="mx-auto grid max-w-[1440px] grid-cols-[1fr_auto_1fr] items-center gap-6 px-6 py-3">
-          {/* Left: live indicator + section nav */}
+          {/* Left: section nav */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-full border border-seam bg-surface px-3 py-1.5">
-              <span className="live-dot h-1.5 w-1.5 rounded-full bg-accent" />
-              <span className="font-mono text-[10px] uppercase tracking-widest text-accent">Live</span>
-            </div>
             <nav className="hidden items-center gap-1 md:flex">
               {navItems.map((item) => {
                 const active =

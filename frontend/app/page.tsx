@@ -43,9 +43,8 @@ export default async function HomePage() {
       <main className="animate-fade-in">
         <div className="mb-8">
           <div className="mb-3 flex items-center gap-3">
-            <span className="live-dot h-2 w-2 rounded-full bg-accent" />
             <span className="font-mono text-xs uppercase tracking-widest text-accent">
-              Live market data
+              Market data
             </span>
           </div>
           <h1 className="mb-2 text-4xl font-bold tracking-tight text-ink">
@@ -69,7 +68,7 @@ export default async function HomePage() {
             clyde.lartey@nyu.edu
           </a>
           <p className="max-w-xl text-base text-ink/50">
-            Real-time prices, forward curves, and event-driven signals for wholesale electricity
+            Prices, forward curves, and event-driven signals for wholesale electricity
             markets.
           </p>
         </div>

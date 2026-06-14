@@ -190,10 +190,8 @@ export function MarketOverview({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="live-dot h-1.5 w-1.5 rounded-full bg-accent" />
-              <span className="font-mono text-[10px] uppercase tracking-widest text-accent">Live</span>
-              <span className="ml-1 font-mono text-[10px] uppercase tracking-widest text-ink/35">
-                · {dashboard.market.timezone}
+              <span className="font-mono text-[10px] uppercase tracking-widest text-ink/35">
+                {dashboard.market.timezone}
               </span>
             </div>
             <div className="flex items-center gap-2 mb-1">

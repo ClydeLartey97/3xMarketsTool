@@ -11,7 +11,6 @@ export default async function GridPage() {
       <main className="animate-fade-in space-y-4">
         <header className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
           <div className="mb-3 flex items-center gap-3">
-            <span className="live-dot h-2 w-2 rounded-full bg-accent" />
             <span className="font-mono text-xs uppercase tracking-widest text-accent">
               Grid topology
             </span>

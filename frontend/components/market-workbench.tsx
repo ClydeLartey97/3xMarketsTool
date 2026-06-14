@@ -278,7 +278,7 @@ export function MarketWorkbench({
       {/* 4. Chart */}
       <SectionFrame
         title="Price · forecast"
-        subtitle="Live spot, modelled distribution, and the events shaping it."
+        subtitle="Spot, modelled distribution, and the events shaping it."
       >
         <ClientErrorBoundary
           fallbackTitle="Chart engine recovering"

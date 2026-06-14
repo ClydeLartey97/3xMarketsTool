@@ -4,17 +4,22 @@ import { useTheme } from "next-themes";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-const THEMES = ["system", "light", "dark"] as const;
+const THEMES = ["light", "dark", "system"] as const;
 type Theme = (typeof THEMES)[number];
 
-const LABELS: Record<Theme, string> = { system: "Auto", light: "Light", dark: "Dark" };
+const LABELS: Record<Theme, string> = { system: "System", light: "Sun", dark: "Moon" };
 
 const ICONS: Record<Theme, ReactNode> = {
   system: (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 2a10 10 0 0 1 0 20" fill="currentColor" stroke="none" opacity="0.35" />
-      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="M4.93 4.93l1.41 1.41" />
+      <path d="M17.66 17.66l1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <circle cx="12" cy="12" r="4" />
+      <path d="M21 12.6A7.5 7.5 0 0 1 11.4 3" />
     </svg>
   ),
   light: (
@@ -43,21 +48,37 @@ export function ThemeToggle() {
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {
-    return <div className="h-7 w-16 rounded-lg border border-seam bg-well" />;
+    return <div className="h-8 w-[92px] rounded-lg border border-seam bg-well" />;
   }
 
   const current = (THEMES.includes(theme as Theme) ? theme : "system") as Theme;
-  const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
 
   return (
-    <button
-      onClick={() => setTheme(next)}
-      aria-label={`Theme: ${LABELS[current]}. Click to switch to ${LABELS[next]}.`}
-      title={`Theme: ${LABELS[current]} — click for ${LABELS[next]}`}
-      className="flex items-center gap-1.5 rounded-lg border border-seam bg-well px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ink/40 transition-all hover:border-seam-hi hover:text-ink/70"
+    <div
+      className="flex h-8 items-center rounded-lg border border-seam bg-well p-0.5 text-ink/40"
+      aria-label="Theme"
+      role="group"
     >
-      <span className="text-accent">{ICONS[current]}</span>
-      {LABELS[current]}
-    </button>
+      {THEMES.map((item) => {
+        const selected = item === current;
+        return (
+          <button
+            key={item}
+            type="button"
+            onClick={() => setTheme(item)}
+            aria-label={`${LABELS[item]} theme`}
+            aria-pressed={selected}
+            title={`${LABELS[item]} theme`}
+            className={`flex h-7 w-7 items-center justify-center rounded-md transition-all ${
+              selected
+                ? "bg-surface text-accent shadow-sm"
+                : "hover:bg-surface/60 hover:text-ink/70"
+            }`}
+          >
+            {ICONS[item]}
+          </button>
+        );
+      })}
+    </div>
   );
 }

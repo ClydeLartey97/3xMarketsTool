@@ -13,9 +13,8 @@ export default async function EventsPage() {
         {/* Header */}
         <div className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
           <div className="flex items-center gap-3 mb-3">
-            <span className="live-dot h-2 w-2 rounded-full bg-accent" />
             <span className="font-mono text-xs uppercase tracking-widest text-accent">
-              Live event feed
+              Event feed
             </span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-ink mb-2">Event Intelligence</h1>
@@ -26,7 +25,7 @@ export default async function EventsPage() {
           <div className="mt-4 flex items-center gap-4 text-[11px] font-mono uppercase tracking-widest text-ink/35">
             <span>{events.length} events indexed</span>
             <span>·</span>
-            <span>Live refresh every 30 min</span>
+            <span>Refreshes every 30 min</span>
           </div>
         </div>
 
