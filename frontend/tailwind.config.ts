@@ -32,9 +32,13 @@ const config: Config = {
         danger:   "#ef4444",
       },
       fontFamily: {
-        sans:    ["Inter", "Segoe UI", "Helvetica Neue", "sans-serif"],
-        display: ["Inter", "Segoe UI", "Helvetica Neue", "sans-serif"],
-        mono:    ["JetBrains Mono", "Fira Code", "ui-monospace", "monospace"],
+        sans:    ["-apple-system", "BlinkMacSystemFont", "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Arial", "sans-serif"],
+        display: ["SF Pro Display", "-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Helvetica Neue", "Arial", "sans-serif"],
+        mono:    ["SF Mono", "SFMono-Regular", "ui-monospace", "Menlo", "Monaco", "Consolas", "monospace"],
+      },
+      letterSpacing: {
+        tight: "0",
+        tighter: "0",
       },
       boxShadow: {
         panel:      "0 1px 3px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.04)",

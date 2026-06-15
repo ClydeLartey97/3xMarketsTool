@@ -208,16 +208,16 @@ function Bubble({
       } ${cls.glow} ${sizeClasses.bubble} ${loading ? "animate-pulse" : ""}`}
     >
       <span
-        className={`mb-1 inline-flex rounded-full px-2.5 py-0.5 font-mono uppercase tracking-[0.18em] ${cls.chip} ${sizeClasses.label}`}
+        className={`mb-1 inline-flex rounded-full px-2.5 py-0.5 font-medium ${cls.chip} ${sizeClasses.label}`}
       >
         {label}
       </span>
       <span
-        className={`font-mono font-semibold tabular-nums ${cls.text} ${sizeClasses.value}`}
+        className={`font-semibold tabular-nums ${cls.text} ${sizeClasses.value}`}
       >
         {display}
       </span>
-      <span className={`mt-1 uppercase tracking-[0.2em] text-ink/40 ${sizeClasses.helper}`}>
+      <span className={`mt-1 font-medium text-ink/40 ${sizeClasses.helper}`}>
         {helper}
       </span>
     </div>

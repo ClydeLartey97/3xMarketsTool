@@ -61,7 +61,7 @@ export function RiskStickyBar({
         style={{ top: APP_NAV_HEIGHT_PX + 24 }}
       >
         <div className="mb-1 flex flex-col items-center gap-0.5">
-          <span className="rounded-md bg-ink/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-ink/55">
+          <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-ink/55">
             {marketCode}
           </span>
           <span className="max-w-[120px] truncate text-center text-[10px] text-ink/45">
@@ -77,13 +77,13 @@ export function RiskStickyBar({
           type="button"
           onClick={onEdit}
           title="Jump back to inputs"
-          className="mt-1 rounded-full border border-seam bg-surface px-3 py-1.5 font-mono text-[9px] uppercase tracking-wider text-ink/60 shadow-sm transition hover:border-seam-hi hover:text-ink"
+          className="mt-1 rounded-full border border-seam bg-surface px-3 py-1.5 text-xs font-medium text-ink/60 shadow-sm transition hover:border-seam-hi hover:text-ink"
         >
           Edit
         </button>
         <span
           title="Modelled distributions, not realised outcomes. Educational tool — not financial advice."
-          className="mt-1 rounded-full border border-seam/60 bg-surface/70 px-2 py-0.5 font-mono text-[8px] uppercase tracking-wider text-ink/35"
+          className="mt-1 rounded-full border border-seam/60 bg-surface/70 px-2 py-0.5 text-[11px] font-medium text-ink/35"
         >
           Not advice
         </span>
@@ -102,14 +102,14 @@ export function RiskStickyBar({
           onClick={() => setMobileExpandRequested((v) => !v)}
           className="flex w-full items-center gap-3 px-4 py-2 text-left"
         >
-          <span className="rounded-md bg-ink/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-ink/55">
+          <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-ink/55">
             {marketCode}
           </span>
           <span className="inline-flex items-baseline gap-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-ink/40">Risk</span>
-            <span className="font-mono text-sm font-semibold tabular-nums text-price-dn">{risk}</span>
+            <span className="text-xs font-medium text-ink/40">Risk</span>
+            <span className="text-sm font-semibold tabular-nums text-price-dn">{risk}</span>
           </span>
-          <span className="ml-auto font-mono text-xs text-ink/40">{mobileExpanded ? "−" : "···"}</span>
+          <span className="ml-auto text-xs text-ink/40">{mobileExpanded ? "−" : "···"}</span>
         </button>
         {mobileExpanded ? (
           <div className="border-t border-seam bg-surface px-4 pb-3 pt-2">
@@ -121,7 +121,7 @@ export function RiskStickyBar({
             <button
               type="button"
               onClick={onEdit}
-              className="mt-2 w-full rounded-md border border-seam bg-bg px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-ink/65"
+              className="mt-2 w-full rounded-md border border-seam bg-bg px-3 py-1.5 text-xs font-medium text-ink/65"
             >
               Edit inputs
             </button>
@@ -171,10 +171,10 @@ function MiniBubble({
         cls.ring
       } ${cls.glow} ${loading ? "animate-pulse" : ""}`}
     >
-      <span className={`mb-0.5 inline-flex rounded-full px-1.5 py-px font-mono text-[8px] uppercase tracking-[0.18em] ${cls.chip}`}>
+      <span className={`mb-0.5 inline-flex rounded-full px-1.5 py-px text-[10px] font-medium ${cls.chip}`}>
         {label}
       </span>
-      <span className={`font-mono text-[13px] font-semibold tabular-nums leading-tight ${cls.text}`}>
+      <span className={`text-[13px] font-semibold tabular-nums leading-tight ${cls.text}`}>
         {value}
       </span>
     </div>
@@ -193,8 +193,8 @@ function CompactCell({
   const toneClass = tone === "up" ? "text-price-up" : "text-price-dn";
   return (
     <div className="rounded-lg border border-seam bg-bg px-2.5 py-1.5 text-center">
-      <p className="font-mono text-[9px] uppercase tracking-widest text-ink/45">{label}</p>
-      <p className={`mt-0.5 font-mono text-sm font-semibold tabular-nums ${toneClass}`}>{value}</p>
+      <p className="text-[11px] font-medium text-ink/45">{label}</p>
+      <p className={`mt-0.5 text-sm font-semibold tabular-nums ${toneClass}`}>{value}</p>
     </div>
   );
 }

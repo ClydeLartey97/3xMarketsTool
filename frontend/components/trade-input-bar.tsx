@@ -156,11 +156,11 @@ export function TradeInputBar({
       >
         {/* Position size */}
         <label className="block">
-          <span className="mb-1 block text-[10px] uppercase tracking-widest text-ink/45">
+          <span className="mb-1.5 block text-xs font-medium text-ink/50">
             Position size
           </span>
           <div className="flex items-center gap-2 rounded-xl border border-seam bg-bg px-3 py-2 focus-within:border-seam-hi">
-            <span className="text-xl text-ink/55">£</span>
+            <span className="text-xl font-medium text-ink/55">£</span>
             <input
               type="number"
               min={100}
@@ -170,7 +170,7 @@ export function TradeInputBar({
                 userEditedRef.current = true;
                 setPosition(Math.max(100, Number(e.target.value) || 0));
               }}
-              className="w-full bg-transparent font-mono text-xl font-medium tabular-nums text-ink outline-none"
+              className="w-full bg-transparent text-xl font-medium tabular-nums text-ink outline-none"
               aria-label="Position size in GBP"
             />
           </div>
@@ -183,7 +183,7 @@ export function TradeInputBar({
                   userEditedRef.current = true;
                   setPosition(preset);
                 }}
-                className={`rounded-md px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition ${
+                className={`rounded-md px-2 py-0.5 text-xs font-medium transition ${
                   position === preset
                     ? "bg-ink/10 text-ink"
                     : "bg-bg text-ink/45 hover:bg-ink/5 hover:text-ink/80"
@@ -197,7 +197,7 @@ export function TradeInputBar({
 
         {/* Direction */}
         <div>
-          <span className="mb-1 block text-[10px] uppercase tracking-widest text-ink/45">
+          <span className="mb-1.5 block text-xs font-medium text-ink/50">
             Direction
           </span>
           <div className="flex rounded-xl border border-seam bg-bg p-1">
@@ -219,7 +219,7 @@ export function TradeInputBar({
                     userEditedRef.current = true;
                     setDirection(dir);
                   }}
-                  className={`min-w-[64px] rounded-lg px-3 py-2 font-mono text-xs uppercase tracking-wider transition ${tone}`}
+                  className={`min-w-[64px] rounded-lg px-3 py-2 text-sm font-medium capitalize transition ${tone}`}
                 >
                   {dir}
                 </button>
@@ -230,7 +230,7 @@ export function TradeInputBar({
 
         {/* Horizon */}
         <div>
-          <span className="mb-1 block text-[10px] uppercase tracking-widest text-ink/45">
+          <span className="mb-1.5 block text-xs font-medium text-ink/50">
             Horizon
           </span>
           <div className="flex rounded-xl border border-seam bg-bg p-1">
@@ -244,7 +244,7 @@ export function TradeInputBar({
                     userEditedRef.current = true;
                     setHorizon(h);
                   }}
-                  className={`min-w-[44px] rounded-lg px-2.5 py-2 font-mono text-xs tabular-nums transition ${
+                  className={`min-w-[44px] rounded-lg px-2.5 py-2 text-sm font-medium tabular-nums transition ${
                     active
                       ? "bg-ink/10 text-ink"
                       : "text-ink/45 hover:bg-ink/5 hover:text-ink/80"
@@ -262,7 +262,7 @@ export function TradeInputBar({
         <p className="mt-3 text-[11px] leading-relaxed text-ink/45">
           {sentenceSummary}{" "}
           {autoPopulated === "diary" ? (
-            <span className="rounded-md bg-accent/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-accent">
+            <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-[11px] font-medium text-accent">
               from open diary
             </span>
           ) : null}

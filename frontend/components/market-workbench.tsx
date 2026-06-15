@@ -451,7 +451,7 @@ function IdentityStrip({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="mb-1.5 flex items-center gap-2">
-            <span className="rounded-md bg-ink/5 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-ink/55">
+            <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-ink/55">
               {market.code}
             </span>
             <span className="text-[11px] text-ink/45">{market.region}</span>
@@ -511,8 +511,8 @@ function MiniStat({
         : "text-ink";
   return (
     <div className="hidden rounded-lg border border-seam bg-bg px-3 py-1.5 text-right sm:block">
-      <p className="font-mono text-[9px] uppercase tracking-widest text-ink/40">{label}</p>
-      <p className={`mt-0.5 font-mono text-sm font-semibold tabular-nums ${toneClass}`}>{value}</p>
+      <p className="text-[11px] font-medium text-ink/40">{label}</p>
+      <p className={`mt-0.5 text-sm font-semibold tabular-nums ${toneClass}`}>{value}</p>
     </div>
   );
 }
@@ -541,7 +541,7 @@ function BookActionStrip({
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-seam bg-bg px-4 py-3">
       <div className="min-w-0">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-ink/45">Your book</p>
+        <p className="text-xs font-medium text-ink/45">Your book</p>
         <p className="mt-1 text-sm text-ink/75">
           Save this {data.direction} {formatGbp(data.position_gbp)} read so it appears in open positions and the diary.
         </p>
@@ -551,7 +551,7 @@ function BookActionStrip({
         type="button"
         onClick={onSave}
         disabled={saving || saved}
-        className="shrink-0 rounded-lg border border-seam bg-ink px-4 py-2 text-xs font-semibold uppercase tracking-wider text-bg transition hover:bg-ink/85 disabled:cursor-not-allowed disabled:border-seam disabled:bg-ink/20 disabled:text-ink/45"
+        className="shrink-0 rounded-lg border border-seam bg-ink px-4 py-2 text-sm font-semibold text-bg transition hover:bg-ink/85 disabled:cursor-not-allowed disabled:border-seam disabled:bg-ink/20 disabled:text-ink/45"
       >
         {saving ? "Adding..." : saved ? "Added" : "Add to book"}
       </button>
@@ -602,10 +602,10 @@ function SectionFrame({
           if (collapsibleOnMobile && isMobile) setMobileOpen((v) => !v);
         }}
       >
-        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-ink/70">{title}</h2>
+        <h2 className="text-sm font-semibold text-ink/70">{title}</h2>
         {subtitle ? <p className="hidden text-[11px] text-ink/45 sm:block">{subtitle}</p> : null}
         {collapsibleOnMobile ? (
-          <span className="font-mono text-xs text-ink/45 md:hidden">{collapsed ? "+" : "−"}</span>
+          <span className="text-xs text-ink/45 md:hidden">{collapsed ? "+" : "−"}</span>
         ) : null}
       </header>
       {collapsed ? null : children}
