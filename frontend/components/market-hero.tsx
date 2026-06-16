@@ -41,7 +41,6 @@ export function MarketHero({
   });
   const [readyMarketCode, setReadyMarketCode] = useState<string | null>(null);
   const [stickyVisible, setStickyVisible] = useState(false);
-  const heroRef = useRef<HTMLDivElement | null>(null);
   const inputAnchorRef = useRef<HTMLDivElement | null>(null);
   const bubblesRef = useRef<HTMLDivElement | null>(null);
 
@@ -60,55 +59,49 @@ export function MarketHero({
     onAssessmentChange?.({ data, loading, inputs });
   }, [data, loading, inputs, onAssessmentChange]);
 
-  // Sticky bar visibility — fires once hero exits viewport.
-  useEffect(() => {
-    if (!heroRef.current || typeof window === "undefined") return;
-    const sentinel = heroRef.current;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (!entry) return;
-        setStickyVisible(!entry.isIntersecting);
-      },
-      {
-        // Trigger when ~30% of the hero is still visible — feels less abrupt.
-        threshold: 0.3,
-      },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, []);
-
-  // Apple-style scroll dissolve for the three bubbles. As the page leaves
-  // the top they ease out — fade + gentle scale-down + slight lift — instead
-  // of just scrolling away, handing off to the sticky rail. We write the
-  // transform straight to the node on rAF (no React re-render per frame), so
-  // it stays cheap. Honours prefers-reduced-motion.
+  // Scroll choreography for the three bubbles, driven from one rAF loop off a
+  // passive scroll listener (no React re-render per frame):
+  //   1. Dissolve — as the page leaves the top the bubbles ease out (fade +
+  //      gentle scale-down + slight lift) rather than just scrolling away.
+  //      Gated behind prefers-reduced-motion.
+  //   2. Hand-off — the sticky side rail appears ONLY once the bubbles have
+  //      scrolled out of view (their bottom edge tucks under the app nav);
+  //      while any of them is still on screen it stays hidden. Runs
+  //      regardless of motion preference. Measuring the live position (rather
+  //      than an IntersectionObserver ratio) is what keeps it correct when
+  //      the hero sits below the market-identity strip.
   useEffect(() => {
     const el = bubblesRef.current;
     if (!el || typeof window === "undefined") return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const allowMotion = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const START = 40; // grace before the dissolve begins
     const END = 280; // fully dissolved by here
+    const NAV = 72; // ~app nav height; bubbles count as gone above this line
     let raf = 0;
     const render = () => {
       raf = 0;
-      const raw = (window.scrollY - START) / (END - START);
-      const p = Math.min(1, Math.max(0, raw));
-      // ease-in-out cubic — gentle at both ends.
-      const eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
-      el.style.opacity = String(1 - eased);
-      el.style.transform = `translateY(${(-eased * 18).toFixed(2)}px) scale(${(1 - eased * 0.06).toFixed(4)})`;
-      el.style.pointerEvents = eased > 0.9 ? "none" : "";
+      if (allowMotion) {
+        const raw = (window.scrollY - START) / (END - START);
+        const p = Math.min(1, Math.max(0, raw));
+        // ease-in-out cubic — gentle at both ends.
+        const eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+        el.style.opacity = String(1 - eased);
+        el.style.transform = `translateY(${(-eased * 18).toFixed(2)}px) scale(${(1 - eased * 0.06).toFixed(4)})`;
+        el.style.pointerEvents = eased > 0.9 ? "none" : "";
+      }
+      const gone = el.getBoundingClientRect().bottom <= NAV;
+      setStickyVisible((prev) => (prev === gone ? prev : gone));
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(render);
     };
     render();
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
@@ -143,7 +136,7 @@ export function MarketHero({
         onEdit={handleEdit}
       />
 
-      <section ref={heroRef} className="space-y-5">
+      <section className="space-y-5">
         <div ref={inputAnchorRef}>
           <TradeInputBar
             marketId={marketId}
