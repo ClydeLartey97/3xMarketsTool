@@ -44,17 +44,17 @@ export function SignalStack({ dashboard }: { dashboard: DashboardData }) {
       <div className="mb-4 grid gap-2">
         <div className="rounded-xl border border-seam bg-well p-3">
           <p className="mb-2 eyebrow text-[9px] text-ink/30">Base case</p>
-          <p className="font-mono text-xl font-semibold tabular-nums text-ink">${baseCase.toFixed(2)}</p>
+          <p className="text-2xl font-semibold tabular-nums tracking-[-0.01em] text-ink">${baseCase.toFixed(2)}</p>
           <p className="mt-1 text-xs text-ink/40">12h avg forward price</p>
         </div>
         <div className="rounded-xl border border-price-up/20 bg-price-up/5 p-3">
           <p className="mb-2 eyebrow text-[9px] text-price-up/65">Bull stress</p>
-          <p className="font-mono text-xl font-semibold tabular-nums text-price-up">${bullCase.toFixed(2)}</p>
+          <p className="text-2xl font-semibold tabular-nums tracking-[-0.01em] text-price-up">${bullCase.toFixed(2)}</p>
           <p className="mt-1 text-xs text-price-up/60">Upper envelope, front strip</p>
         </div>
         <div className="rounded-xl border border-price-hot/20 bg-price-hot/5 p-3">
           <p className="mb-2 eyebrow text-[9px] text-price-hot/65">Bear stress</p>
-          <p className="font-mono text-xl font-semibold tabular-nums text-price-hot">${bearCase.toFixed(2)}</p>
+          <p className="text-2xl font-semibold tabular-nums tracking-[-0.01em] text-price-hot">${bearCase.toFixed(2)}</p>
           <p className="mt-1 text-xs text-price-hot/60">Lower envelope, front strip</p>
         </div>
       </div>
@@ -85,7 +85,7 @@ export function SignalStack({ dashboard }: { dashboard: DashboardData }) {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className={`font-mono text-sm font-semibold tabular-nums ${impactColor}`}>
+                    <span className={`text-sm font-semibold tabular-nums ${impactColor}`}>
                       {catalyst.impact}
                     </span>
                     <span className={`rounded px-2 py-0.5 eyebrow text-[9px] ${style.badge}`}>
@@ -100,7 +100,7 @@ export function SignalStack({ dashboard }: { dashboard: DashboardData }) {
                       style={{ width: `${catalyst.confidence}%` }}
                     />
                   </div>
-                  <span className="font-mono text-[10px] text-ink/35">{catalyst.confidence}% conf</span>
+                  <span className="text-[10px] tabular-nums text-ink/35">{catalyst.confidence}% conf</span>
                 </div>
               </div>
             );

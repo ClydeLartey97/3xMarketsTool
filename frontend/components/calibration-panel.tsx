@@ -42,18 +42,18 @@ export function CalibrationPanel({ marketId }: { marketId: number }) {
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
         <div className="rounded-lg bg-bg p-3">
           <p className="eyebrow text-[9px] text-ink/35">Actual breach</p>
-          <p className="mt-1 font-mono text-lg text-ink">
+          <p className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.01em] text-ink">
             {calibration ? formatPct(calibration.actual_breach_rate) : "—"}
           </p>
         </div>
         <div className="rounded-lg bg-bg p-3">
           <p className="eyebrow text-[9px] text-ink/35">Target</p>
-          <p className="mt-1 font-mono text-lg text-ink">
+          <p className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.01em] text-ink">
             {calibration ? formatPct(calibration.claimed_breach_rate) : "5.0%"}
           </p>
         </div>
       </div>
-      <p className="mt-3 font-mono text-[11px] text-ink/45">
+      <p className="mt-3 text-[11px] tabular-nums text-ink/45">
         {calibration ? `${calibration.sample_count} reads · Kupiec p ${calibration.kupiec_p_value.toFixed(3)}` : "0 reads"}
       </p>
     </section>
