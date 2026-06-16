@@ -41,7 +41,14 @@ const config: Config = {
         tighter: "0",
       },
       boxShadow: {
-        panel:      "0 1px 3px rgba(0,0,0,0.06), 0 8px 32px rgba(0,0,0,0.04)",
+        /* Apple-style soft depth: a tight contact shadow + a wide diffuse
+           one, both very low opacity and slightly cool-tinted, so surfaces
+           feel lifted off the page rather than outlined by a crisp drop. */
+        sm:         "0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.03)",
+        DEFAULT:    "0 1px 2px rgba(15,23,42,0.04), 0 4px 12px rgba(15,23,42,0.05)",
+        md:         "0 2px 6px rgba(15,23,42,0.04), 0 10px 28px rgba(15,23,42,0.06)",
+        lg:         "0 4px 10px rgba(15,23,42,0.04), 0 18px 44px rgba(15,23,42,0.07)",
+        panel:      "0 1px 2px rgba(15,23,42,0.04), 0 14px 44px rgba(15,23,42,0.06)",
         "panel-dark":"0 20px 60px rgba(4,10,18,0.55), 0 2px 8px rgba(0,0,0,0.3)",
         glow:       "0 0 0 1px rgba(16,185,129,0.25), 0 0 20px rgba(16,185,129,0.08)",
         "glow-danger":"0 0 0 1px rgba(239,68,68,0.25), 0 0 20px rgba(239,68,68,0.08)",

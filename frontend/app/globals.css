@@ -13,9 +13,10 @@
   --surface:    255 255 255;   /* #ffffff - card */
   --well:       244 248 251;   /* #f4f8fb - inner / deeply nested */
 
-  /* Borders */
-  --seam:       209 220 232;   /* #d1dce8 */
-  --seam-hi:    173 196 216;   /* #adc4d8 hover */
+  /* Borders — soft hairlines (low contrast against the page) so panels
+     read as lifted surfaces, not outlined boxes. */
+  --seam:       224 232 240;   /* #e0e8f0 */
+  --seam-hi:    198 213 226;   /* #c6d5e2 hover */
 
   /* Text */
   --ink:        8   17  26;    /* #08111a */

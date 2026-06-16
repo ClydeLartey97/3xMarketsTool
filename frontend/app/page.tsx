@@ -41,16 +41,16 @@ export default async function HomePage() {
 
     return (
       <main className="animate-fade-in">
-        <div className="mb-8 rise">
-          <div className="mb-3 flex items-center gap-3">
+        <div className="mb-12 rise pt-2 sm:pt-6">
+          <div className="mb-4 flex items-center gap-3">
             <span className="eyebrow text-xs text-accent">
               Market data
             </span>
           </div>
-          <h1 className="mb-2 text-4xl font-bold tracking-tight text-ink">
+          <h1 className="mb-3 font-display text-5xl font-semibold leading-[1.05] tracking-[-0.02em] text-ink sm:text-6xl">
             Power Market Intelligence
           </h1>
-          <p className="mb-3 text-2xl font-semibold tracking-tight text-ink/80">
+          <p className="mb-5 text-xl font-medium tracking-[-0.01em] text-ink/70">
             By{" "}
             <a
               href="https://www.linkedin.com/in/clydelartey/"
@@ -63,17 +63,17 @@ export default async function HomePage() {
           </p>
           <a
             href="mailto:clyde.lartey@nyu.edu"
-            className="mb-4 inline-block text-sm font-medium text-ink/55 transition-colors hover:text-accent"
+            className="mb-6 inline-block text-sm font-medium text-ink/55 transition-colors hover:text-accent"
           >
             clyde.lartey@nyu.edu
           </a>
-          <p className="max-w-xl text-base text-ink/50">
+          <p className="max-w-xl text-lg leading-relaxed text-ink/55">
             Prices, forward curves, and event-driven signals for wholesale electricity
             markets.
           </p>
         </div>
 
-        <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
           {markets.map((market) => (
             <MarketCardLive
               key={market.code}
@@ -84,7 +84,7 @@ export default async function HomePage() {
           ))}
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-ink/25">
+        <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-ink/25">
           <span>Prices derived from real grid data · Weather via Open-Meteo</span>
           <span>GB prices via ELEXON BMRS · Gas via CME NG=F</span>
           <span>Refreshes every 30 min</span>
