@@ -41,19 +41,22 @@ function formatPerturbation(value: number) {
   return `${value > 0 ? "+" : ""}${value.toFixed(0)}%`;
 }
 
+// Heat tint per cell. Neutral cells use a theme-aware ink wash (works in
+// both light and dark); movement is a soft red (risk up) / green (risk down)
+// tint that reads on either background.
 function heatStyle(risk: number, baseline: number) {
   if (!Number.isFinite(risk) || !Number.isFinite(baseline) || baseline <= 0) {
-    return { backgroundColor: "rgba(39, 39, 42, 0.55)" };
+    return { backgroundColor: "rgb(var(--ink) / 0.05)" };
   }
   const delta = (risk - baseline) / baseline;
-  const alpha = Math.min(0.42, 0.08 + Math.abs(delta) * 0.7);
+  const alpha = Math.min(0.4, 0.08 + Math.abs(delta) * 0.7);
   if (Math.abs(delta) < 0.005) {
-    return { backgroundColor: "rgba(63, 63, 70, 0.55)" };
+    return { backgroundColor: "rgb(var(--ink) / 0.06)" };
   }
   if (delta > 0) {
-    return { backgroundColor: `rgba(239, 68, 68, ${alpha})` };
+    return { backgroundColor: `rgba(220, 38, 38, ${alpha})` };
   }
-  return { backgroundColor: `rgba(34, 197, 94, ${alpha})` };
+  return { backgroundColor: `rgba(5, 150, 105, ${alpha})` };
 }
 
 function coefficientBase(data: RiskAssessment, coefficient: SensitivityCoefficient) {
@@ -175,9 +178,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
 
   if (loading && !data) {
     return (
-      <section
-        className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-400"
-      >
+      <section className="rounded-2xl border border-seam bg-surface p-4 text-ink/45">
         Computing sensitivity ladder...
       </section>
     );
@@ -185,9 +186,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
 
   if (!data) {
     return (
-      <section
-        className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500"
-      >
+      <section className="rounded-2xl border border-seam bg-surface p-4 text-ink/40">
         Run a risk assessment to see coefficient sensitivity.
       </section>
     );
@@ -196,7 +195,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
   if (!sensitivity) {
     return (
       <section
-        className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500"
+        className="rounded-2xl border border-seam bg-surface p-4 text-ink/40"
         aria-label="Risk sensitivity ladder"
       >
         Sensitivity ladder unavailable for this read.
@@ -206,67 +205,65 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
 
   return (
     <section
-      className="rounded-xl border border-white/10 bg-zinc-950/60 p-4"
+      className="rounded-2xl border border-seam bg-surface p-4"
       aria-label="Risk sensitivity ladder"
     >
-      <header className="sticky-panel-header -mx-4 -mt-4 mb-3 flex flex-wrap items-baseline justify-between gap-2 rounded-t-xl bg-zinc-950 px-4 pb-3 pt-4">
+      <header className="sticky-panel-header -mx-4 -mt-4 mb-3 flex flex-wrap items-baseline justify-between gap-2 rounded-t-2xl bg-surface px-4 pb-3 pt-4">
         <div>
-          <h3 className="text-sm font-semibold text-zinc-100">Sensitivity ladder</h3>
-          <p className="text-[11px] text-zinc-500">Perturb one coefficient at a time; colour tracks risk movement.</p>
+          <h3 className="text-sm font-semibold text-ink">Sensitivity ladder</h3>
+          <p className="text-[11px] text-ink/45">Perturb one coefficient at a time; colour tracks risk movement.</p>
         </div>
-        <span className="eyebrow text-[10px] text-zinc-500">
+        <span className="eyebrow text-[10px] text-ink/45">
           {formatGbp(sensitivity.position_gbp)} · {sensitivity.horizon_hours}h · {sensitivity.direction}
         </span>
       </header>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-[760px] w-full table-fixed border-separate border-spacing-1 text-[11px]">
-          <thead>
-            <tr>
-              <th className="w-40 px-2 py-1 eyebrow text-left font-semibold text-zinc-500">
-                Coefficient
+      <table className="w-full table-fixed border-separate border-spacing-1 text-[11px]">
+        <thead>
+          <tr>
+            <th className="w-36 px-2 py-1 eyebrow text-left font-semibold text-ink/45">
+              Coefficient
+            </th>
+            {sensitivity.perturbations_pct.map((p) => (
+              <th key={p} className="px-2 py-1 text-center font-mono font-semibold text-ink/55">
+                {formatPerturbation(p)}
               </th>
-              {sensitivity.perturbations_pct.map((p) => (
-                <th key={p} className="px-2 py-1 text-center font-mono font-semibold text-zinc-400">
-                  {formatPerturbation(p)}
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sensitivity.rows.map((row) => {
+            const baseline = baselineByCoefficient.get(row.coefficient) ?? 0;
+            return (
+              <tr key={row.coefficient}>
+                <th className="rounded-md bg-ink/[0.04] px-2 py-2 text-left align-middle">
+                  <span className="block text-ink">{LABELS[row.coefficient]}</span>
+                  <span className="mt-0.5 block font-mono text-[10px] text-ink/45">
+                    base {row.base_value.toPrecision(4)}
+                  </span>
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sensitivity.rows.map((row) => {
-              const baseline = baselineByCoefficient.get(row.coefficient) ?? 0;
-              return (
-                <tr key={row.coefficient}>
-                  <th className="rounded-md bg-black/30 px-2 py-2 text-left align-middle">
-                    <span className="block text-zinc-100">{LABELS[row.coefficient]}</span>
-                    <span className="mt-0.5 block font-mono text-[10px] text-zinc-500">
-                      base {row.base_value.toPrecision(4)}
+                {row.cells.map((cell) => (
+                  <td
+                    key={`${row.coefficient}-${cell.perturbation_pct}`}
+                    style={heatStyle(cell.risk_gbp, baseline)}
+                    className="rounded-md px-2 py-2 text-center align-middle text-ink"
+                  >
+                    <span className="block font-mono text-[12px] font-semibold tabular-nums">
+                      {formatGbp(cell.risk_gbp)}
                     </span>
-                  </th>
-                  {row.cells.map((cell) => (
-                    <td
-                      key={`${row.coefficient}-${cell.perturbation_pct}`}
-                      style={heatStyle(cell.risk_gbp, baseline)}
-                      className="rounded-md px-2 py-2 text-center align-middle text-zinc-100"
-                    >
-                      <span className="block font-mono text-[12px] font-semibold tabular-nums">
-                        {formatGbp(cell.risk_gbp)}
-                      </span>
-                      <span className="mt-1 block font-mono text-[10px] leading-tight text-zinc-300/80">
-                        L {formatGbp(cell.likely_gbp)}
-                      </span>
-                      <span className="block font-mono text-[10px] leading-tight text-zinc-300/80">
-                        U {formatGbp(cell.upside_gbp)}
-                      </span>
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    <span className="mt-1 block font-mono text-[10px] leading-tight text-ink/55">
+                      L {formatGbp(cell.likely_gbp)}
+                    </span>
+                    <span className="block font-mono text-[10px] leading-tight text-ink/55">
+                      U {formatGbp(cell.upside_gbp)}
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </section>
   );
 }

@@ -6,12 +6,12 @@ import type { ReactNode } from "react";
 import type { CoefficientItem, RiskAssessment } from "@/types/domain";
 
 const GROUP_ORDER: { key: string; label: string; tone: string }[] = [
-  { key: "result",       label: "Result",          tone: "text-amber-300" },
-  { key: "forecast",     label: "Forecast",        tone: "text-sky-300" },
-  { key: "realised_vol", label: "Realised vol",    tone: "text-emerald-300" },
-  { key: "llm",          label: "LLM context",    tone: "text-violet-300" },
-  { key: "fx",           label: "FX",              tone: "text-rose-300" },
-  { key: "position",     label: "Position",        tone: "text-cyan-300" },
+  { key: "result",       label: "Result",       tone: "text-amber-600 dark:text-amber-300" },
+  { key: "forecast",     label: "Forecast",     tone: "text-sky-600 dark:text-sky-300" },
+  { key: "realised_vol", label: "Realised vol", tone: "text-emerald-600 dark:text-emerald-300" },
+  { key: "llm",          label: "LLM context",  tone: "text-violet-600 dark:text-violet-300" },
+  { key: "fx",           label: "FX",           tone: "text-rose-600 dark:text-rose-300" },
+  { key: "position",     label: "Position",     tone: "text-cyan-600 dark:text-cyan-300" },
 ];
 
 function formatValue(value: number, unit: string): string {
@@ -55,14 +55,14 @@ export function RiskDecompositionPanel({ data, loading = false }: RiskDecomposit
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-400">
+      <div className="rounded-2xl border border-seam bg-surface p-4 text-ink/45">
         Computing decomposition…
       </div>
     );
   }
   if (!data) {
     return (
-      <div className="rounded-xl border border-white/10 bg-zinc-950/60 p-4 text-zinc-500">
+      <div className="rounded-2xl border border-seam bg-surface p-4 text-ink/40">
         Run a risk assessment to see how every coefficient contributes.
       </div>
     );
@@ -70,22 +70,22 @@ export function RiskDecompositionPanel({ data, loading = false }: RiskDecomposit
 
   return (
     <section
-      className="rounded-xl border border-white/10 bg-zinc-950/60 p-4"
+      className="rounded-2xl border border-seam bg-surface p-4"
       aria-label="Risk coefficient decomposition"
     >
-      <header className="sticky-panel-header -mx-4 -mt-4 mb-3 flex items-baseline justify-between gap-2 rounded-t-xl bg-zinc-950 px-4 pb-3 pt-4">
+      <header className="sticky-panel-header -mx-4 -mt-4 mb-3 flex items-baseline justify-between gap-2 rounded-t-2xl bg-surface px-4 pb-3 pt-4">
         <div>
-          <h3 className="text-sm font-semibold text-zinc-100">Risk decomposition</h3>
-          <p className="text-[11px] text-zinc-500">
+          <h3 className="text-sm font-semibold text-ink">Risk decomposition</h3>
+          <p className="text-[11px] text-ink/45">
             Every parameter that drives risk · likely · upside, exposed for audit.
           </p>
         </div>
-        <span className="eyebrow text-[10px] text-zinc-500">
+        <span className="eyebrow text-[10px] text-ink/45">
           n_paths {data.n_paths.toLocaleString()} · metric {data.risk_metric}
         </span>
       </header>
 
-      <pre className="mb-4 whitespace-pre-wrap rounded-md bg-black/40 p-2 font-mono text-[10.5px] leading-snug text-zinc-300">
+      <pre className="mb-4 whitespace-pre-wrap rounded-md bg-ink/[0.04] p-2 font-mono text-[10.5px] leading-snug text-ink/70">
         {data.coefficients?.equation_summary ?? ""}
       </pre>
 
@@ -94,22 +94,22 @@ export function RiskDecompositionPanel({ data, loading = false }: RiskDecomposit
           const items = grouped.get(key) ?? [];
           if (items.length === 0) return null;
           return (
-            <div key={key} className="rounded-lg border border-white/5 bg-black/30 p-2">
+            <div key={key} className="rounded-lg border border-seam bg-ink/[0.03] p-2">
               <h4 className={`mb-1.5 eyebrow text-[10.5px] font-semibold ${tone}`}>
                 {label}
               </h4>
               <table className="w-full table-fixed border-separate border-spacing-y-0.5 text-[11px]">
                 <tbody>
                   {items.map((item) => (
-                    <tr key={item.key} className="text-zinc-300">
+                    <tr key={item.key} className="text-ink/70">
                       <td className="w-[55%] truncate pr-2 align-top" title={item.description}>
-                        <span className="text-zinc-200">{item.label}</span>
-                        <div className="text-[9.5px] text-zinc-500">{item.description}</div>
+                        <span className="text-ink">{item.label}</span>
+                        <div className="text-[9.5px] text-ink/45">{item.description}</div>
                       </td>
-                      <td className="w-[28%] truncate text-right font-mono text-zinc-100">
+                      <td className="w-[28%] truncate text-right font-mono text-ink">
                         {formatValue(item.value, item.unit)}
                       </td>
-                      <td className="w-[17%] truncate pl-1 text-right eyebrow text-[9.5px] text-zinc-500">
+                      <td className="w-[17%] truncate pl-1 text-right eyebrow text-[9.5px] text-ink/45">
                         {item.unit}
                       </td>
                     </tr>
@@ -145,8 +145,8 @@ function CalculationWalkthrough({ data }: { data: RiskAssessment }) {
   const dirSign = data.direction === "short" ? -1 : 1;
 
   return (
-    <div className="mt-4 rounded-lg border border-white/5 bg-black/30 p-3">
-      <h4 className="mb-3 eyebrow text-[10.5px] font-semibold text-zinc-400">
+    <div className="mt-4 rounded-lg border border-seam bg-ink/[0.03] p-3">
+      <h4 className="mb-3 eyebrow text-[10.5px] font-semibold text-ink/50">
         Step-by-step: how the three numbers are produced
       </h4>
       <ol className="space-y-3">
@@ -198,11 +198,11 @@ function CalculationWalkthrough({ data }: { data: RiskAssessment }) {
 function WalkStep({ n, label, children }: { n: number; label: string; children: ReactNode }) {
   return (
     <li className="flex gap-3">
-      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-800 font-mono text-[9px] text-zinc-400">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink/10 font-mono text-[9px] text-ink/55">
         {n}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="mb-1 text-[11px] font-semibold text-zinc-200">{label}</div>
+        <div className="mb-1 text-[11px] font-semibold text-ink/90">{label}</div>
         <div className="space-y-0.5">{children}</div>
       </div>
     </li>
@@ -224,15 +224,15 @@ function WalkRow({
 }) {
   const valueClass =
     tone === "up"
-      ? "text-emerald-400"
+      ? "text-price-up"
       : tone === "dn"
-        ? "text-red-400"
+        ? "text-price-dn"
         : dim
-          ? "text-zinc-500"
-          : "text-zinc-100";
+          ? "text-ink/45"
+          : "text-ink";
   return (
     <div className="flex items-baseline justify-between gap-2 text-[11px]">
-      <span className={dim ? "text-zinc-500" : "text-zinc-400"}>{k}</span>
+      <span className={dim ? "text-ink/45" : "text-ink/60"}>{k}</span>
       <span className={`shrink-0 ${mono ? "font-mono" : ""} ${valueClass}`}>{v}</span>
     </div>
   );

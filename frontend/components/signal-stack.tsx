@@ -36,7 +36,7 @@ export function SignalStack({ dashboard }: { dashboard: DashboardData }) {
   return (
     <section className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
       <div className="mb-4">
-        <p className="mb-1 eyebrow text-[10px] text-ink/35">Signal Stack</p>
+        <p className="mb-1 eyebrow text-[10px] text-ink/35">Signal stack</p>
         <h2 className="text-lg font-semibold text-ink">What would move this market from here?</h2>
       </div>
 
