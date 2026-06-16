@@ -11,7 +11,7 @@ export function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
     <section className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
       <div className="mb-4 flex items-center justify-between gap-4">
         <div>
-          <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-ink/35">Alerts</p>
+          <p className="mb-1 eyebrow text-[10px] text-ink/35">Alerts</p>
           <h2 className="text-lg font-semibold text-ink">Active watchlist conditions</h2>
         </div>
         {alerts.length > 0 && (
@@ -34,7 +34,7 @@ export function AlertsPanel({ alerts }: { alerts: AlertItem[] }) {
                     <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${style.dot}`} />
                     <h3 className="text-sm font-semibold text-ink">{alert.title}</h3>
                   </div>
-                  <span className={`rounded px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest shrink-0 ${style.badge}`}>
+                  <span className={`rounded px-2 py-0.5 eyebrow text-[9px] shrink-0 ${style.badge}`}>
                     {alert.severity}
                   </span>
                 </div>

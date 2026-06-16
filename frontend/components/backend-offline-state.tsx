@@ -21,15 +21,15 @@ export function BackendOfflineState({
             <div className="rounded-[1.35rem] bg-surface px-5 py-3 text-4xl font-semibold tracking-tight text-ink shadow-panel">
               3x
             </div>
-            <p className="text-xs uppercase tracking-[0.34em] text-ink/46">Power market intelligence</p>
+            <p className="eyebrow text-xs text-ink/46">Power market intelligence</p>
           </div>
 
-          <p className="mt-8 text-xs uppercase tracking-[0.28em] text-accent">Backend required</p>
+          <p className="mt-8 eyebrow text-xs text-accent">Backend required</p>
           <h1 className="mt-3 font-display text-5xl leading-none sm:text-6xl">{title}</h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-ink/70">{detail}</p>
 
           <div className="mt-8 rounded-[1.8rem] border border-seam bg-surface/85 p-5 backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.24em] text-ink/46">Start the backend</p>
+            <p className="eyebrow text-xs text-ink/46">Start the backend</p>
             <pre className="mt-4 overflow-x-auto rounded-2xl bg-well px-4 py-4 text-sm leading-7 text-accent">
               <code>{`cd "/Users/clydelartey/Documents/Code/Market Speculation/backend"
 python3 -m uvicorn app.main:app --reload --port 8000`}</code>

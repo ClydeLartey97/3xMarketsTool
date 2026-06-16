@@ -35,19 +35,19 @@ export function CalibrationPanel({ marketId }: { marketId: number }) {
 
   return (
     <section className="rounded-2xl border border-seam bg-surface p-5">
-      <p className="text-[10px] uppercase tracking-widest text-ink/40">Calibration</p>
+      <p className="eyebrow text-[10px] text-ink/40">Calibration</p>
       <h3 className={`mt-2 text-lg font-semibold ${tone}`}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </h3>
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
         <div className="rounded-lg bg-bg p-3">
-          <p className="text-[9px] uppercase tracking-widest text-ink/35">Actual breach</p>
+          <p className="eyebrow text-[9px] text-ink/35">Actual breach</p>
           <p className="mt-1 font-mono text-lg text-ink">
             {calibration ? formatPct(calibration.actual_breach_rate) : "—"}
           </p>
         </div>
         <div className="rounded-lg bg-bg p-3">
-          <p className="text-[9px] uppercase tracking-widest text-ink/35">Target</p>
+          <p className="eyebrow text-[9px] text-ink/35">Target</p>
           <p className="mt-1 font-mono text-lg text-ink">
             {calibration ? formatPct(calibration.claimed_breach_rate) : "5.0%"}
           </p>

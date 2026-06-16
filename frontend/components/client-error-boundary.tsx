@@ -23,7 +23,7 @@ export class ClientErrorBoundary extends Component<ClientErrorBoundaryProps, Cli
     if (this.state.hasError) {
       return (
         <section className="rounded-[1.8rem] border border-[#d7e0ea] bg-white/95 p-6 shadow-panel">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate/65">Chart unavailable</p>
+          <p className="eyebrow text-xs text-slate/65">Chart unavailable</p>
           <h2 className="mt-2 text-2xl font-semibold text-[#08111a]">
             {this.props.fallbackTitle ?? "The chart hit a client-side issue."}
           </h2>

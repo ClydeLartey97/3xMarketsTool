@@ -105,13 +105,13 @@ export function MarketCardLive({
   return (
     <Link
       href={`/markets/${market.code}` as Route}
-      className="group relative overflow-hidden rounded-2xl border border-seam bg-surface p-5 transition-all duration-200 hover:border-seam-hi hover:shadow-sm"
+      className="group relative overflow-hidden rounded-2xl border border-seam bg-surface p-5 transition-all duration-200 hover:-translate-y-1 hover:border-seam-hi hover:shadow-panel"
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <div className="mb-1 flex items-center gap-2">
             <span className="text-sm">{flag}</span>
-            <span className="font-mono text-[10px] uppercase tracking-widest text-ink/30">
+            <span className="eyebrow text-[10px] text-ink/30">
               {market.code}
             </span>
           </div>
@@ -121,7 +121,7 @@ export function MarketCardLive({
           </p>
         </div>
         <div
-          className={`rounded-lg px-2.5 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider ${
+          className={`rounded-lg px-2.5 py-1.5 text-[10px] eyebrow font-semibold ${
             isUp
               ? "bg-price-up/10 text-price-up"
               : isDown
@@ -136,7 +136,7 @@ export function MarketCardLive({
 
       <div className="mb-4 flex items-end gap-3">
         <div>
-          <p className="mb-1 text-[10px] uppercase tracking-widest text-ink/30">Spot</p>
+          <p className="mb-1 eyebrow text-[10px] text-ink/30">Spot</p>
           <p className="font-mono text-2xl font-semibold tabular-nums text-ink">
             {typeof spot === "number" ? (
               `$${spot.toFixed(2)}`
@@ -149,7 +149,7 @@ export function MarketCardLive({
         </div>
         {forecast ? (
           <div className="ml-auto mb-0.5 text-right">
-            <p className="mb-1 text-[10px] uppercase tracking-widest text-ink/30">Next H</p>
+            <p className="mb-1 eyebrow text-[10px] text-ink/30">Next H</p>
             <p className="font-mono text-lg font-medium tabular-nums text-price-up">
               ${forecast.point_estimate.toFixed(2)}
             </p>

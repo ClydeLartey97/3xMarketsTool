@@ -16,7 +16,7 @@ export function MetricCard({ label, value, tone = "default", helper }: MetricCar
   return (
     <article className="rounded-[1.6rem] border border-white/60 bg-white/80 p-5 shadow-panel">
       <div className={`mb-5 h-1.5 w-20 rounded-full bg-gradient-to-r ${toneMap[tone]}`} />
-      <p className="text-xs uppercase tracking-[0.24em] text-slate/60">{label}</p>
+      <p className="eyebrow text-xs text-slate/60">{label}</p>
       <p className="mt-3 text-3xl font-semibold text-slate">{value}</p>
       {helper ? <p className="mt-2 text-sm text-slate/70">{helper}</p> : null}
     </article>

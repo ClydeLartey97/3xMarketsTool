@@ -80,7 +80,7 @@ export function RiskDecompositionPanel({ data, loading = false }: RiskDecomposit
             Every parameter that drives risk · likely · upside, exposed for audit.
           </p>
         </div>
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500">
+        <span className="eyebrow text-[10px] text-zinc-500">
           n_paths {data.n_paths.toLocaleString()} · metric {data.risk_metric}
         </span>
       </header>
@@ -95,7 +95,7 @@ export function RiskDecompositionPanel({ data, loading = false }: RiskDecomposit
           if (items.length === 0) return null;
           return (
             <div key={key} className="rounded-lg border border-white/5 bg-black/30 p-2">
-              <h4 className={`mb-1.5 text-[10.5px] font-semibold uppercase tracking-wider ${tone}`}>
+              <h4 className={`mb-1.5 eyebrow text-[10.5px] font-semibold ${tone}`}>
                 {label}
               </h4>
               <table className="w-full table-fixed border-separate border-spacing-y-0.5 text-[11px]">
@@ -109,7 +109,7 @@ export function RiskDecompositionPanel({ data, loading = false }: RiskDecomposit
                       <td className="w-[28%] truncate text-right font-mono text-zinc-100">
                         {formatValue(item.value, item.unit)}
                       </td>
-                      <td className="w-[17%] truncate pl-1 text-right text-[9.5px] uppercase tracking-wide text-zinc-500">
+                      <td className="w-[17%] truncate pl-1 text-right eyebrow text-[9.5px] text-zinc-500">
                         {item.unit}
                       </td>
                     </tr>
@@ -146,7 +146,7 @@ function CalculationWalkthrough({ data }: { data: RiskAssessment }) {
 
   return (
     <div className="mt-4 rounded-lg border border-white/5 bg-black/30 p-3">
-      <h4 className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider text-zinc-400">
+      <h4 className="mb-3 eyebrow text-[10.5px] font-semibold text-zinc-400">
         Step-by-step: how the three numbers are produced
       </h4>
       <ol className="space-y-3">

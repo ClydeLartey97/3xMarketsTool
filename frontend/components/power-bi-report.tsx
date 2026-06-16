@@ -231,12 +231,12 @@ export function PowerBIReport({
     <section className="rounded-2xl border border-seam bg-surface p-4 shadow-panel sm:p-5">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-ink/35">Power BI report</p>
+          <p className="eyebrow text-[10px] text-ink/35">Power BI report</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-ink">
             {config?.report_name ?? "External reporting"}
           </h2>
         </div>
-        <span className="rounded-lg border border-seam bg-bg px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ink/45">
+        <span className="rounded-lg border border-seam bg-bg px-3 py-1.5 eyebrow text-[10px] text-ink/45">
           {marketCode ?? "All markets"}
         </span>
       </div>
@@ -247,7 +247,7 @@ export function PowerBIReport({
             <p className="text-sm font-semibold text-ink">Optional report not configured</p>
             <p className="mt-2 text-sm leading-6 text-ink/55">{setupMessage}</p>
             {setupDetail ? (
-              <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-ink/35">{setupDetail}</p>
+              <p className="mt-3 eyebrow text-[10px] text-ink/35">{setupDetail}</p>
             ) : null}
           </div>
         </div>

@@ -392,11 +392,11 @@ export function RiskPanel({
     <div className="rounded-2xl border border-seam bg-surface p-5">
       <div className="mb-4 flex items-baseline justify-between gap-2">
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-ink/40">Position assessment</p>
+          <p className="eyebrow text-[10px] text-ink/40">Position assessment</p>
           <h3 className="mt-1 text-base font-semibold text-ink">Risk · Likely · Upside</h3>
         </div>
         <span
-          className={`rounded-md px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider ${
+          className={`rounded-md px-2 py-0.5 text-[10px] eyebrow ${
             provider === "gemini" ? "bg-accent/10 text-accent" : "bg-ink/5 text-ink/50"
           }`}
         >
@@ -413,7 +413,7 @@ export function RiskPanel({
           <button
             type="button"
             onClick={() => setRiskFirst(true)}
-            className={`flex-1 rounded px-2 py-1.5 text-[11px] font-mono uppercase tracking-wider transition ${
+            className={`flex-1 rounded px-2 py-1.5 text-[11px] eyebrow transition ${
               riskFirst ? "bg-ink/10 text-ink" : "text-ink/50 hover:text-ink"
             }`}
           >
@@ -422,7 +422,7 @@ export function RiskPanel({
           <button
             type="button"
             onClick={() => setRiskFirst(false)}
-            className={`flex-1 rounded px-2 py-1.5 text-[11px] font-mono uppercase tracking-wider transition ${
+            className={`flex-1 rounded px-2 py-1.5 text-[11px] eyebrow transition ${
               !riskFirst ? "bg-ink/10 text-ink" : "text-ink/50 hover:text-ink"
             }`}
           >
@@ -430,7 +430,7 @@ export function RiskPanel({
           </button>
         </div>
         <label className="block">
-          <span className="mb-1 block text-[10px] uppercase tracking-widest text-ink/40">
+          <span className="mb-1 block eyebrow text-[10px] text-ink/40">
             {riskFirst ? "Max risk (GBP)" : "Position size (GBP)"}
           </span>
           <div className="flex items-center gap-2">
@@ -470,7 +470,7 @@ export function RiskPanel({
         </div>
         {riskFirst ? (
           <div className="flex items-center justify-between rounded-lg border border-seam bg-bg px-3 py-2 text-[11px]">
-            <span className="uppercase tracking-widest text-ink/40">Resolved position</span>
+            <span className="eyebrow text-ink/40">Resolved position</span>
             <span className="font-mono tabular-nums text-ink">{formatGbp(position)}</span>
           </div>
         ) : null}
@@ -479,7 +479,7 @@ export function RiskPanel({
       {/* Horizon + direction */}
       <div className="mb-5 grid grid-cols-2 gap-2">
         <div>
-          <span className="mb-1 block text-[10px] uppercase tracking-widest text-ink/40">Horizon</span>
+          <span className="mb-1 block eyebrow text-[10px] text-ink/40">Horizon</span>
           <div className="flex rounded-lg border border-seam bg-bg p-0.5">
             {HORIZONS.map((h) => (
               <button
@@ -496,14 +496,14 @@ export function RiskPanel({
           </div>
         </div>
         <div>
-          <span className="mb-1 block text-[10px] uppercase tracking-widest text-ink/40">Direction</span>
+          <span className="mb-1 block eyebrow text-[10px] text-ink/40">Direction</span>
           <div className="flex rounded-lg border border-seam bg-bg p-0.5">
             {(["long", "short"] as const).map((d) => (
               <button
                 key={d}
                 type="button"
                 onClick={() => setDirection(d)}
-                className={`flex-1 rounded px-1.5 py-1 text-[11px] font-mono uppercase tracking-wider transition ${
+                className={`flex-1 rounded px-1.5 py-1 text-[11px] eyebrow transition ${
                   direction === d
                     ? d === "long"
                       ? "bg-price-up/15 text-price-up"
@@ -527,18 +527,18 @@ export function RiskPanel({
         <div className={`mt-3 rounded-xl border p-3 ${gateTone}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] uppercase tracking-widest opacity-70">Decision gate</p>
+              <p className="eyebrow text-[10px] opacity-70">Decision gate</p>
               <p className="mt-1 text-sm font-semibold text-ink">{gate.label}</p>
             </div>
             <div className="text-right">
               <p className="font-mono text-2xl font-semibold tabular-nums text-ink">{gate.score.toFixed(1)}</p>
-              <p className="text-[9px] uppercase tracking-widest opacity-60">score</p>
+              <p className="eyebrow text-[9px] opacity-60">score</p>
             </div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-1.5">
             {gate.checks.slice(0, 4).map((check) => (
               <div key={`${check.label}-${check.value}`} className="rounded-lg bg-bg/70 px-2 py-1.5">
-                <p className="truncate text-[9px] uppercase tracking-widest text-ink/35">{check.label}</p>
+                <p className="truncate eyebrow text-[9px] text-ink/35">{check.label}</p>
                 <p
                   className={`mt-0.5 truncate font-mono text-[11px] ${
                     check.status === "pass"
@@ -587,19 +587,19 @@ export function RiskPanel({
       {/* Edge / regime */}
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
         <div className="rounded-lg bg-bg p-2">
-          <p className="text-[9px] uppercase tracking-widest text-ink/40">Edge</p>
+          <p className="eyebrow text-[9px] text-ink/40">Edge</p>
           <p className={`mt-0.5 font-mono text-sm font-semibold tabular-nums ${riskColor}`}>
             {data ? data.edge_score.toFixed(2) : "—"}
           </p>
         </div>
         <div className="rounded-lg bg-bg p-2">
-          <p className="text-[9px] uppercase tracking-widest text-ink/40">Regime</p>
-          <p className="mt-0.5 font-mono text-sm font-semibold uppercase text-ink">
+          <p className="eyebrow text-[9px] text-ink/40">Regime</p>
+          <p className="mt-0.5 text-sm font-semibold capitalize text-ink">
             {data?.regime ?? "—"}
           </p>
         </div>
         <div className="rounded-lg bg-bg p-2">
-          <p className="text-[9px] uppercase tracking-widest text-ink/40">Confidence</p>
+          <p className="eyebrow text-[9px] text-ink/40">Confidence</p>
           <p className="mt-0.5 font-mono text-sm font-semibold tabular-nums text-ink">
             {data ? `${Math.round(data.confidence * 100)}%` : "—"}
           </p>
@@ -608,7 +608,7 @@ export function RiskPanel({
 
       {/* Rationale */}
       <div className="mt-4 rounded-lg border border-seam bg-bg p-3">
-        <p className="text-[10px] uppercase tracking-widest text-ink/40">Read</p>
+        <p className="eyebrow text-[10px] text-ink/40">Read</p>
         <p className="mt-1 text-[12px] leading-relaxed text-ink/75">
           {error ? `Error: ${error}` : data?.rationale ?? (loading ? "scoring…" : "—")}
         </p>
@@ -629,7 +629,7 @@ export function RiskPanel({
           setDecisionError(null);
           setDecisionOpen(true);
         }}
-        className="mt-3 w-full rounded-lg border border-seam bg-bg px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-ink/70 transition hover:border-seam-hi hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+        className="mt-3 w-full rounded-lg border border-seam bg-bg px-3 py-2 text-[11px] eyebrow text-ink/70 transition hover:border-seam-hi hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
       >
         Save decision
       </button>
@@ -641,7 +641,7 @@ export function RiskPanel({
             type="button"
             disabled={!data || loading || isDegraded || exporting !== null}
             onClick={() => downloadExport(format)}
-            className="rounded-lg border border-seam bg-bg px-3 py-2 text-[11px] font-mono uppercase tracking-wider text-ink/70 transition hover:border-seam-hi hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg border border-seam bg-bg px-3 py-2 text-[11px] eyebrow text-ink/70 transition hover:border-seam-hi hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
           >
             {exporting === format ? "Exporting…" : `Export ${format}`}
           </button>
@@ -721,10 +721,10 @@ function HeadlineFigures({
   return (
     <div className="-mx-5 mb-4 border-y border-seam bg-surface/95 px-5 py-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/40">
+        <span className="eyebrow text-[10px] text-ink/40">
           Headline figures
         </span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/35">
+        <span className="eyebrow text-[10px] text-ink/35">
           {data ? `${riskMetricLabel(data.risk_metric)} · ${data.n_paths.toLocaleString()} paths` : loading ? "scoring" : "ready"}
         </span>
       </div>
@@ -771,7 +771,7 @@ function FigureCell({
   const toneClass = tone === "up" ? "text-price-up" : "text-price-dn";
   return (
     <div className={`min-w-0 rounded-lg border border-seam bg-bg p-3 ${active ? "animate-pulse" : ""}`}>
-      <p className="truncate text-[10px] uppercase tracking-widest text-ink/40">{label}</p>
+      <p className="truncate eyebrow text-[10px] text-ink/40">{label}</p>
       <p className={`mt-1 truncate font-mono text-xl font-semibold tabular-nums xl:text-2xl ${toneClass}`}>
         {value}
       </p>
@@ -794,8 +794,8 @@ function MathSnapshot({
   return (
     <div className="mb-4 rounded-lg border border-seam bg-bg p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/40">Math tape</span>
-        <span className="truncate font-mono text-[10px] uppercase tracking-widest text-ink/35">
+        <span className="eyebrow text-[10px] text-ink/40">Math tape</span>
+        <span className="truncate eyebrow text-[10px] text-ink/35">
           {data ? `P&L = direction × position × Δprice × FX` : loading ? "solving" : "awaiting read"}
         </span>
       </div>
@@ -825,7 +825,7 @@ function MathChip({
   const toneClass = tone === "up" ? "text-price-up" : tone === "dn" ? "text-price-dn" : "text-ink";
   return (
     <div className="min-w-0 rounded-md border border-seam/70 bg-surface px-2.5 py-2">
-      <p className="truncate text-[9px] uppercase tracking-widest text-ink/35">{label}</p>
+      <p className="truncate eyebrow text-[9px] text-ink/35">{label}</p>
       <p className={`mt-0.5 truncate font-mono text-sm font-semibold tabular-nums ${toneClass}`}>
         {value}
       </p>
@@ -843,8 +843,8 @@ function CommonSetups({
   return (
     <div className="rounded-lg border border-seam bg-bg p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[10px] uppercase tracking-widest text-ink/40">Common setups</span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/30">
+        <span className="eyebrow text-[10px] text-ink/40">Common setups</span>
+        <span className="eyebrow text-[10px] text-ink/30">
           {setups.length}
         </span>
       </div>
@@ -859,7 +859,7 @@ function CommonSetups({
             <div className="flex items-center justify-between gap-2">
               <span className="truncate text-[12px] font-medium text-ink">{setup.label}</span>
               <span
-                className={`shrink-0 font-mono text-[9px] uppercase tracking-widest ${
+                className={`shrink-0 eyebrow text-[9px] ${
                   setup.direction === "long" ? "text-price-up" : "text-price-dn"
                 }`}
               >
@@ -884,8 +884,8 @@ function RecentAssessments({
   return (
     <div className="rounded-lg border border-seam bg-bg p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[10px] uppercase tracking-widest text-ink/40">Recent reads</span>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/30">
+        <span className="eyebrow text-[10px] text-ink/40">Recent reads</span>
+        <span className="eyebrow text-[10px] text-ink/30">
           {items.length}
         </span>
       </div>
@@ -904,7 +904,7 @@ function RecentAssessments({
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate font-mono text-[10px] uppercase tracking-widest text-ink/35">
+                  <p className="truncate eyebrow text-[10px] text-ink/35">
                     {formatCompactTime(item.createdAt)} · {item.direction} · {item.horizon}h
                   </p>
                   <p className="mt-0.5 truncate text-[11px] text-ink/50">{item.gateLabel}</p>

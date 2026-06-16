@@ -367,7 +367,7 @@ export function PriceChart({
               key={t}
               type="button"
               onClick={() => setChartType(t)}
-              className={`rounded px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider transition ${
+              className={`rounded px-2.5 py-1 text-[11px] eyebrow transition ${
                 chartType === t ? "bg-ink/10 text-ink" : "text-ink/45 hover:text-ink/70"
               }`}
             >

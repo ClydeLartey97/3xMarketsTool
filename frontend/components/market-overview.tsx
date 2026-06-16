@@ -190,13 +190,13 @@ export function MarketOverview({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="font-mono text-[10px] uppercase tracking-widest text-ink/35">
+              <span className="eyebrow text-[10px] text-ink/35">
                 {dashboard.market.timezone}
               </span>
             </div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-lg">{flag}</span>
-              <span className="font-mono text-xs uppercase tracking-widest text-ink/35">
+              <span className="eyebrow text-xs text-ink/35">
                 {dashboard.market.code}
               </span>
             </div>
@@ -210,7 +210,7 @@ export function MarketOverview({
               <Link
                 key={market.code}
                 href={`/markets/${market.code}`}
-                className={`rounded-lg px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest transition-all ${
+                className={`rounded-lg px-3 py-1.5 eyebrow text-[11px] transition-all ${
                   market.code === dashboard.market.code
                     ? "border border-accent/35 bg-accent/10 text-accent"
                     : "border border-seam text-ink/42 hover:border-seam-hi hover:text-ink/72"
@@ -250,7 +250,7 @@ export function MarketOverview({
             },
           ].map(({ label, value, color }) => (
             <div key={label} className="rounded-xl border border-seam bg-well p-3">
-              <p className="mb-1.5 font-mono text-[9px] uppercase tracking-widest text-ink/30">{label}</p>
+              <p className="mb-1.5 eyebrow text-[9px] text-ink/30">{label}</p>
               <p className={`font-mono text-lg font-semibold tabular-nums ${color}`}>{value}</p>
             </div>
           ))}
@@ -261,7 +261,7 @@ export function MarketOverview({
       <div className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-ink/35">Forward Curve</p>
+            <p className="mb-1 eyebrow text-[10px] text-ink/35">Forward Curve</p>
             <h2 className="text-lg font-semibold text-ink">Actual print path · 24h forecast strip</h2>
           </div>
           <div className="flex items-center gap-4 text-[11px] text-ink/35">
@@ -358,7 +358,7 @@ export function MarketOverview({
             },
           ].map(({ label, value, color }) => (
             <div key={label} className="rounded-lg border border-seam bg-well p-3">
-              <p className="mb-1 font-mono text-[9px] uppercase tracking-widest text-ink/28">{label}</p>
+              <p className="mb-1 eyebrow text-[9px] text-ink/28">{label}</p>
               <p className={`font-mono text-sm font-medium tabular-nums ${color}`}>{value}</p>
             </div>
           ))}

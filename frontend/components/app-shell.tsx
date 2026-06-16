@@ -18,12 +18,19 @@ const navItems = [
 
 function BrandLogo() {
   // Compact inline wordmark — adapts to the page's ink colour so it works
-  // in both light and dark themes without an extra asset.
+  // in both light and dark themes without an extra asset. The mark sits on
+  // a soft accent halo (not a hard filled box) so it melts into the header
+  // rather than reading as "a logo in a box". The halo uses the accent token,
+  // which is identical in both themes, so it stays balanced light and dark.
   return (
     <Link href="/" className="group flex items-center gap-3" aria-label="3xMarkets home">
-      {/* Mark: a stylised mini chart spark inside a rounded accent square */}
-      <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-ink shadow-sm">
-        <svg viewBox="0 0 32 32" className="h-5 w-5" aria-hidden="true">
+      {/* Mark: a stylised chart spark floating on a blurred accent glow */}
+      <span className="relative flex h-9 w-9 items-center justify-center">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 rounded-full bg-accent/25 blur-lg opacity-70 transition-opacity duration-300 group-hover:opacity-100"
+        />
+        <svg viewBox="0 0 32 32" className="relative h-[22px] w-[22px]" aria-hidden="true">
           <polyline
             points="3,22 9,18 13,20 18,12 23,15 29,7"
             fill="none"
@@ -36,7 +43,7 @@ function BrandLogo() {
         </svg>
       </span>
       <span className="flex items-baseline leading-none">
-        <span className="font-display text-lg font-bold tracking-tight text-ink">3xMarkets</span>
+        <span className="font-display text-lg font-semibold tracking-tight text-ink">3xMarkets</span>
       </span>
     </Link>
   );

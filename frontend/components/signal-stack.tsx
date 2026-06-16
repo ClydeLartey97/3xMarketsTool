@@ -36,24 +36,24 @@ export function SignalStack({ dashboard }: { dashboard: DashboardData }) {
   return (
     <section className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
       <div className="mb-4">
-        <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-ink/35">Signal Stack</p>
+        <p className="mb-1 eyebrow text-[10px] text-ink/35">Signal Stack</p>
         <h2 className="text-lg font-semibold text-ink">What would move this market from here?</h2>
       </div>
 
       {/* Scenario cards */}
       <div className="mb-4 grid gap-2">
         <div className="rounded-xl border border-seam bg-well p-3">
-          <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-ink/30">Base case</p>
+          <p className="mb-2 eyebrow text-[9px] text-ink/30">Base case</p>
           <p className="font-mono text-xl font-semibold tabular-nums text-ink">${baseCase.toFixed(2)}</p>
           <p className="mt-1 text-xs text-ink/40">12h avg forward price</p>
         </div>
         <div className="rounded-xl border border-price-up/20 bg-price-up/5 p-3">
-          <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-price-up/65">Bull stress</p>
+          <p className="mb-2 eyebrow text-[9px] text-price-up/65">Bull stress</p>
           <p className="font-mono text-xl font-semibold tabular-nums text-price-up">${bullCase.toFixed(2)}</p>
           <p className="mt-1 text-xs text-price-up/60">Upper envelope, front strip</p>
         </div>
         <div className="rounded-xl border border-price-hot/20 bg-price-hot/5 p-3">
-          <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-price-hot/65">Bear stress</p>
+          <p className="mb-2 eyebrow text-[9px] text-price-hot/65">Bear stress</p>
           <p className="font-mono text-xl font-semibold tabular-nums text-price-hot">${bearCase.toFixed(2)}</p>
           <p className="mt-1 text-xs text-price-hot/60">Lower envelope, front strip</p>
         </div>
@@ -62,7 +62,7 @@ export function SignalStack({ dashboard }: { dashboard: DashboardData }) {
       {/* Catalyst rows */}
       {catalysts.length > 0 ? (
         <div className="space-y-2">
-          <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-ink/30">Catalysts</p>
+          <p className="mb-2 eyebrow text-[9px] text-ink/30">Catalysts</p>
           {catalysts.map((catalyst) => {
             const style = SEVERITY_STYLES[catalyst.severity] ?? SEVERITY_STYLES.low;
             const impactColor =
@@ -80,7 +80,7 @@ export function SignalStack({ dashboard }: { dashboard: DashboardData }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="truncate text-sm font-medium text-ink">{catalyst.title}</p>
-                    <p className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-ink/32">
+                    <p className="mt-0.5 eyebrow text-[10px] text-ink/32">
                       {catalyst.subtitle}
                     </p>
                   </div>
@@ -88,7 +88,7 @@ export function SignalStack({ dashboard }: { dashboard: DashboardData }) {
                     <span className={`font-mono text-sm font-semibold tabular-nums ${impactColor}`}>
                       {catalyst.impact}
                     </span>
-                    <span className={`rounded px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest ${style.badge}`}>
+                    <span className={`rounded px-2 py-0.5 eyebrow text-[9px] ${style.badge}`}>
                       {catalyst.severity}
                     </span>
                   </div>

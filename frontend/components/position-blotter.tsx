@@ -121,7 +121,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
     <section className="rounded-2xl border border-seam bg-surface p-5">
       <div className="sticky-panel-header -mx-5 -mt-5 mb-3 flex items-baseline justify-between gap-2 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-ink/45">Position blotter</p>
+          <p className="eyebrow text-[10px] text-ink/45">Position blotter</p>
           <h3 className="mt-1 text-base font-semibold text-ink">Open risk book</h3>
         </div>
         <span className="font-mono text-[10px] tracking-wider text-ink/50">
@@ -141,7 +141,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
             <div key={item.id} className="border-b border-seam p-3 last:border-b-0">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="font-mono text-[11px] uppercase tracking-wider text-ink/55">
+                  <p className="eyebrow text-[11px] text-ink/55">
                     {item.market_code} · {item.direction} · {item.horizon_hours}h
                   </p>
                   <p className="mt-1 text-sm font-semibold text-ink">{formatGbp(item.position_gbp)}</p>
@@ -152,7 +152,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
                     title="Close position"
                     disabled={mutatingId === item.id}
                     onClick={() => closePosition(item.id)}
-                    className="rounded-md border border-seam px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-ink/60 transition hover:border-seam-hi hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-md border border-seam px-2 py-1 text-[10px] eyebrow text-ink/60 transition hover:border-seam-hi hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Close
                   </button>
@@ -161,7 +161,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
                     title="Delete position"
                     disabled={mutatingId === item.id}
                     onClick={() => removePosition(item.id)}
-                    className="rounded-md border border-seam px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-price-dn/80 transition hover:border-price-dn hover:text-price-dn disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-md border border-seam px-2 py-1 text-[10px] eyebrow text-price-dn/80 transition hover:border-price-dn hover:text-price-dn disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Delete
                   </button>
@@ -192,7 +192,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
             />
             <MetricCell label="Book upside" value={formatGbp(portfolio.portfolio_upside_gbp)} tone="up" strong />
           </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-ink/40">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 eyebrow text-[10px] text-ink/40">
             <span>{Math.round(portfolio.prob_loss * 100)}% loss probability</span>
             <span>{formatGbp(portfolio.sum_standalone_risk_gbp)} standalone risk</span>
           </div>
@@ -202,7 +202,7 @@ export function PositionBlotter({ refreshKey = 0 }: { refreshKey?: number }) {
                 key={`${item.market_code}-${item.direction}-${item.position_gbp}`}
                 className="flex items-center justify-between gap-3 text-[11px]"
               >
-                <span className="truncate font-mono uppercase tracking-wider text-ink/45">
+                <span className="truncate eyebrow text-ink/45">
                   {item.market_code} contribution
                 </span>
                 <span className="shrink-0 font-mono text-price-dn">{formatGbp(item.risk_contribution_gbp)}</span>
@@ -229,7 +229,7 @@ function MetricCell({
   const toneClass = tone === "up" ? "text-price-up" : tone === "dn" ? "text-price-dn" : "text-ink/75";
   return (
     <div className="min-w-0">
-      <p className="truncate uppercase tracking-widest text-ink/35">{label}</p>
+      <p className="truncate eyebrow text-ink/35">{label}</p>
       <p className={`mt-0.5 truncate font-mono tabular-nums ${toneClass} ${strong ? "text-sm font-semibold" : ""}`}>
         {value}
       </p>

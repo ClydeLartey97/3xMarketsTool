@@ -214,7 +214,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
           <h3 className="text-sm font-semibold text-zinc-100">Sensitivity ladder</h3>
           <p className="text-[11px] text-zinc-500">Perturb one coefficient at a time; colour tracks risk movement.</p>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+        <span className="eyebrow text-[10px] text-zinc-500">
           {formatGbp(sensitivity.position_gbp)} · {sensitivity.horizon_hours}h · {sensitivity.direction}
         </span>
       </header>
@@ -223,7 +223,7 @@ export function RiskSensitivityLadder({ data, loading = false }: RiskSensitivity
         <table className="min-w-[760px] w-full table-fixed border-separate border-spacing-1 text-[11px]">
           <thead>
             <tr>
-              <th className="w-40 px-2 py-1 text-left font-semibold uppercase tracking-wider text-zinc-500">
+              <th className="w-40 px-2 py-1 eyebrow text-left font-semibold text-zinc-500">
                 Coefficient
               </th>
               {sensitivity.perturbations_pct.map((p) => (

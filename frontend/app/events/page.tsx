@@ -13,7 +13,7 @@ export default async function EventsPage() {
         {/* Header */}
         <div className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
           <div className="flex items-center gap-3 mb-3">
-            <span className="font-mono text-xs uppercase tracking-widest text-accent">
+            <span className="eyebrow text-xs text-accent">
               Event feed
             </span>
           </div>
@@ -22,7 +22,7 @@ export default async function EventsPage() {
             Ingested articles and operator signals converted into structured market events —
             typed, regioned, severity-scored, and price-impact estimated.
           </p>
-          <div className="mt-4 flex items-center gap-4 text-[11px] font-mono uppercase tracking-widest text-ink/35">
+          <div className="mt-4 flex items-center gap-4 text-[11px] eyebrow text-ink/35">
             <span>{events.length} events indexed</span>
             <span>·</span>
             <span>Refreshes every 30 min</span>

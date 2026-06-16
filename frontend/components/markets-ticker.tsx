@@ -93,7 +93,7 @@ export function MarketsTicker({ activeCode }: { activeCode?: string }) {
   return (
     <div className="overflow-hidden rounded-lg border border-seam bg-bg/60">
       <div className="flex h-9 items-stretch divide-x divide-white/5">
-        <div className="flex shrink-0 items-center px-3 text-[10px] font-mono uppercase tracking-widest text-ink/40">
+        <div className="flex shrink-0 items-center px-3 text-[10px] eyebrow text-ink/40">
           Markets · live
         </div>
         <div className="flex flex-1 items-stretch overflow-x-auto" key={pulse}>
@@ -124,7 +124,7 @@ export function MarketsTicker({ activeCode }: { activeCode?: string }) {
                   {changePct != null ? `${Math.abs(changePct).toFixed(2)}%` : "—"}
                 </span>
                 {status ? (
-                  <span className="ml-auto rounded px-1 text-[9px] font-semibold uppercase tracking-wider text-rose-300">
+                  <span className="ml-auto rounded px-1 eyebrow text-[9px] font-semibold text-rose-300">
                     {status}
                   </span>
                 ) : null}

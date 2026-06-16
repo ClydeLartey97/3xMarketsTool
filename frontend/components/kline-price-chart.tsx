@@ -106,7 +106,7 @@ export function KlinePriceChart({
       />
 
       <div className="rounded-xl border border-seam bg-surface p-3">
-        <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-widest text-ink/40">
+        <div className="mb-2 flex items-center justify-between eyebrow text-[10px] text-ink/40">
           <span>Wind / solar share</span>
           <span>{fundamentalSlice.length}h</span>
         </div>
@@ -125,7 +125,7 @@ export function KlinePriceChart({
       </div>
 
       <div className="relative rounded-xl border border-seam bg-surface p-3">
-        <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-widest text-ink/40">
+        <div className="mb-2 flex items-center justify-between eyebrow text-[10px] text-ink/40">
           <span>Event markers</span>
           <span>{eventMarkers.length}</span>
         </div>
@@ -154,7 +154,7 @@ export function KlinePriceChart({
                     href={selectedEvent.source_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-2 inline-block font-mono text-[10px] uppercase tracking-wider text-ink/38 hover:text-ink/70"
+                    className="mt-2 inline-block eyebrow text-[10px] text-ink/38 hover:text-ink/70"
                   >
                     Open article →
                   </a>

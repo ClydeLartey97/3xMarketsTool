@@ -46,11 +46,11 @@ export function PowerBIHub() {
       <section className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-ink/35">Optional reporting</p>
+            <p className="eyebrow text-[10px] text-ink/35">Optional reporting</p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink">Power BI report</h1>
           </div>
           <label className="flex min-w-[260px] flex-col gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-ink/35">Market filter</span>
+            <span className="eyebrow text-[10px] text-ink/35">Market filter</span>
             <select
               value={marketCode}
               onChange={(event) => setMarketCode(event.target.value)}

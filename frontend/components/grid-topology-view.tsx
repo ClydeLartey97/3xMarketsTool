@@ -177,7 +177,7 @@ export function GridTopologyView({ flows }: { flows: GridFlowsResponse }) {
 
         <aside className="space-y-3 text-sm">
           <div className="rounded-xl border border-seam bg-bg/40 p-3">
-            <p className="mb-1 text-[10px] uppercase tracking-widest text-ink/45">
+            <p className="mb-1 eyebrow text-[10px] text-ink/45">
               Hover detail
             </p>
             {hover === null && (
@@ -224,7 +224,7 @@ export function GridTopologyView({ flows }: { flows: GridFlowsResponse }) {
           </div>
 
           <div className="rounded-xl border border-seam bg-bg/40 p-3 text-[11px] text-ink/65">
-            <p className="mb-2 font-mono uppercase tracking-widest text-ink/45 text-[10px]">
+            <p className="mb-2 eyebrow text-ink/45 text-[10px]">
               Legend
             </p>
             <div className="space-y-1">

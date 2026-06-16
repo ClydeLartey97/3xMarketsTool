@@ -8,7 +8,7 @@ export default function RadarPage() {
       {/* Header */}
       <div className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
         <div className="mb-3 flex items-center gap-3">
-          <span className="font-mono text-xs uppercase tracking-widest text-accent">
+          <span className="eyebrow text-xs text-accent">
             Proactive scan
           </span>
         </div>

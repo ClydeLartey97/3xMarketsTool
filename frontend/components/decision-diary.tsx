@@ -46,7 +46,7 @@ export function DecisionDiary({
     <section className="rounded-2xl border border-seam bg-surface p-5">
       <div className="sticky-panel-header -mx-5 -mt-5 mb-3 flex items-baseline justify-between gap-2 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-ink/40">Decision diary</p>
+          <p className="eyebrow text-[10px] text-ink/40">Decision diary</p>
           <h3 className="mt-1 text-base font-semibold text-ink">Saved theses</h3>
         </div>
         <span className="font-mono text-[10px] tracking-wider text-ink/50">{items.length} reads</span>
@@ -74,17 +74,17 @@ export function DecisionDiary({
               <p className="mt-2 text-sm leading-relaxed text-ink/80">{item.thesis_text}</p>
               <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
                 <div>
-                  <p className="uppercase tracking-widest text-ink/35">Risk</p>
+                  <p className="eyebrow text-ink/35">Risk</p>
                   <p className="font-mono text-price-dn">{formatGbp(item.risk_gbp)}</p>
                 </div>
                 <div>
-                  <p className="uppercase tracking-widest text-ink/35">Realized</p>
+                  <p className="eyebrow text-ink/35">Realized</p>
                   <p className={`font-mono ${matured && (item.realized_pnl_gbp ?? 0) >= 0 ? "text-price-up" : "text-price-dn"}`}>
                     {matured ? formatGbp(item.realized_pnl_gbp ?? 0) : "pending"}
                   </p>
                 </div>
                 <div>
-                  <p className="uppercase tracking-widest text-ink/35">Percentile</p>
+                  <p className="eyebrow text-ink/35">Percentile</p>
                   <p className="font-mono text-ink/70">
                     {item.predicted_percentile !== null ? `${item.predicted_percentile.toFixed(1)}p` : "pending"}
                   </p>

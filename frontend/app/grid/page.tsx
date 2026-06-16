@@ -11,7 +11,7 @@ export default async function GridPage() {
       <main className="animate-fade-in space-y-4">
         <header className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
           <div className="mb-3 flex items-center gap-3">
-            <span className="font-mono text-xs uppercase tracking-widest text-accent">
+            <span className="eyebrow text-xs text-accent">
               Grid topology
             </span>
           </div>
@@ -23,7 +23,7 @@ export default async function GridPage() {
             covering every market we price. Line colour shows utilisation;
             bold red means binding. Bus colour shades by LMP.
           </p>
-          <div className="mt-4 flex items-center gap-4 text-[11px] font-mono uppercase tracking-widest text-ink/35">
+          <div className="mt-4 flex items-center gap-4 text-[11px] eyebrow text-ink/35">
             <span>{flows.buses.length} buses</span>
             <span>·</span>
             <span>{flows.edges.length} lines</span>

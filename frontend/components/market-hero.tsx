@@ -140,7 +140,7 @@ export function MarketHero({
 function DegradedNotice() {
   return (
     <div className="mx-auto max-w-xl rounded-2xl border border-price-warn/30 bg-price-warn/10 p-6 text-center">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-price-warn">Data degraded</p>
+      <p className="eyebrow text-[10px] text-price-warn">Data degraded</p>
       <p className="mt-2 text-sm leading-relaxed text-ink/70">
         This market doesn&apos;t have enough real price data in the selected window to produce a
         trustworthy read. The numbers are hidden until the feed catches up.

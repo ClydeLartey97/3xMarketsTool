@@ -40,7 +40,7 @@ export function EventFeed({
   return (
     <section className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
       <div className="sticky-panel-header -mx-5 -mt-5 mb-4 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
-        <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-ink/45">{subtitle}</p>
+        <p className="mb-1 eyebrow text-[10px] text-ink/45">{subtitle}</p>
         <h2 className="text-lg font-semibold text-ink">{title}</h2>
       </div>
 
@@ -63,7 +63,7 @@ export function EventFeed({
               <>
                 {/* Tag row */}
                 <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className={`rounded px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest ${style.badge}`}>
+                  <span className={`rounded px-2 py-0.5 eyebrow text-[9px] font-semibold ${style.badge}`}>
                     {event.severity}
                   </span>
                   <span className="rounded bg-ink/5 px-2 py-0.5 text-[10px] text-ink/55">
@@ -83,11 +83,11 @@ export function EventFeed({
                 {/* Stats row */}
                 <div className={`mt-3 grid gap-3 text-xs ${compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"}`}>
                   <div>
-                    <p className="mb-0.5 font-mono text-[9px] uppercase tracking-widest text-ink/30">Region</p>
+                    <p className="mb-0.5 eyebrow text-[9px] text-ink/30">Region</p>
                     <p className="text-ink/62">{event.affected_region}</p>
                   </div>
                   <div>
-                    <p className="mb-0.5 font-mono text-[9px] uppercase tracking-widest text-ink/30">Impact</p>
+                    <p className="mb-0.5 eyebrow text-[9px] text-ink/30">Impact</p>
                     <p className={`font-mono font-semibold tabular-nums ${
                       typeof event.estimated_price_impact_pct !== "number"
                         ? "text-ink/40"
@@ -105,13 +105,13 @@ export function EventFeed({
                   {!compact && (
                     <>
                       <div>
-                        <p className="mb-0.5 font-mono text-[9px] uppercase tracking-widest text-ink/30">Direction</p>
+                        <p className="mb-0.5 eyebrow text-[9px] text-ink/30">Direction</p>
                         <p className={`capitalize ${DIRECTION_STYLE[event.price_direction] ?? "text-ink/40"}`}>
                           {event.price_direction}
                         </p>
                       </div>
                       <div>
-                        <p className="mb-0.5 font-mono text-[9px] uppercase tracking-widest text-ink/30">Confidence</p>
+                        <p className="mb-0.5 eyebrow text-[9px] text-ink/30">Confidence</p>
                         <div className="flex items-center gap-2">
                           <div className="h-1 flex-1 rounded-full bg-seam">
                             <div
@@ -135,13 +135,13 @@ export function EventFeed({
                 )}
 
                 {!compact && event.analogue_event_ids.length > 0 ? (
-                  <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-ink/32">
+                  <p className="mt-2 eyebrow text-[10px] text-ink/32">
                     Analogues #{event.analogue_event_ids.slice(0, 5).join(" #")}
                   </p>
                 ) : null}
 
                 {sourceUrl ? (
-                  <p className="mt-3 text-right font-mono text-[10px] uppercase tracking-wider text-ink/32 transition-colors group-hover:text-ink/60">
+                  <p className="mt-3 text-right eyebrow text-[10px] text-ink/32 transition-colors group-hover:text-ink/60">
                     Open article →
                   </p>
                 ) : null}

@@ -240,7 +240,7 @@ export function MarketWorkbench({
   }, [risk, bookSaving]);
 
   return (
-    <main className="space-y-8 pb-16">
+    <main className="stagger space-y-8 pb-16">
       {/* 1. Identity strip */}
       <IdentityStrip
         market={market}

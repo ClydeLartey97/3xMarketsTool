@@ -37,10 +37,10 @@ export function CalibrationBadge({ marketId }: { marketId: number }) {
 
   if (!matchesMarket) {
     return (
-      <div className="inline-flex items-center gap-2 rounded-full border border-seam bg-bg px-3 py-1">
-        <span className="h-1.5 w-1.5 rounded-full bg-ink/20" />
-        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/40">
-          Calibration…
+      <div className="inline-flex items-center gap-2 rounded-full bg-ink/[0.04] px-2.5 py-1">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink/25" />
+        <span className="eyebrow text-[10px] text-ink/40">
+          Calibrating…
         </span>
       </div>
     );
@@ -50,11 +50,11 @@ export function CalibrationBadge({ marketId }: { marketId: number }) {
     return (
       <div
         title="Calibration tracks whether past risk reads matched realised outcomes. We need at least ~10 matured reads before the indicator is meaningful."
-        className="inline-flex items-center gap-2 rounded-full border border-seam bg-bg px-3 py-1"
+        className="inline-flex items-center gap-2 rounded-full bg-ink/[0.04] px-2.5 py-1"
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-ink/30" />
-        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/45">
-          Calibration · collecting
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-ink/30" />
+        <span className="eyebrow text-[10px] text-ink/45">
+          Building calibration
         </span>
       </div>
     );
@@ -74,21 +74,28 @@ export function CalibrationBadge({ marketId }: { marketId: number }) {
         ? "text-price-warn"
         : "text-price-dn";
 
+  const tintClass =
+    status === "honest"
+      ? "bg-price-up/10"
+      : status === "overstating"
+        ? "bg-price-warn/10"
+        : "bg-price-dn/10";
+
   const label =
     status === "honest"
-      ? "honest"
+      ? "Calibration honest"
       : status === "understating"
-        ? "understating risk"
-        : "overstating risk";
+        ? "Understating risk"
+        : "Overstating risk";
 
   return (
     <div
       title={`Actual breach ${(calibration.actual_breach_rate * 100).toFixed(1)}% vs claimed ${(calibration.claimed_breach_rate * 100).toFixed(0)}% over ${calibration.sample_count} matured reads. Kupiec p = ${calibration.kupiec_p_value.toFixed(3)}.`}
-      className="inline-flex items-center gap-2 rounded-full border border-seam bg-bg px-3 py-1"
+      className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 ${tintClass}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
-      <span className={`font-mono text-[10px] uppercase tracking-widest ${labelClass}`}>
-        Calibration · {label}
+      <span className={`eyebrow text-[10px] ${labelClass}`}>
+        {label}
       </span>
     </div>
   );

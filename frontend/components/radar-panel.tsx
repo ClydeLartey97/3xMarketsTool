@@ -36,7 +36,7 @@ const CAL_CHIP: Record<string, string> = {
 function Stat({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <div>
-      <p className="text-[9px] uppercase tracking-widest text-ink/30">{label}</p>
+      <p className="eyebrow text-[9px] text-ink/30">{label}</p>
       <p className={`font-mono text-sm font-semibold tabular-nums ${tone}`}>{value}</p>
     </div>
   );
@@ -51,11 +51,11 @@ function RadarCard({ item }: { item: RadarItem }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-ink/30">
+            <span className="eyebrow text-[10px] text-ink/30">
               {item.market_code}
             </span>
             <span
-              className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider ${
+              className={`rounded px-1.5 py-0.5 eyebrow text-[9px] font-semibold ${
                 item.direction === "long"
                   ? "bg-price-up/10 text-price-up"
                   : "bg-price-dn/10 text-price-dn"
@@ -118,7 +118,7 @@ function Column({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className={`text-xs font-semibold uppercase tracking-widest ${accent}`}>{title}</h3>
+        <h3 className={`eyebrow text-xs font-semibold ${accent}`}>{title}</h3>
         {!loading ? (
           <span className="font-mono text-[10px] text-ink/30">{items.length}</span>
         ) : null}
@@ -197,7 +197,7 @@ export function RadarPanel() {
           {data ? ` · ${data.horizon_hours}h horizon` : ""}
         </p>
         {data?.stale ? (
-          <span className="rounded-lg bg-ink/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-ink/40">
+          <span className="rounded-lg bg-ink/5 px-2.5 py-1 eyebrow text-[10px] text-ink/40">
             Computing first scan…
           </span>
         ) : null}

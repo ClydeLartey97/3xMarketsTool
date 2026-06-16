@@ -31,7 +31,7 @@ export function NewsBriefs({ items }: { items: NewsArticle[] }) {
     <section className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
       <div className="sticky-panel-header -mx-5 -mt-5 mb-4 flex items-center justify-between gap-4 rounded-t-2xl bg-surface px-5 pb-3 pt-5">
         <div>
-          <p className="mb-1 font-mono text-[10px] uppercase tracking-widest text-ink/45">
+          <p className="mb-1 eyebrow text-[10px] text-ink/45">
             Market intelligence
           </p>
           <h2 className="text-lg font-semibold text-ink">Article-backed evidence</h2>
@@ -60,13 +60,13 @@ export function NewsBriefs({ items }: { items: NewsArticle[] }) {
                 <span className={`font-mono text-[10px] font-semibold ${credibilityColor(item.credibility_rating)}`}>
                   {item.credibility_rating}/100
                 </span>
-                <span className="font-mono text-[10px] uppercase tracking-widest text-ink/30">
+                <span className="eyebrow text-[10px] text-ink/30">
                   {item.credibility_label}
                 </span>
                 <span className="font-mono text-[10px] text-ink/22">·</span>
                 <span className="font-mono text-[10px] text-ink/40">{item.source_name}</span>
                 {item.is_auto_translated && (
-                  <span className="rounded bg-price-info/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-price-info">
+                  <span className="rounded bg-price-info/10 px-1.5 py-0.5 eyebrow text-[9px] text-price-info">
                     {item.source_language.toUpperCase()} →
                   </span>
                 )}

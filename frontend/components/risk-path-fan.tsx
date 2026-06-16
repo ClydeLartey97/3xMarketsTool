@@ -159,7 +159,7 @@ export function RiskPathFan({
           <h3 className="text-sm font-semibold text-zinc-100">Path fan</h3>
           <p className="text-[11px] text-zinc-500">{fan.price_paths.length} sampled paths over {fan.horizon_hours}h</p>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+        <span className="eyebrow text-[10px] text-zinc-500">
           {data.direction} · {data.price_currency}
         </span>
       </header>

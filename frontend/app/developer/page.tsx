@@ -24,7 +24,7 @@ export default function DeveloperPage() {
     <main className="animate-fade-in space-y-4">
       {/* Header */}
       <div className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
-        <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-ink/35">Developer Surface</p>
+        <p className="mb-2 eyebrow text-[10px] text-ink/35">Developer Surface</p>
         <h1 className="mb-2 text-2xl font-bold tracking-tight text-ink">API Reference</h1>
         <p className="max-w-xl text-sm text-ink/58">
           FastAPI backend at <code className="font-mono text-accent">http://localhost:8000/api</code>.
@@ -34,14 +34,14 @@ export default function DeveloperPage() {
 
       {/* Endpoints */}
       <div className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
-        <p className="mb-4 font-mono text-[10px] uppercase tracking-widest text-ink/35">Endpoints</p>
+        <p className="mb-4 eyebrow text-[10px] text-ink/35">Endpoints</p>
         <div className="space-y-1.5">
           {ENDPOINTS.map(({ method, path, desc }) => (
             <div
               key={path + method}
               className="flex items-start gap-3 rounded-xl border border-seam bg-well px-4 py-3"
             >
-              <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-widest ${METHOD_STYLE[method] ?? "bg-ink/5 text-ink/45"}`}>
+              <span className={`mt-0.5 shrink-0 rounded px-2 py-0.5 eyebrow text-[9px] font-semibold ${METHOD_STYLE[method] ?? "bg-ink/5 text-ink/45"}`}>
                 {method}
               </span>
               <div className="flex-1 min-w-0">
@@ -56,7 +56,7 @@ export default function DeveloperPage() {
       {/* Platform notes */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
-          <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-ink/35">Data sources</p>
+          <p className="mb-3 eyebrow text-[10px] text-ink/35">Data sources</p>
           <div className="space-y-2 text-sm">
             {[
               ["EIA API v2", "US grid demand + wind/solar generation (ERCO, PJM, NYIS, ISNE)"],
@@ -75,7 +75,7 @@ export default function DeveloperPage() {
         </div>
 
         <div className="rounded-2xl border border-seam bg-surface p-5 shadow-panel">
-          <p className="mb-3 font-mono text-[10px] uppercase tracking-widest text-ink/35">Architecture</p>
+          <p className="mb-3 eyebrow text-[10px] text-ink/35">Architecture</p>
           <div className="space-y-3 text-sm text-ink/58">
             <p>
               Python FastAPI backend owns ingestion, feature engineering, event extraction, price-impact estimation, and
@@ -94,7 +94,7 @@ export default function DeveloperPage() {
               settings are present.
             </p>
             <div className="mt-4 rounded-xl border border-seam bg-well p-3">
-              <p className="mb-2 font-mono text-[9px] uppercase tracking-widest text-ink/30">Quickstart</p>
+              <p className="mb-2 eyebrow text-[9px] text-ink/30">Quickstart</p>
               <pre className="whitespace-pre-wrap font-mono text-xs text-accent">{`cd backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000`}</pre>

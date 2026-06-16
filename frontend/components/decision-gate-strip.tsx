@@ -48,8 +48,8 @@ export function DecisionGateStrip({
     >
       <div className="flex items-center gap-4">
         <div className="text-center">
-          <p className="font-mono text-[9px] uppercase tracking-widest text-ink/45">Action</p>
-          <p className={`mt-1 font-mono text-base font-semibold uppercase tracking-wider ${labelTone}`}>
+          <p className="eyebrow text-[9px] text-ink/45">Action</p>
+          <p className={`mt-1 eyebrow text-base font-semibold capitalize ${labelTone}`}>
             {gate.action}
           </p>
         </div>
@@ -65,7 +65,7 @@ export function DecisionGateStrip({
             key={check.label}
             className="rounded-lg border border-seam/60 bg-surface/60 px-2 py-1.5"
           >
-            <p className="truncate font-mono text-[9px] uppercase tracking-widest text-ink/40">
+            <p className="truncate eyebrow text-[9px] text-ink/40">
               {check.label}
             </p>
             <p

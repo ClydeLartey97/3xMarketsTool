@@ -85,7 +85,7 @@ function ScenarioCard({ scenario }: { scenario: ScenarioOutcome }) {
     <div className="rounded-xl border border-seam bg-surface p-4 transition hover:border-seam-hi">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h4 className="text-sm font-semibold text-ink">{humaniseName(scenario.name)}</h4>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-ink/40">
+        <span className="eyebrow text-[10px] text-ink/40">
           P(loss) {(scenario.prob_loss * 100).toFixed(0)}%
         </span>
       </div>
@@ -101,7 +101,7 @@ function ScenarioCard({ scenario }: { scenario: ScenarioOutcome }) {
 function Stat({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <div className="rounded-lg bg-bg px-2 py-1.5">
-      <dt className="font-mono text-[9px] uppercase tracking-widest text-ink/40">{label}</dt>
+      <dt className="eyebrow text-[9px] text-ink/40">{label}</dt>
       <dd className={`mt-0.5 font-mono text-sm font-semibold tabular-nums ${tone}`}>{value}</dd>
     </div>
   );

@@ -41,9 +41,9 @@ export default async function HomePage() {
 
     return (
       <main className="animate-fade-in">
-        <div className="mb-8">
+        <div className="mb-8 rise">
           <div className="mb-3 flex items-center gap-3">
-            <span className="font-mono text-xs uppercase tracking-widest text-accent">
+            <span className="eyebrow text-xs text-accent">
               Market data
             </span>
           </div>
@@ -73,7 +73,7 @@ export default async function HomePage() {
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {markets.map((market) => (
             <MarketCardLive
               key={market.code}
