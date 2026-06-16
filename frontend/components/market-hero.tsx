@@ -43,6 +43,7 @@ export function MarketHero({
   const [stickyVisible, setStickyVisible] = useState(false);
   const heroRef = useRef<HTMLDivElement | null>(null);
   const inputAnchorRef = useRef<HTMLDivElement | null>(null);
+  const bubblesRef = useRef<HTMLDivElement | null>(null);
 
   const isDegraded = dataStatus === "degraded";
   const { data, loading, error } = useRiskAssessment({
@@ -76,6 +77,40 @@ export function MarketHero({
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
+  }, []);
+
+  // Apple-style scroll dissolve for the three bubbles. As the page leaves
+  // the top they ease out — fade + gentle scale-down + slight lift — instead
+  // of just scrolling away, handing off to the sticky rail. We write the
+  // transform straight to the node on rAF (no React re-render per frame), so
+  // it stays cheap. Honours prefers-reduced-motion.
+  useEffect(() => {
+    const el = bubblesRef.current;
+    if (!el || typeof window === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const START = 40; // grace before the dissolve begins
+    const END = 280; // fully dissolved by here
+    let raf = 0;
+    const render = () => {
+      raf = 0;
+      const raw = (window.scrollY - START) / (END - START);
+      const p = Math.min(1, Math.max(0, raw));
+      // ease-in-out cubic — gentle at both ends.
+      const eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+      el.style.opacity = String(1 - eased);
+      el.style.transform = `translateY(${(-eased * 18).toFixed(2)}px) scale(${(1 - eased * 0.06).toFixed(4)})`;
+      el.style.pointerEvents = eased > 0.9 ? "none" : "";
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(render);
+    };
+    render();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
 
   const handleEdit = useCallback(() => {
@@ -118,7 +153,11 @@ export function MarketHero({
           />
         </div>
 
-        <div className="relative">
+        <div
+          ref={bubblesRef}
+          className="relative"
+          style={{ willChange: "transform, opacity", transformOrigin: "center" }}
+        >
           {isDegraded ? (
             <DegradedNotice />
           ) : (
