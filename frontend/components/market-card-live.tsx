@@ -49,11 +49,9 @@ function statsFromOverview(entry: MarketOverviewItem): Stats {
 
 export function MarketCardLive({
   market,
-  flag,
   preloaded,
 }: {
   market: Market;
-  flag: string;
   preloaded?: MarketOverviewItem | null;
 }) {
   const [stats, setStats] = useState<Stats>(() =>
@@ -105,17 +103,16 @@ export function MarketCardLive({
   return (
     <Link
       href={`/markets/${market.code}` as Route}
-      className="group relative overflow-hidden rounded-2xl border border-seam bg-surface p-5 transition-all duration-200 hover:-translate-y-1 hover:border-seam-hi hover:shadow-panel"
+      className="group relative overflow-hidden rounded-2xl border border-seam bg-surface p-5 transition-all duration-200 hover:border-seam-hi hover:shadow-md"
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <div className="mb-1 flex items-center gap-2">
-            <span className="text-sm">{flag}</span>
-            <span className="eyebrow text-[10px] text-ink/30">
-              {market.code}
-            </span>
-          </div>
-          <h3 className="text-base font-semibold leading-tight text-ink">{market.name}</h3>
+          <span className="font-mono text-[10px] font-medium tracking-[0.08em] text-ink/35">
+            {market.code}
+          </span>
+          <h3 className="mt-1 font-display text-[19px] font-medium leading-tight text-ink">
+            {market.name}
+          </h3>
           <p className="mt-0.5 text-xs text-ink/40">
             {market.region} · {market.timezone}
           </p>
@@ -177,8 +174,11 @@ export function MarketCardLive({
             </span>
           ) : null}
         </div>
-        <span className="text-[11px] font-medium text-ink/25 transition-colors group-hover:text-ink/50">
-          Open desk →
+        <span
+          aria-hidden="true"
+          className="text-sm text-ink/25 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-accent"
+        >
+          →
         </span>
       </div>
     </Link>

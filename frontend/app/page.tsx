@@ -6,20 +6,15 @@ import {
   type MarketOverviewItem,
 } from "@/lib/api";
 
-// The page is naturally dynamic (it fetches per-request from the backend);
-// the explicit `force-dynamic` directive triggers a Next 16 Turbopack bug
-// in `staticPathsWorker.loadStaticPaths` that crashes hydration. The
-// `cache: "no-store"` already set in `apiFetch` keeps the data fresh.
-export const revalidate = 0;
+// ISR: the page is served from the CDN and re-rendered at most every
+// 5 minutes. Source data only refreshes every ~30 min, so visitors get the
+// same content either way — but each visit no longer invokes a server
+// function or wakes the free-tier backend/database. (Avoid `force-dynamic`:
+// it triggers a Next 16 Turbopack bug in `staticPathsWorker.loadStaticPaths`
+// that crashes hydration.)
+export const revalidate = 300;
 
-const REGION_FLAGS: Record<string, string> = {
-  Texas: "🇺🇸",
-  "U.S. East Coast": "🇺🇸",
-  "United Kingdom": "🇬🇧",
-  Germany: "🇩🇪",
-  France: "🇫🇷",
-  Nordics: "🇸🇪",
-};
+const OVERVIEW_CACHE = { revalidate: 300 } as const;
 
 /**
  * Home page renders the market grid the moment the markets list resolves.
@@ -34,42 +29,41 @@ const REGION_FLAGS: Record<string, string> = {
 export default async function HomePage() {
   try {
     const [markets, overview] = await Promise.all([
-      getMarkets(),
-      getMarketsOverview().catch(() => [] as MarketOverviewItem[]),
+      getMarkets(OVERVIEW_CACHE),
+      getMarketsOverview(OVERVIEW_CACHE).catch(() => [] as MarketOverviewItem[]),
     ]);
     const overviewByCode = new Map(overview.map((entry) => [entry.market.code, entry]));
 
     return (
       <main className="animate-fade-in">
-        <div className="mb-12 rise pt-2 sm:pt-6">
-          <div className="mb-4 flex items-center gap-3">
-            <span className="eyebrow text-xs text-accent">
-              Market data
-            </span>
-          </div>
-          <h1 className="mb-3 font-display text-5xl font-semibold leading-[1.05] tracking-[-0.02em] text-ink sm:text-6xl">
-            Power Market Intelligence
+        <div className="mb-14 rise max-w-3xl pt-4 sm:pt-10">
+          <h1 className="mb-5 font-display text-5xl font-medium leading-[1.08] tracking-[-0.015em] text-ink sm:text-[64px]">
+            The power markets,
+            <br />
+            <span className="italic text-ink/80">read closely.</span>
           </h1>
-          <p className="mb-5 text-xl font-medium tracking-[-0.01em] text-ink/70">
-            By{" "}
+          <p className="mb-6 max-w-xl text-lg leading-relaxed text-ink/60">
+            Live prices, forward curves and event-driven risk across{" "}
+            {markets.length} wholesale electricity markets — distilled into three
+            numbers you can act on.
+          </p>
+          <p className="text-sm text-ink/45">
+            Built by{" "}
             <a
               href="https://www.linkedin.com/in/clydelartey/"
               target="_blank"
               rel="noreferrer"
-              className="text-blue-800 transition-colors hover:text-blue-600 dark:text-blue-300 dark:hover:text-blue-200"
+              className="font-medium text-ink/70 underline decoration-ink/20 underline-offset-4 transition-colors hover:decoration-accent"
             >
               Clyde Lartey
+            </a>{" "}
+            ·{" "}
+            <a
+              href="mailto:clyde.lartey@nyu.edu"
+              className="transition-colors hover:text-ink/70"
+            >
+              clyde.lartey@nyu.edu
             </a>
-          </p>
-          <a
-            href="mailto:clyde.lartey@nyu.edu"
-            className="mb-6 inline-block text-sm font-medium text-ink/55 transition-colors hover:text-accent"
-          >
-            clyde.lartey@nyu.edu
-          </a>
-          <p className="max-w-xl text-lg leading-relaxed text-ink/55">
-            Prices, forward curves, and event-driven signals for wholesale electricity
-            markets.
           </p>
         </div>
 
@@ -78,7 +72,6 @@ export default async function HomePage() {
             <MarketCardLive
               key={market.code}
               market={market}
-              flag={REGION_FLAGS[market.region] ?? "🌐"}
               preloaded={overviewByCode.get(market.code) ?? null}
             />
           ))}

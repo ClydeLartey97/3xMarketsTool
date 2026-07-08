@@ -33,7 +33,7 @@ const config: Config = {
       },
       fontFamily: {
         sans:    ["-apple-system", "BlinkMacSystemFont", "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Arial", "sans-serif"],
-        display: ["SF Pro Display", "-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Helvetica Neue", "Arial", "sans-serif"],
+        display: ["var(--font-display)", "Iowan Old Style", "Palatino", "Georgia", "serif"],
         mono:    ["SF Mono", "SFMono-Regular", "ui-monospace", "Menlo", "Monaco", "Consolas", "monospace"],
       },
       letterSpacing: {
