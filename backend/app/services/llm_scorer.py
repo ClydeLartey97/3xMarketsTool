@@ -37,9 +37,23 @@ logger = logging.getLogger(__name__)
 
 # ── Cache ────────────────────────────────────────────────────────────────────
 _score_cache: dict[str, tuple[dict[str, Any], datetime]] = {}
-_CACHE_TTL = timedelta(minutes=10)
 _domain_runtime: tuple[Any, Any] | None = None
 _domain_runtime_key: tuple[str, str, str] | None = None
+
+
+def _cache_ttl() -> timedelta:
+    """Score cache lifetime.
+
+    New articles/events only arrive with the background data refresh, so by
+    default the score is held for one full refresh interval — re-scoring an
+    unchanged news set only spends provider (Gemini) quota. An explicit
+    LLM_SCORER_CACHE_TTL_MINUTES overrides that coupling.
+    """
+    settings = get_settings()
+    minutes = int(settings.llm_scorer_cache_ttl_minutes or 0)
+    if minutes <= 0:
+        minutes = max(10, int(settings.data_refresh_interval_minutes or 30))
+    return timedelta(minutes=minutes)
 
 
 def _cache_key(provider: str, market_code: str) -> str:
@@ -51,7 +65,7 @@ def _cache_get(provider: str, market_code: str) -> dict[str, Any] | None:
     if not entry:
         return None
     payload, cached_at = entry
-    if datetime.now(timezone.utc) - cached_at < _CACHE_TTL:
+    if datetime.now(timezone.utc) - cached_at < _cache_ttl():
         return payload
     return None
 

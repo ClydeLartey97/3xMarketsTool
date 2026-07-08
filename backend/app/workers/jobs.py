@@ -23,6 +23,7 @@ def refresh_all_markets() -> dict[str, Any]:
     from app.models import Market, PricePoint
     from app.services.alert_service import refresh_alerts_for_market
     from app.services.forecast_service import invalidate_forecast_cache, run_forecast_for_market
+    from app.services.llm_scorer import invalidate_llm_cache
 
     require_database_schema(engine)
     failures: list[str] = []
@@ -87,6 +88,11 @@ def refresh_all_markets() -> dict[str, Any]:
         try:
             rss_inserted = ingest_rss_feeds(db, max_per_feed=4)
             if rss_inserted:
+                # New articles change the scoring input; drop cached LLM reads
+                # so the next risk computation re-scores on fresh news. (The
+                # cache TTL alone only bounds staleness — this makes the
+                # refresh the actual trigger.)
+                invalidate_llm_cache()
                 for market in markets:
                     publish_market_message_sync(
                         market.code,

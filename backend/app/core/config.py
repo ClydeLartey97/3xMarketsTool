@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     chronos_use_small: bool = Field(default=False, alias="CHRONOS_USE_SMALL")
     chronos_device_map: str = Field(default="cpu", alias="CHRONOS_DEVICE_MAP")
     llm_scorer_provider: str = Field(default="heuristic", alias="LLM_SCORER_PROVIDER")
+    # 0 = follow data_refresh_interval_minutes (news only changes on refresh,
+    # so re-scoring more often than that just spends provider quota)
+    llm_scorer_cache_ttl_minutes: int = Field(default=0, alias="LLM_SCORER_CACHE_TTL_MINUTES")
     domain_scorer_model_dir: str = Field(default="models/news_scorer_lora", alias="DOMAIN_SCORER_MODEL_DIR")
     domain_scorer_base_model: str = Field(
         default="meta-llama/Llama-3.1-8B-Instruct",
