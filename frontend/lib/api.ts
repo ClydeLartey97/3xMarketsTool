@@ -105,7 +105,13 @@ async function authHeaders(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+type CachePolicy = { revalidate?: number };
+
+async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  cachePolicy: CachePolicy = {},
+): Promise<Response> {
   const headers = new Headers(init.headers);
   const auth = await authHeaders();
   for (const [key, value] of Object.entries(auth)) {
@@ -113,23 +119,30 @@ async function apiFetch(path: string, init: RequestInit = {}): Promise<Response>
       headers.set(key, value);
     }
   }
+  // A revalidate window opts the request into Next's data cache (used by
+  // server components that render statically); everything else stays
+  // uncached so interactive reads are always fresh.
+  const cacheInit: RequestInit =
+    cachePolicy.revalidate != null
+      ? { next: { revalidate: cachePolicy.revalidate } }
+      : { cache: "no-store" };
   return fetch(`${apiBaseUrl()}${path}`, {
     ...init,
     headers,
-    cache: "no-store",
+    ...cacheInit,
   });
 }
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await apiFetch(path);
+async function fetchJson<T>(path: string, cachePolicy: CachePolicy = {}): Promise<T> {
+  const response = await apiFetch(path, {}, cachePolicy);
   if (!response.ok) {
     throw new Error(`API request failed for ${path}`);
   }
   return response.json() as Promise<T>;
 }
 
-export function getMarkets(): Promise<Market[]> {
-  return fetchJson<Market[]>("/markets");
+export function getMarkets(cachePolicy: CachePolicy = {}): Promise<Market[]> {
+  return fetchJson<Market[]>("/markets", cachePolicy);
 }
 
 export type MarketOverviewForecast = {
@@ -152,8 +165,8 @@ export type MarketOverviewItem = {
   data_status: string;
 };
 
-export function getMarketsOverview(): Promise<MarketOverviewItem[]> {
-  return fetchJson<MarketOverviewItem[]>("/markets/overview");
+export function getMarketsOverview(cachePolicy: CachePolicy = {}): Promise<MarketOverviewItem[]> {
+  return fetchJson<MarketOverviewItem[]>("/markets/overview", cachePolicy);
 }
 
 export type RadarItem = {

@@ -71,6 +71,23 @@ function filteredResponseHeaders(source: Headers): Headers {
   return headers;
 }
 
+// Read-only endpoints whose responses are identical for every anonymous
+// visitor (the proxy injects the shared demo token). These can sit in the
+// CDN cache so repeat views don't invoke this function or wake the
+// free-tier backend. Anything user-specific (decisions, auth, risk runs)
+// is deliberately absent.
+const CDN_CACHEABLE_PATHS = /^(markets(\/|$)|radar$|events(\/|$)|news(\/|$)|dashboard\/)/;
+const CDN_CACHE_SECONDS = 300;
+
+function isCdnCacheable(request: NextRequest, path: string[], status: number): boolean {
+  return (
+    request.method === "GET" &&
+    status === 200 &&
+    !request.headers.has("authorization") &&
+    CDN_CACHEABLE_PATHS.test(path.join("/"))
+  );
+}
+
 async function proxy(request: NextRequest, context: RouteContext): Promise<Response> {
   const { path = [] } = await context.params;
   const targetUrl = new URL(`${BACKEND_API_BASE_URL}/${path.join("/")}`);
@@ -112,10 +129,22 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
     }
   }
 
+  const responseHeaders = filteredResponseHeaders(response.headers);
+  if (isCdnCacheable(request, path, response.status)) {
+    // Browsers revalidate after a minute; the Netlify CDN serves the cached
+    // copy for 5 minutes (plus a stale window while refreshing) so bursts of
+    // traffic cost one backend request instead of one per viewer.
+    responseHeaders.set("cache-control", "public, max-age=60");
+    responseHeaders.set(
+      "netlify-cdn-cache-control",
+      `public, s-maxage=${CDN_CACHE_SECONDS}, stale-while-revalidate=600`,
+    );
+  }
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
-    headers: filteredResponseHeaders(response.headers),
+    headers: responseHeaders,
   });
 }
 

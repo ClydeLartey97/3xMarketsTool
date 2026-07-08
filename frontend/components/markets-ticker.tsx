@@ -4,7 +4,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { getMarkets, getPrices } from "@/lib/api";
+import { getMarketsOverview } from "@/lib/api";
 import type { Market } from "@/types/domain";
 
 type TickerRow = {
@@ -12,10 +12,12 @@ type TickerRow = {
   spot: number | null;
   prevSpot: number | null;
   changePct: number | null;
-  asOf: string | null;
 };
 
-const POLL_MS = 60_000;
+// Source data only refreshes every ~30 min server-side, so polling faster
+// than this just burns proxy invocations and keeps the free-tier backend
+// awake for no new information.
+const POLL_MS = 300_000;
 
 function formatPrice(value: number, currency: string): string {
   const sym = currency === "GBP" ? "£" : currency === "EUR" ? "€" : "$";
@@ -31,30 +33,20 @@ export function MarketsTicker({ activeCode }: { activeCode?: string }) {
     let cancelled = false;
 
     async function load(initial: boolean) {
+      if (!initial && document.hidden) return;
       if (Date.now() - lastFetched.current < (initial ? 0 : 30_000)) return;
       lastFetched.current = Date.now();
       try {
-        const markets = await getMarkets();
-        const filled = await Promise.all(
-          markets.map(async (m): Promise<TickerRow> => {
-            try {
-              const prices = await getPrices(m.id);
-              const recent = prices.slice(-2);
-              const spot = recent.at(-1)?.price_value ?? null;
-              const prev = recent.length >= 2 ? recent[recent.length - 2].price_value : null;
-              const changePct = spot != null && prev != null && prev !== 0 ? ((spot - prev) / prev) * 100 : null;
-              return {
-                market: m,
-                spot,
-                prevSpot: prev,
-                changePct,
-                asOf: recent.at(-1)?.timestamp ?? null,
-              };
-            } catch {
-              return { market: m, spot: null, prevSpot: null, changePct: null, asOf: null };
-            }
-          })
-        );
+        const overview = await getMarketsOverview();
+        const filled = overview.map(({ market, spot, previous_spot, change }): TickerRow => ({
+          market,
+          spot,
+          prevSpot: previous_spot,
+          changePct:
+            change != null && previous_spot != null && previous_spot !== 0
+              ? (change / previous_spot) * 100
+              : null,
+        }));
         if (!cancelled) {
           setRows(filled);
           setPulse((p) => (p + 1) % 1_000_000);
@@ -64,11 +56,19 @@ export function MarketsTicker({ activeCode }: { activeCode?: string }) {
       }
     }
 
+    // Catch up when the user returns to a backgrounded tab (polls are
+    // skipped while hidden; the 30s floor in load() dedupes rapid toggles).
+    function onVisible() {
+      if (!document.hidden) load(false);
+    }
+
     load(true);
     const id = window.setInterval(() => load(false), POLL_MS);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 

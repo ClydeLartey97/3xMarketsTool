@@ -15,8 +15,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getRadar, type RadarItem, type RadarResponse } from "@/lib/api";
 import { useMarketStream } from "@/lib/use-market-stream";
 
-// Poll floor: refresh even if the live stream is unavailable.
-const RADAR_POLL_MS = 60_000;
+// Poll floor: refresh even if the live stream is unavailable. The worker
+// only rescans every ~30 min and pushes `radar_updated` over the stream, so
+// this is a safety net, not the live path — keep it slow to spare quota.
+const RADAR_POLL_MS = 300_000;
 
 function fmtGbp(value: number): string {
   const sign = value < 0 ? "−" : "";
@@ -162,14 +164,22 @@ export function RadarPanel() {
     }
   }, []);
 
-  // Initial fetch + interval poll floor.
+  // Initial fetch + interval poll floor. Polls are skipped while the tab is
+  // hidden; a visibility listener catches the board up on return instead.
   useEffect(() => {
     mounted.current = true;
     refresh();
-    const id = setInterval(refresh, RADAR_POLL_MS);
+    const id = setInterval(() => {
+      if (!document.hidden) refresh();
+    }, RADAR_POLL_MS);
+    const onVisible = () => {
+      if (!document.hidden) refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       mounted.current = false;
       clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [refresh]);
 
