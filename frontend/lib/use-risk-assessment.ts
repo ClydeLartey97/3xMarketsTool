@@ -42,6 +42,10 @@ export type RiskAssessmentState = {
 };
 
 const DEBOUNCE_MS = 120;
+// Crosshair scrubbing across the chart changes only the cursor timestamp —
+// give it a longer settle so a sweep across the chart costs one simulation,
+// not one per hour-cell crossed.
+const CURSOR_DEBOUNCE_MS = 450;
 const PAUSED_STATE: RiskAssessmentState = { data: null, loading: false, error: null };
 
 function sameTargetTimestamp(left?: string | null, right?: string | null) {
@@ -95,6 +99,7 @@ export function useRiskAssessment(inputs: RiskInputs): RiskAssessmentState {
   const [state, setState] = useState<RiskAssessmentState>(PAUSED_STATE);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastKeyRef = useRef<string | null>(null);
+  const lastBaseKeyRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -105,20 +110,24 @@ export function useRiskAssessment(inputs: RiskInputs): RiskAssessmentState {
       return;
     }
 
-    const requestKey = [
+    const baseKey = [
       inputs.marketCode,
       inputs.position,
       inputs.direction,
       inputs.horizon,
-      inputs.cursorTimestampMs ?? "",
       inputs.paused ? 1 : 0,
     ].join("|");
+    const requestKey = `${baseKey}|${inputs.cursorTimestampMs ?? ""}`;
     // If the last completed request was for the exact same logical inputs,
     // skip refiring. Different cursor timestamp / position / horizon will
     // still produce a new key and recompute.
     if (lastKeyRef.current === requestKey) {
       return;
     }
+    // A change where only the cursor timestamp moved (chart scrubbing) gets
+    // the longer settle; edits to the trade inputs stay snappy.
+    const debounceMs = lastBaseKeyRef.current === baseKey ? CURSOR_DEBOUNCE_MS : DEBOUNCE_MS;
+    lastBaseKeyRef.current = baseKey;
 
     const target = inputs.cursorTimestampMs
       ? new Date(inputs.cursorTimestampMs).toISOString()
@@ -179,7 +188,7 @@ export function useRiskAssessment(inputs: RiskInputs): RiskAssessmentState {
             error: err instanceof Error ? err.message : "assessment failed",
           });
         });
-    }, DEBOUNCE_MS);
+    }, debounceMs);
 
     return () => {
       cancelled = true;

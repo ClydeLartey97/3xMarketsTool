@@ -293,7 +293,13 @@ export function MarketWorkbench({
                 livePriceTick={livePriceTick}
                 events={dashboard?.recent_events ?? []}
                 timezoneLabel={market.timezone}
-                onCrosshair={(p) => setCursorTs(p?.timestampMs ?? null)}
+                onCrosshair={(p) =>
+                  // Quantise to the hour: price data is hourly, so finer
+                  // timestamps are identical inputs to the risk engine —
+                  // without this, every pixel of crosshair travel fires a
+                  // fresh Monte Carlo run against the backend.
+                  setCursorTs(p ? Math.floor(p.timestampMs / 3_600_000) * 3_600_000 : null)
+                }
                 riskOverlay={riskOverlay}
               />
             ) : (
