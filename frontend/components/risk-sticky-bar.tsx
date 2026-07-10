@@ -51,45 +51,44 @@ export function RiskStickyBar({
 
   return (
     <>
-      {/* Desktop / tablet: right-rail compact read panel */}
+      {/* Desktop / tablet: right-rail vertical bubble stack */}
       <aside
         aria-hidden={!visible}
         aria-label="Risk read"
-        className={`fixed right-4 z-40 hidden w-[168px] flex-col transition-all duration-300 ease-out sm:flex ${
+        className={`fixed right-4 z-40 hidden flex-col items-center gap-3 transition-all duration-300 ease-out sm:flex ${
           visible ? "translate-x-0 opacity-100" : "translate-x-[140%] opacity-0 pointer-events-none"
         }`}
         style={{ top: APP_NAV_HEIGHT_PX + 24 }}
       >
-        <div
-          className={`overflow-hidden rounded-xl border border-seam bg-surface/95 shadow backdrop-blur ${
-            loading ? "animate-pulse" : ""
-          }`}
-        >
-          <div className="border-b border-seam px-3 py-2">
-            <p className="text-[11px] font-semibold text-ink/70">{marketCode}</p>
-            <p className="truncate text-[10px] text-ink/40">{marketName}</p>
-          </div>
-          <dl className="divide-y divide-seam/60">
-            <RailRow label="Risk" value={risk} tone="text-price-dn" />
-            <RailRow
-              label="Likely"
-              value={likely}
-              tone={likelyTone === "up" ? "text-price-up" : "text-price-dn"}
-            />
-            <RailRow label="Upside" value={upside} tone="text-price-up" />
-          </dl>
-          <button
-            type="button"
-            onClick={onEdit}
-            title="Jump back to inputs"
-            className="w-full border-t border-seam px-3 py-2 text-left text-[11px] font-medium text-ink/55 transition hover:bg-ink/5 hover:text-ink"
-          >
-            Edit inputs
-          </button>
+        <div className="mb-1 flex flex-col items-center gap-0.5">
+          <span className="rounded-md bg-ink/5 px-2 py-0.5 text-[11px] font-medium text-ink/55">
+            {marketCode}
+          </span>
+          <span className="max-w-[120px] truncate text-center text-[10px] text-ink/45">
+            {marketName}
+          </span>
         </div>
+
+        <MiniBubble label="Risk" value={risk} tone="text-price-dn" loading={loading} />
+        <MiniBubble
+          label="Likely"
+          value={likely}
+          tone={likelyTone === "up" ? "text-price-up" : "text-price-dn"}
+          loading={loading}
+        />
+        <MiniBubble label="Upside" value={upside} tone="text-price-up" loading={loading} />
+
+        <button
+          type="button"
+          onClick={onEdit}
+          title="Jump back to inputs"
+          className="mt-1 rounded-full border border-seam bg-surface px-3 py-1.5 text-xs font-medium text-ink/60 shadow-sm transition hover:border-seam-hi hover:text-ink"
+        >
+          Edit
+        </button>
         <p
           title="Modelled distributions, not realised outcomes. Educational tool — not financial advice."
-          className="mt-2 text-center text-[10px] text-ink/30"
+          className="text-center text-[10px] text-ink/30"
         >
           Modelled · not advice
         </p>
@@ -138,13 +137,29 @@ export function RiskStickyBar({
   );
 }
 
-// Colour lives only in the number — the panel itself stays neutral,
-// matching the hero stat panel.
-function RailRow({ label, value, tone }: { label: string; value: string; tone: string }) {
+// Colour lives only in the number — the circle itself stays neutral,
+// using the shared `.orb` treatment from the hero bubbles.
+function MiniBubble({
+  label,
+  value,
+  tone,
+  loading,
+}: {
+  label: string;
+  value: string;
+  tone: string;
+  loading: boolean;
+}) {
   return (
-    <div className="flex items-baseline justify-between px-3 py-2">
-      <dt className="text-[11px] font-medium text-ink/45">{label}</dt>
-      <dd className={`font-mono text-[13px] font-semibold tabular-nums ${tone}`}>{value}</dd>
+    <div
+      className={`orb flex h-[88px] w-[88px] flex-col items-center justify-center rounded-full ${
+        loading ? "animate-pulse" : ""
+      }`}
+    >
+      <span className="mb-0.5 text-[10px] font-medium text-ink/45">{label}</span>
+      <span className={`font-mono text-[13px] font-semibold tabular-nums leading-tight ${tone}`}>
+        {value}
+      </span>
     </div>
   );
 }
