@@ -38,14 +38,14 @@ export default async function HomePage() {
       <main className="animate-fade-in">
         <div className="mb-14 rise max-w-3xl pt-4 sm:pt-10">
           <h1 className="mb-5 font-display text-5xl font-medium leading-[1.08] tracking-[-0.015em] text-ink sm:text-[64px]">
-            The power markets,
+            Power market prices,
             <br />
-            <span className="italic text-ink/80">read closely.</span>
+            forecasts and risk.
           </h1>
           <p className="mb-6 max-w-xl text-lg leading-relaxed text-ink/60">
-            Live prices, forward curves and event-driven risk across{" "}
-            {markets.length} wholesale electricity markets — distilled into three
-            numbers you can act on.
+            Live spot prices, 48-hour forecasts and event-driven risk for{" "}
+            {markets.length} wholesale electricity markets in the US, UK and
+            Europe.
           </p>
           <p className="text-sm text-ink/45">
             Built by{" "}

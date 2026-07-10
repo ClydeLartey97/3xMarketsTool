@@ -132,25 +132,12 @@ export function RiskStickyBar({
   );
 }
 
-const TONE_BUBBLE: Record<"risk" | "likely" | "upside", { ring: string; glow: string; text: string; chip: string }> = {
-  risk: {
-    ring: "border-price-dn/40",
-    glow: "shadow-[0_0_24px_rgba(220,38,38,0.18)]",
-    text: "text-price-dn",
-    chip: "bg-price-dn/10 text-price-dn",
-  },
-  likely: {
-    ring: "border-price-up/40",
-    glow: "shadow-[0_0_24px_rgba(5,150,105,0.18)]",
-    text: "text-price-up",
-    chip: "bg-price-up/10 text-price-up",
-  },
-  upside: {
-    ring: "border-price-up/40",
-    glow: "shadow-[0_0_24px_rgba(5,150,105,0.18)]",
-    text: "text-price-up",
-    chip: "bg-price-up/10 text-price-up",
-  },
+// Colour lives only in the number — the circles themselves stay neutral
+// (hairline border, flat surface, no glow), matching the hero bubbles.
+const TONE_BUBBLE: Record<"risk" | "likely" | "upside", { text: string }> = {
+  risk: { text: "text-price-dn" },
+  likely: { text: "text-price-up" },
+  upside: { text: "text-price-up" },
 };
 
 function MiniBubble({
@@ -167,14 +154,12 @@ function MiniBubble({
   const cls = TONE_BUBBLE[tone];
   return (
     <div
-      className={`flex h-[88px] w-[88px] flex-col items-center justify-center rounded-full border bg-surface/95 backdrop-blur transition ${
-        cls.ring
-      } ${cls.glow} ${loading ? "animate-pulse" : ""}`}
+      className={`flex h-[88px] w-[88px] flex-col items-center justify-center rounded-full border border-seam bg-surface/95 shadow-sm backdrop-blur transition ${
+        loading ? "animate-pulse" : ""
+      }`}
     >
-      <span className={`mb-0.5 inline-flex rounded-full px-1.5 py-px text-[10px] font-medium ${cls.chip}`}>
-        {label}
-      </span>
-      <span className={`text-[13px] font-semibold tabular-nums leading-tight ${cls.text}`}>
+      <span className="mb-0.5 text-[10px] font-medium text-ink/40">{label}</span>
+      <span className={`font-mono text-[13px] font-semibold tabular-nums leading-tight ${cls.text}`}>
         {value}
       </span>
     </div>

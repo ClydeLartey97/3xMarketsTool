@@ -4,9 +4,10 @@
  * circles. This is the gravitational centre of the whole product — every
  * other panel exists to back up or explain these three numbers.
  *
- * Visual treatment: soft glass-morphic circles with coloured borders.
- * Numbers animate up on first render, cross-fade on subsequent updates.
- * Loading state shows an animated pulse.
+ * Visual treatment: plain circles — hairline neutral border, flat surface,
+ * no glow. Colour lives only in the number itself, the same way it does in
+ * the price cards. Numbers animate up on first render, cross-fade on
+ * subsequent updates. Loading state shows an animated pulse.
  */
 import { useEffect, useRef, useState } from "react";
 
@@ -22,25 +23,10 @@ export type RiskBubblesProps = {
 
 type BubbleTone = "risk" | "likely" | "upside";
 
-const TONE_CLASSES: Record<BubbleTone, { ring: string; glow: string; text: string; chip: string }> = {
-  risk: {
-    ring: "border-price-dn/40",
-    glow: "shadow-[0_0_60px_rgba(220,38,38,0.12)]",
-    text: "text-price-dn",
-    chip: "bg-price-dn/10 text-price-dn",
-  },
-  likely: {
-    ring: "border-ink/15",
-    glow: "shadow-[0_0_60px_rgba(8,17,26,0.08)]",
-    text: "text-ink",
-    chip: "bg-ink/10 text-ink/70",
-  },
-  upside: {
-    ring: "border-price-up/40",
-    glow: "shadow-[0_0_60px_rgba(5,150,105,0.12)]",
-    text: "text-price-up",
-    chip: "bg-price-up/10 text-price-up",
-  },
+const TONE_CLASSES: Record<BubbleTone, { text: string }> = {
+  risk: { text: "text-price-dn" },
+  likely: { text: "text-ink" },
+  upside: { text: "text-price-up" },
 };
 
 const SIZE_CLASSES = {
@@ -203,17 +189,15 @@ function Bubble({
     <div
       title={tooltip}
       aria-label={`${label}: ${loading ? "loading" : formatGbp(rawValue, signed)}. ${tooltip}`}
-      className={`group relative flex flex-col items-center justify-center rounded-full border bg-surface backdrop-blur transition ${
-        cls.ring
-      } ${cls.glow} ${sizeClasses.bubble} ${loading ? "animate-pulse" : ""}`}
+      className={`group relative flex flex-col items-center justify-center rounded-full border border-seam bg-surface shadow transition ${
+        sizeClasses.bubble
+      } ${loading ? "animate-pulse" : ""}`}
     >
-      <span
-        className={`mb-1 inline-flex rounded-full px-2.5 py-0.5 font-medium ${cls.chip} ${sizeClasses.label}`}
-      >
+      <span className={`mb-1 font-medium text-ink/40 ${sizeClasses.label}`}>
         {label}
       </span>
       <span
-        className={`font-semibold tabular-nums ${cls.text} ${sizeClasses.value}`}
+        className={`font-mono font-semibold tabular-nums ${cls.text} ${sizeClasses.value}`}
       >
         {display}
       </span>
