@@ -1,13 +1,12 @@
 "use client";
 /**
- * The three-bubble hero. Risk / Likely / Upside rendered as three large
- * circles. This is the gravitational centre of the whole product — every
- * other panel exists to back up or explain these three numbers.
- *
- * Visual treatment: plain circles — hairline neutral border, flat surface,
- * no glow. Colour lives only in the number itself, the same way it does in
- * the price cards. Numbers animate up on first render, cross-fade on
- * subsequent updates. Loading state shows an animated pulse.
+ * The three-number hero. Risk / Likely / Upside rendered as one wide stat
+ * panel split into three columns by hairlines — the same surface, border,
+ * and shadow language as every other panel on the page, so it reads as the
+ * headline row of a designed system rather than a decorative graphic.
+ * Colour is carried only by the numerals (mono, tabular), exactly like the
+ * price cards. Numbers animate up on first render and cross-fade on
+ * subsequent updates; loading shows a soft pulse.
  */
 import { useEffect, useRef, useState } from "react";
 
@@ -17,30 +16,30 @@ export type RiskBubblesProps = {
   data: RiskAssessment | null;
   loading: boolean;
   error?: string | null;
-  /** Smaller bubble layout for tight screens / embedded contexts. */
+  /** Smaller layout for tight screens / embedded contexts. */
   size?: "lg" | "md";
 };
 
 type BubbleTone = "risk" | "likely" | "upside";
 
-const TONE_CLASSES: Record<BubbleTone, { text: string }> = {
-  risk: { text: "text-price-dn" },
-  likely: { text: "text-ink" },
-  upside: { text: "text-price-up" },
+const TONE_TEXT: Record<BubbleTone, string> = {
+  risk: "text-price-dn",
+  likely: "text-ink",
+  upside: "text-price-up",
 };
 
 const SIZE_CLASSES = {
   lg: {
-    bubble: "h-[200px] w-[200px] sm:h-[220px] sm:w-[220px]",
+    cell: "px-6 py-8 sm:py-10",
     label: "text-[11px]",
-    value: "text-3xl sm:text-4xl",
-    helper: "text-[10px]",
+    value: "text-4xl sm:text-5xl",
+    helper: "text-[11px]",
   },
   md: {
-    bubble: "h-[140px] w-[140px]",
+    cell: "px-4 py-5",
     label: "text-[10px]",
     value: "text-2xl",
-    helper: "text-[9px]",
+    helper: "text-[10px]",
   },
 } as const;
 
@@ -121,37 +120,43 @@ export function RiskBubbles({ data, loading, error, size = "lg" }: RiskBubblesPr
   const upside = data?.upside_gbp ?? 0;
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      <div className="grid w-full grid-cols-1 place-items-center gap-6 sm:grid-cols-3 sm:gap-8">
-        <Bubble
-          tone="risk"
-          label="Risk"
-          helper="Worst 5%"
-          rawValue={risk}
-          loading={showSkeleton}
-          sizeClasses={sizeClasses}
-          tooltip="Expected loss in the worst 5% of simulated outcomes."
-        />
-        <Bubble
-          tone="likely"
-          label="Likely"
-          helper="Expected"
-          rawValue={likely}
-          signed
-          loading={showSkeleton}
-          sizeClasses={sizeClasses}
-          tooltip="Average outcome across all simulated paths."
-        />
-        <Bubble
-          tone="upside"
-          label="Upside"
-          helper="Best 5%"
-          rawValue={upside}
-          signed
-          loading={showSkeleton}
-          sizeClasses={sizeClasses}
-          tooltip="Expected gain in the best 5% of simulated outcomes."
-        />
+    <div className="flex flex-col items-center gap-4">
+      <div
+        className={`w-full overflow-hidden rounded-2xl border border-seam bg-surface shadow ${
+          showSkeleton ? "animate-pulse" : ""
+        }`}
+      >
+        <div className="grid grid-cols-1 divide-y divide-seam sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <Figure
+            tone="risk"
+            label="Risk"
+            helper="Worst 5% of outcomes"
+            rawValue={risk}
+            loading={showSkeleton}
+            sizeClasses={sizeClasses}
+            tooltip="Expected loss in the worst 5% of simulated outcomes."
+          />
+          <Figure
+            tone="likely"
+            label="Likely"
+            helper="Expected outcome"
+            rawValue={likely}
+            signed
+            loading={showSkeleton}
+            sizeClasses={sizeClasses}
+            tooltip="Average outcome across all simulated paths."
+          />
+          <Figure
+            tone="upside"
+            label="Upside"
+            helper="Best 5% of outcomes"
+            rawValue={upside}
+            signed
+            loading={showSkeleton}
+            sizeClasses={sizeClasses}
+            tooltip="Expected gain in the best 5% of simulated outcomes."
+          />
+        </div>
       </div>
       {error ? (
         <p className="rounded-md border border-price-dn/30 bg-price-dn/10 px-3 py-1.5 text-[11px] text-price-dn">
@@ -162,7 +167,7 @@ export function RiskBubbles({ data, loading, error, size = "lg" }: RiskBubblesPr
   );
 }
 
-function Bubble({
+function Figure({
   tone,
   label,
   helper,
@@ -182,28 +187,19 @@ function Bubble({
   tooltip: string;
 }) {
   const animated = useAnimatedNumber(rawValue);
-  const cls = TONE_CLASSES[tone];
   const display = loading ? "—" : formatGbp(animated, signed);
 
   return (
     <div
       title={tooltip}
       aria-label={`${label}: ${loading ? "loading" : formatGbp(rawValue, signed)}. ${tooltip}`}
-      className={`group relative flex flex-col items-center justify-center rounded-full border border-seam bg-surface shadow transition ${
-        sizeClasses.bubble
-      } ${loading ? "animate-pulse" : ""}`}
+      className={`flex flex-col items-center justify-center text-center ${sizeClasses.cell}`}
     >
-      <span className={`mb-1 font-medium text-ink/40 ${sizeClasses.label}`}>
-        {label}
-      </span>
-      <span
-        className={`font-mono font-semibold tabular-nums ${cls.text} ${sizeClasses.value}`}
-      >
+      <span className={`mb-2 font-medium text-ink/45 ${sizeClasses.label}`}>{label}</span>
+      <span className={`font-mono font-semibold tabular-nums ${TONE_TEXT[tone]} ${sizeClasses.value}`}>
         {display}
       </span>
-      <span className={`mt-1 font-medium text-ink/40 ${sizeClasses.helper}`}>
-        {helper}
-      </span>
+      <span className={`mt-2 text-ink/35 ${sizeClasses.helper}`}>{helper}</span>
     </div>
   );
 }

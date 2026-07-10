@@ -59,17 +59,16 @@ export function MarketHero({
     onAssessmentChange?.({ data, loading, inputs });
   }, [data, loading, inputs, onAssessmentChange]);
 
-  // Scroll choreography for the three bubbles, driven from one rAF loop off a
-  // passive scroll listener (no React re-render per frame):
-  //   1. Dissolve — as the page leaves the top the bubbles ease out (fade +
+  // Scroll choreography for the three-number panel:
+  //   1. Dissolve — as the page leaves the top the panel eases out (fade +
   //      gentle scale-down + slight lift) rather than just scrolling away.
-  //      Gated behind prefers-reduced-motion.
-  //   2. Hand-off — the sticky side rail appears ONLY once the bubbles have
-  //      scrolled out of view (their bottom edge tucks under the app nav);
-  //      while any of them is still on screen it stays hidden. Runs
-  //      regardless of motion preference. Measuring the live position (rather
-  //      than an IntersectionObserver ratio) is what keeps it correct when
-  //      the hero sits below the market-identity strip.
+  //      Driven from one rAF loop off a passive scroll listener; gated
+  //      behind prefers-reduced-motion.
+  //   2. Hand-off — the sticky side rail appears ONLY once the panel has
+  //      scrolled out of view (its bottom edge tucks under the app nav).
+  //      This uses an IntersectionObserver rather than the scroll loop so it
+  //      is correct on first paint, after restored scroll positions, and in
+  //      browsers that throttle rAF — the two states can never show together.
   useEffect(() => {
     const el = bubblesRef.current;
     if (!el || typeof window === "undefined") return;
@@ -77,31 +76,42 @@ export function MarketHero({
 
     const START = 40; // grace before the dissolve begins
     const END = 280; // fully dissolved by here
-    const NAV = 72; // ~app nav height; bubbles count as gone above this line
+    const NAV = 72; // ~app nav height; the panel counts as gone above this line
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const gone = !entry.isIntersecting && entry.boundingClientRect.bottom <= NAV;
+        setStickyVisible((prev) => (prev === gone ? prev : gone));
+      },
+      { rootMargin: `-${NAV}px 0px 0px 0px`, threshold: 0 },
+    );
+    observer.observe(el);
+
     let raf = 0;
     const render = () => {
       raf = 0;
-      if (allowMotion) {
-        const raw = (window.scrollY - START) / (END - START);
-        const p = Math.min(1, Math.max(0, raw));
-        // ease-in-out cubic — gentle at both ends.
-        const eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
-        el.style.opacity = String(1 - eased);
-        el.style.transform = `translateY(${(-eased * 18).toFixed(2)}px) scale(${(1 - eased * 0.06).toFixed(4)})`;
-        el.style.pointerEvents = eased > 0.9 ? "none" : "";
-      }
-      const gone = el.getBoundingClientRect().bottom <= NAV;
-      setStickyVisible((prev) => (prev === gone ? prev : gone));
+      const raw = (window.scrollY - START) / (END - START);
+      const p = Math.min(1, Math.max(0, raw));
+      // ease-in-out cubic — gentle at both ends.
+      const eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+      el.style.opacity = String(1 - eased);
+      el.style.transform = `translateY(${(-eased * 18).toFixed(2)}px) scale(${(1 - eased * 0.06).toFixed(4)})`;
+      el.style.pointerEvents = eased > 0.9 ? "none" : "";
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(render);
     };
-    render();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
+    if (allowMotion) {
+      render();
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", onScroll, { passive: true });
+    }
     return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
+      observer.disconnect();
+      if (allowMotion) {
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("resize", onScroll);
+      }
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
